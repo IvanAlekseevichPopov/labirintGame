@@ -15,7 +15,7 @@ export function setLevels(list) {
   levels = list;
 }
 
-export function startLevel(index, now) {
+export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
   const { planet, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
@@ -30,22 +30,24 @@ export function startLevel(index, now) {
     moveStart: -Infinity,
     moveMs: MIN_STEP_MS,
     nextMoveAt: 0,
+    moving: false,
     blocked: false,
     bump: null,
     angle: facing.angle,
     targetAngle: facing.angle,
     wonAt: null,
+    phase: 'playing',
     inputFrom: now + INPUT_LOCK_MS,
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
   });
   resetInput();
-  events.push({ type: 'levelStart', index });
+  events.push({ type: 'levelStart', index, restart });
 }
 
 export function restartLevel(now) {
-  if (state.maze && state.wonAt === null) startLevel(state.index, now);
+  if (state.maze && state.wonAt === null) startLevel(state.index, now, { restart: true });
 }
 
 // Directions in press order; `fresh` is a press made with nothing else held (moves at once,
@@ -104,6 +106,10 @@ function move(dir, now, cellPx) {
   state.moveMs = stepMs(cellPx);
   state.targetAngle = angle;
   state.pendingTrack = { a: { x, y }, b: state.player };
+  state.moving = true;
+  events.push({ type: 'move', dir });
+  const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
+  if (landmark) events.push({ type: 'landmark', kind: landmark.type });
 }
 
 // Tracks are laid once the rover has left them behind, so they never appear ahead of it.
@@ -118,10 +124,34 @@ function flushTrack() {
   state.tracks.push(seg);
 }
 
-// Advances the game to `now`; returns what happened since the last call.
+// Advances the game to `now`; returns what happened since the last call:
+// levelStart, move, bump, landmark, stop, and the win sequence arrive → ignite → liftoff.
 export function update(now, dt, cellPx) {
   step(now, dt, cellPx);
+  // While a direction is still held the rover keeps going, even through the key-repeat pause,
+  // so the engine sound should not cut out between steps.
+  const stepDone = now >= state.moveStart + state.moveMs;
+  if (state.moving && stepDone && (!input.held.length || state.blocked)) {
+    state.moving = false;
+    events.push({ type: 'stop' });
+  }
   return events.splice(0);
+}
+
+// Phases of the win sequence, entered in order at these times after the rover arrives.
+const WIN_PHASES = [
+  { phase: 'arrived', event: 'arrive', at: 0 },
+  { phase: 'ignited', event: 'ignite', at: WIN.ignite },
+  { phase: 'launched', event: 'liftoff', at: WIN.lift },
+];
+
+function advanceWin(now) {
+  const t = now - state.wonAt;
+  for (const p of WIN_PHASES.slice(WIN_PHASES.findIndex(p => p.phase === state.phase) + 1)) {
+    if (t < p.at) break;
+    state.phase = p.phase;
+    events.push({ type: p.event });
+  }
 }
 
 function step(now, dt, cellPx) {
@@ -131,6 +161,7 @@ function step(now, dt, cellPx) {
 
   if (state.wonAt !== null) {
     resetInput();
+    advanceWin(now);
     if (now - state.wonAt > WIN.next) startLevel(state.index + 1, now);
     return;
   }
@@ -149,7 +180,10 @@ function step(now, dt, cellPx) {
   const dir = wanted.find(isOpen);
   if (!dir) {
     state.targetAngle = DIRS[wanted[0]].angle;
-    if (!state.blocked) state.bump = { dir: wanted[0], at: now };
+    if (!state.blocked) {
+      state.bump = { dir: wanted[0], at: now };
+      events.push({ type: 'bump', dir: wanted[0] });
+    }
     state.blocked = true;
     return;
   }

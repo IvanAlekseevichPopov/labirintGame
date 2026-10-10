@@ -4,7 +4,7 @@ import { state, roverPos } from './game.js';
 import { PLANETS } from './planets.js';
 import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
-import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawText, useContext } from './art.js';
+import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -250,7 +250,7 @@ function drawSky(now, w, h) {
 }
 
 
-export function render(now) {
+export function render(now, { soundOff = false } = {}) {
   const planet = PLANETS[state.planet];
   const { w, h, header, cell, ox, oy } = layout();
   const toPx = p => [ox + (p.x + 0.5) * cell, oy + (p.y + 0.5) * cell];
@@ -287,6 +287,31 @@ export function render(now) {
   }
 
   if (winT !== null && winT >= WIN.lift) drawText('Ура!', w / 2, h / 2, h * 0.18, 'center', '#ffd60a');
+  if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
+}
+
+// Start screen: the rover of the level about to be played circles on a patch of its planet.
+export function renderTitle(now, { planet, levelNumber }) {
+  const w = innerWidth, h = innerHeight;
+  const p = PLANETS[planet];
+  drawSky(now, w, h);
+
+  const cx = w / 2, cy = h * 0.57, r = Math.min(w, h) * 0.17;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
+  ctx.fillStyle = p.floor;
+  ctx.fill();
+  ctx.lineWidth = r * 0.12;
+  ctx.strokeStyle = p.wallBase;
+  ctx.stroke();
+  const a = now / 1600;
+  ROVERS[p.rover](cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2, Math.min(w, h) * 0.13);
+
+  drawText('Космический лабиринт', w / 2, h * 0.15, h * 0.09, 'center', '#ffd60a');
+  drawText(`${p.name} — уровень ${levelNumber}`, w / 2, h * 0.26, h * 0.045, 'center', '#ffffff');
+  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 300);
+  drawText('Нажми Enter', w / 2, h * 0.9, h * 0.06, 'center', '#ffffff');
+  ctx.globalAlpha = 1;
 }
 
 // Shown instead of the game so a broken hand-edited level is obvious rather than a frozen screen.

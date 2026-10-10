@@ -1,34 +1,43 @@
-// Keyboard and gamepad, translated into game.press/release.
+// Keyboard, mouse and gamepad, turned into actions for main.js to route to the current scene:
+//   { type: 'dir', dir, down, source }   a direction pressed or released
+//   { type: 'confirm' }                   start / OK
+//   { type: 'restart' }
+//   { type: 'gesture' }                   a key or click: the browser now allows sound
+//   { type: 'blur' }                      the window lost focus, key-ups will not arrive
 
-import * as game from './game.js';
 import {
-  KEY_TO_DIR, PAD_PRESS, PAD_RELEASE, PAD_RESTART_BUTTON, PAD_STANDARD_DPAD, RESTART_KEYS,
+  CONFIRM_KEYS, KEY_TO_DIR, PAD_PRESS, PAD_RELEASE, PAD_RESTART_BUTTON, PAD_STANDARD_DPAD, RESTART_KEYS,
 } from './config.js';
 
-export function installKeyboard() {
+export function installInput(handle) {
   addEventListener('keydown', e => {
-    if (RESTART_KEYS.includes(e.key)) {
-      if (!e.repeat) game.restartLevel(performance.now());
-      return;
-    }
+    handle({ type: 'gesture' });
     const dir = KEY_TO_DIR[e.key];
-    if (!dir) return;
-    e.preventDefault();
-    if (!e.repeat) game.press(dir, 'key', performance.now());
+    if (dir || CONFIRM_KEYS.includes(e.key)) e.preventDefault();
+    if (e.repeat) return;
+    if (dir) handle({ type: 'dir', dir, down: true, source: 'key' });
+    else if (RESTART_KEYS.includes(e.key)) handle({ type: 'restart' });
+    else if (CONFIRM_KEYS.includes(e.key)) handle({ type: 'confirm' });
   });
   addEventListener('keyup', e => {
-    if (KEY_TO_DIR[e.key]) game.release(KEY_TO_DIR[e.key], 'key');
+    const dir = KEY_TO_DIR[e.key];
+    if (dir) handle({ type: 'dir', dir, down: false, source: 'key' });
   });
-  // Key-ups that happen while the window is unfocused never arrive.
-  addEventListener('blur', () => game.forgetSource('key'));
+  addEventListener('pointerdown', () => {
+    handle({ type: 'gesture' });
+    handle({ type: 'confirm' });
+  });
+  addEventListener('blur', () => handle({ type: 'blur' }));
 }
 
-const pad = { restart: false };
+// Gamepads have no events for buttons or axes, so they are polled once per frame and
+// reported on change. Pad presses do not count as a gesture: Chrome does not unlock sound for them.
+const pad = { dirs: new Set(), buttons: new Set() };
 
 function readPadDirs(gp) {
   const dirs = new Set();
   // Hysteresis keeps a jittery axis near the threshold from re-pressing every frame.
-  const on = (dir, v) => v >= (game.input.bySource.pad.has(dir) ? PAD_RELEASE : PAD_PRESS);
+  const on = (dir, v) => v >= (pad.dirs.has(dir) ? PAD_RELEASE : PAD_PRESS);
   const [x = 0, y = 0] = gp.axes;
   if (on('left', -x)) dirs.add('left');
   if (on('right', x)) dirs.add('right');
@@ -40,18 +49,22 @@ function readPadDirs(gp) {
   return dirs;
 }
 
-// Gamepads have no events for buttons or axes, so they are polled once per frame.
-export function pollGamepads(now) {
+export function pollGamepads(handle) {
   const dirs = new Set();
-  let restart = false;
+  const buttons = new Set();
   for (const gp of navigator.getGamepads?.() ?? []) {
     if (!gp) continue;
     for (const dir of readPadDirs(gp)) dirs.add(dir);
-    if (gp.buttons[PAD_RESTART_BUTTON]?.pressed) restart = true;
+    gp.buttons.forEach((b, i) => {
+      if (b.pressed && !(gp.mapping === 'standard' && i in PAD_STANDARD_DPAD)) buttons.add(i);
+    });
   }
-  const held = game.input.bySource.pad;
-  for (const dir of [...held]) if (!dirs.has(dir)) game.release(dir, 'pad');
-  for (const dir of dirs) if (!held.has(dir)) game.press(dir, 'pad', now);
-  if (restart && !pad.restart) game.restartLevel(now);
-  pad.restart = restart;
+  for (const dir of pad.dirs) if (!dirs.has(dir)) handle({ type: 'dir', dir, down: false, source: 'pad' });
+  for (const dir of dirs) if (!pad.dirs.has(dir)) handle({ type: 'dir', dir, down: true, source: 'pad' });
+  for (const i of buttons) {
+    if (pad.buttons.has(i)) continue;
+    handle({ type: i === PAD_RESTART_BUTTON ? 'restart' : 'confirm' });
+  }
+  pad.dirs = dirs;
+  pad.buttons = buttons;
 }

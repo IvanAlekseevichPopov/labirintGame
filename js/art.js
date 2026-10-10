@@ -264,3 +264,26 @@ export function drawText(text, x, y, size, align, color) {
 
 export const ROVERS = { lunokhod: drawLunokhod, marsRover: drawMarsRover, icebreaker: drawIcebreaker };
 export const UPRIGHT_LANDMARKS = { flag: drawFlag, antenna: drawAntenna };
+
+// Speaker with a cross: the game runs, but the browser has not allowed sound yet.
+export function drawSoundOff(cx, cy, size) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(size, size);
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-0.45, -0.15);
+  ctx.lineTo(-0.25, -0.15);
+  ctx.lineTo(0, -0.4);
+  ctx.lineTo(0, 0.4);
+  ctx.lineTo(-0.25, 0.15);
+  ctx.lineTo(-0.45, 0.15);
+  ctx.closePath();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.lineCap = 'round';
+  line([[0.15, -0.2], [0.45, 0.2]], '#ff6b6b', 0.1);
+  line([[0.15, 0.2], [0.45, -0.2]], '#ff6b6b', 0.1);
+  ctx.restore();
+}
+

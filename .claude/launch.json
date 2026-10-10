@@ -4,7 +4,7 @@
     {
       "name": "labirint",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8123"],
+      "runtimeArgs": ["tools/dev-server.py", "8123"],
       "port": 8123
     }
   ]

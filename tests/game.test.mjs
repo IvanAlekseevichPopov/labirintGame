@@ -5,12 +5,12 @@ import { FIRST_REPEAT_MS, INPUT_LOCK_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from
 
 const { state, input } = game;
 
-// Corridor from S to the right; at x=2 a dead end goes up, at x=4 it turns down and right to R.
+// Corridor from S to the right; at x=2 a dead end with a flag goes up, at x=4 it turns down and right to R.
 const CORRIDOR = {
   planet: 'moon',
   map: `
 #############
-# # # # # # #
+# # #F# # # #
 ##### #######
 #S        # #
 ######### ###
@@ -60,7 +60,7 @@ test('a level starts at S facing along the route and reports levelStart', () => 
   assert.deepEqual(state.player, { x: 0, y: 1 });
   assert.equal(state.angle, 0);
   assert.equal(state.planet, 'mars');
-  assert.deepEqual(run(16), [{ type: 'levelStart', index: 1 }]);
+  assert.deepEqual(run(16), [{ type: 'levelStart', index: 1, restart: false }]);
 });
 
 test('input is ignored right after a level starts', () => {
@@ -178,7 +178,7 @@ test('restart puts the rover back, clears tracks and reports levelStart', () => 
   game.restartLevel(now);
   assert.deepEqual(state.player, { x: 0, y: 1 });
   assert.equal(state.tracks.length, 0);
-  assert.deepEqual(run(FRAME_MS), [{ type: 'levelStart', index: 0 }]);
+  assert.deepEqual(run(FRAME_MS), [{ type: 'levelStart', index: 0, restart: true }]);
 });
 
 test('reaching the rocket wins, blocks input and starts the next level', () => {
@@ -190,8 +190,56 @@ test('reaching the rocket wins, blocks input and starts the next level', () => {
   game.restartLevel(now);
   assert.equal(state.index, 0, 'restart is ignored during the win animation');
   const events = run(WIN.next + STEP_MS);
-  assert.deepEqual(events, [{ type: 'levelStart', index: 1 }]);
+  assert.deepEqual(events.at(-1), { type: 'levelStart', index: 1, restart: false });
   assert.equal(input.held.length, 0, 'a key held through the win does not drive the new level');
+});
+
+const types = events => events.map(e => e.type);
+
+test('the drive to the rocket is reported as events, win phases in order', () => {
+  game.press('right', 'key', now);
+  const events = run(FIRST_REPEAT_MS + 3 * STEP_MS + FRAME_MS);
+  game.release('right', 'key');
+  game.press('down', 'key', now);
+  events.push(...run(FRAME_MS));
+  game.release('down', 'key');
+  events.push(...run(STEP_MS));
+  game.press('right', 'key', now);
+  events.push(...run(FRAME_MS));
+  game.release('right', 'key');
+  events.push(...run(STEP_MS + WIN.next + FRAME_MS));
+
+  const seen = types(events);
+  assert.equal(seen.filter(t => t === 'move').length, 6);
+  assert.equal(seen.filter(t => t === 'bump').length, 0, 'the last right step was not into a wall');
+  const order = ['arrive', 'ignite', 'liftoff', 'levelStart'].map(t => seen.indexOf(t));
+  assert.ok(order.every((i, k) => i > (order[k - 1] ?? seen.lastIndexOf('move'))), seen.join(' '));
+  assert.equal(state.phase, 'playing', 'the next level starts in play');
+});
+
+test('holding a direction keeps the engine running through the key-repeat pause', () => {
+  game.press('right', 'key', now);
+  const events = run(FIRST_REPEAT_MS + 2 * STEP_MS + FRAME_MS);
+  assert.deepEqual(types(events), ['move', 'move', 'move']);
+  game.release('right', 'key');
+  assert.deepEqual(types(run(STEP_MS)), ['stop']);
+});
+
+test('driving into a wall bumps and stops the engine', () => {
+  game.press('right', 'key', now);
+  const events = run(FIRST_REPEAT_MS + 4 * STEP_MS + FRAME_MS);
+  assert.deepEqual(types(events), ['move', 'move', 'move', 'move', 'bump', 'stop']);
+  assert.deepEqual(events[4], { type: 'bump', dir: 'right' });
+});
+
+test('driving onto a landmark reports it', () => {
+  tap('right');
+  run(STEP_MS);
+  tap('right');
+  run(STEP_MS);
+  game.press('up', 'key', now);
+  const events = run(FRAME_MS);
+  assert.deepEqual(events.slice(0, 2), [{ type: 'move', dir: 'up' }, { type: 'landmark', kind: 'flag' }]);
 });
 
 test('levels wrap around after the last one', () => {

@@ -21,6 +21,7 @@ export const DIRS = {
 
 export const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 export const RESTART_KEYS = ['r', 'R', 'к', 'К'];
+export const CONFIRM_KEYS = ['Enter', ' '];
 // Cheap pads (mapping "") report the d-pad as axes 0/1; standard-mapped pads as buttons 12–15.
 export const PAD_PRESS = 0.5;
 export const PAD_RELEASE = 0.3;
