@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Тест геймпада</title>
+<style>
+  body { font: 18px/1.4 ui-monospace, monospace; background: #111; color: #eee; padding: 16px; }
+  #live { white-space: pre; color: #7ee8fa; }
+  #log { white-space: pre; }
+</style>
+</head>
+<body>
+<h2>Нажми любую кнопку на геймпаде</h2>
+<div id="live"></div>
+<h3>Лог изменений</h3>
+<div id="log"></div>
+<script>
+const live = document.getElementById('live');
+const log = document.getElementById('log');
+const prev = {};
+
+addEventListener('gamepadconnected', e => {
+  log.textContent += `connected #${e.gamepad.index}: ${e.gamepad.id} mapping="${e.gamepad.mapping}" axes=${e.gamepad.axes.length} buttons=${e.gamepad.buttons.length}\n`;
+});
+
+(function poll() {
+  const lines = [];
+  for (const gp of navigator.getGamepads()) {
+    if (!gp) continue;
+    const axes = gp.axes.map((v, i) => `a${i}=${v.toFixed(2)}`).join(' ');
+    const pressed = gp.buttons.map((b, i) => b.pressed ? `b${i}` : null).filter(Boolean).join(' ');
+    lines.push(`#${gp.index} ${gp.id}\n  ${axes}\n  pressed: ${pressed}`);
+
+    const active = [
+      ...gp.axes.map((v, i) => Math.abs(v) > 0.3 ? `a${i}=${v.toFixed(2)}` : null),
+      ...gp.buttons.map((b, i) => b.pressed ? `b${i}` : null),
+    ].filter(Boolean).join(' ');
+    if (prev[gp.index] !== active) {
+      prev[gp.index] = active;
+      log.textContent += `#${gp.index}: ${active || '(отпущено)'}\n`;
+    }
+  }
+  live.textContent = lines.join('\n') || 'геймпадов не видно';
+  requestAnimationFrame(poll);
+})();
+</script>
+</body>
+</html>
