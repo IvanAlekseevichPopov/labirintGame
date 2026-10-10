@@ -4,6 +4,7 @@ import { state, roverPos } from './game.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
+import { createWeather, weatherIntensity } from './weather.js';
 import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 
 const canvas = document.getElementById('game');
@@ -15,6 +16,7 @@ const mazeLayer = document.createElement('canvas');
 const trackLayer = document.createElement('canvas');
 let drawnTracks = 0;
 let decor = null;
+let drawWeather = null;
 let stars = [];
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
@@ -53,8 +55,9 @@ function makeDecor() {
   };
 }
 
-export function levelChanged() {
+export function levelChanged(levelCount) {
   decor = makeDecor();
+  drawWeather = createWeather(state.planet, weatherIntensity(state.index + 1, levelCount));
   buildMazeLayer();
   buildTrackLayer();
 }
@@ -286,6 +289,10 @@ export function render(now, { soundOff = false } = {}) {
     ROVERS[planet.rover](rx + dx * nudge, ry + dy * nudge, state.angle, cell * ROVER_RATIO * shrink);
   }
 
+  if (drawWeather) {
+    const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };
+    drawWeather(ctx, now, { w, h }, area);
+  }
   if (winT !== null && winT >= WIN.lift) drawText('Ура!', w / 2, h / 2, h * 0.18, 'center', '#ffd60a');
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
 }
