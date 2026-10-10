@@ -3,14 +3,12 @@
 //   { type: 'confirm' }                   start / OK
 //   { type: 'pause' }                     Start on the gamepad, Esc
 //   { type: 'select' }                    Select on the gamepad
-//   { type: 'restart' }                   R, for the parent
-//   { type: 'toggleMusic' }
 //   { type: 'gesture' }                   a key or click: the browser now allows sound
 //   { type: 'blur' }                      the window lost focus, key-ups will not arrive
 
 import {
-  CONFIRM_KEYS, KEY_TO_DIR, MUSIC_KEYS, PAD_PRESS, PAD_RELEASE, PAD_SELECT_BUTTON, PAD_STANDARD_DPAD, PAD_START_BUTTON,
-  PAUSE_KEYS, RESTART_KEYS,
+  CONFIRM_KEYS, KEY_TO_DIR, PAD_PRESS, PAD_RELEASE, PAD_SELECT_BUTTON, PAD_STANDARD_DPAD, PAD_START_BUTTON,
+  PAUSE_KEYS,
 } from './config.js';
 
 export function installInput(handle) {
@@ -20,9 +18,7 @@ export function installInput(handle) {
     if (dir || CONFIRM_KEYS.includes(e.key)) e.preventDefault();
     if (e.repeat) return;
     if (dir) handle({ type: 'dir', dir, down: true, source: 'key' });
-    else if (RESTART_KEYS.includes(e.key)) handle({ type: 'restart' });
     else if (CONFIRM_KEYS.includes(e.key)) handle({ type: 'confirm' });
-    else if (MUSIC_KEYS.includes(e.key)) handle({ type: 'toggleMusic' });
     else if (PAUSE_KEYS.includes(e.key)) handle({ type: 'pause' });
   });
   addEventListener('keyup', e => {

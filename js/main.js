@@ -30,9 +30,8 @@ function saveSwitch(key, on) {
     // Private mode or blocked storage: the switch still works until the page is reloaded.
   }
 }
-let musicOn = loadSwitch('labirint.music');
+// All sound settings live in the pause menu; there are no hidden keys for them.
 let soundOn = loadSwitch('labirint.sound');
-audio.setMusicEnabled(musicOn);
 audio.setMuted(!soundOn);
 
 // Game time stops while paused, so a step, the win sequence and animations resume where they left off.
@@ -125,12 +124,7 @@ function onInput(action) {
     gestureSeen = true;
     audio.unlock();
   }
-  if (action.type === 'toggleMusic') {
-    musicOn = !musicOn;
-    audio.setMusicEnabled(musicOn);
-    saveSwitch('labirint.music', musicOn);
-  }
-  const anyButton = ['confirm', 'pause', 'select', 'restart'].includes(action.type);
+  const anyButton = ['confirm', 'pause', 'select'].includes(action.type);
   if (scene === 'title') {
     // On the start screen any button or d-pad press starts, so a kid with only the gamepad can too.
     if (anyButton || (action.type === 'dir' && action.down)) startPlaying(now);
@@ -140,8 +134,6 @@ function onInput(action) {
       else game.release(action.dir, action.source);
     } else if (action.type === 'pause') {
       openPause(now);
-    } else if (action.type === 'restart') {
-      game.restartLevel(gameTime(now));
     } else if (action.type === 'blur') {
       game.forgetSource('key');
     }
@@ -150,9 +142,6 @@ function onInput(action) {
       closePause(now);
     } else if (action.type === 'confirm') {
       choosePauseItem(now);
-    } else if (action.type === 'restart') {
-      closePause(now);
-      game.restartLevel(gameTime(now));
     } else if (action.type === 'dir' && action.down && (action.dir === 'up' || action.dir === 'down')) {
       const step = action.dir === 'up' ? -1 : 1;
       pauseSelected = (pauseSelected + step + PAUSE_ITEMS.length) % PAUSE_ITEMS.length;
