@@ -1,0 +1,266 @@
+// Sprites drawn straight onto the main canvas: rovers, landmarks, rocket, text.
+
+const OUTLINE = '#1c1e26';
+let ctx;
+
+export function useContext(context) {
+  ctx = context;
+}
+
+function box(cx, cy, w, h, r, fill, stroke = false) {
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, r);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+function dot(cx, cy, r, fill) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function line(points, color, width) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(...points[0]);
+  for (const pt of points.slice(1)) ctx.lineTo(...pt);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Rovers are drawn in unit space facing +x, scaled to `size` pixels.
+function withRoverSpace(cx, cy, angle, size, draw) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.scale(size, size);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  draw();
+  ctx.restore();
+}
+
+function drawLunokhod(cx, cy, angle, size) {
+  withRoverSpace(cx, cy, angle, size, () => {
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.03;
+    for (const x of [-0.33, -0.11, 0.11, 0.33]) {
+      for (const y of [-0.4, 0.4]) box(x, y, 0.17, 0.13, 0.04, '#2b2d33', true);
+    }
+    box(0, 0, 0.84, 0.68, 0.14, '#d5d9e0', true);
+    box(-0.12, 0, 0.52, 0.6, 0.05, '#2f6fd6', true);
+    for (const x of [-0.25, -0.12, 0.01]) line([[x, -0.28], [x, 0.28]], '#8fb8ff', 0.015);
+    for (const y of [-0.1, 0.1]) line([[-0.36, y], [0.12, y]], '#8fb8ff', 0.015);
+    for (const y of [-0.16, 0.16]) dot(0.31, y, 0.06, '#ffd60a');
+  });
+}
+
+// The ice drill sits at the front, so the direction of travel is obvious at a glance.
+function drawIcebreaker(cx, cy, angle, size) {
+  withRoverSpace(cx, cy, angle, size, () => {
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.03;
+    for (const y of [-0.36, 0.36]) {
+      box(-0.04, y, 0.82, 0.2, 0.09, '#2b2d33', true);
+      for (let x = -0.4; x <= 0.33; x += 0.12) line([[x, y - 0.08], [x, y + 0.08]], '#5b5f6b', 0.03);
+    }
+    ctx.beginPath();
+    ctx.moveTo(0.27, -0.13);
+    ctx.lineTo(0.56, 0);
+    ctx.lineTo(0.27, 0.13);
+    ctx.closePath();
+    ctx.fillStyle = '#c3c8d1';
+    ctx.fill();
+    ctx.stroke();
+    line([[0.33, -0.09], [0.37, 0.07]], OUTLINE, 0.02);
+    line([[0.41, -0.06], [0.45, 0.04]], OUTLINE, 0.02);
+    box(-0.06, 0, 0.62, 0.52, 0.1, '#ff7a1a', true);
+    box(0.13, 0, 0.13, 0.36, 0.04, '#1d3557', true);
+    line([[0.1, -0.12], [0.1, -0.02]], '#8fb8ff', 0.025);
+    for (const y of [-0.21, 0.21]) {
+      dot(0.19, y, 0.055, '#ffd60a');
+      ctx.stroke();
+    }
+    box(-0.3, 0, 0.08, 0.2, 0.03, '#7a3a10');
+  });
+}
+
+function drawMarsRover(cx, cy, angle, size) {
+  withRoverSpace(cx, cy, angle, size, () => {
+    for (const y of [-0.4, 0.4]) line([[-0.3, y], [0.3, y]], '#5a5650', 0.05);
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.03;
+    for (const x of [-0.3, 0, 0.3]) {
+      for (const y of [-0.4, 0.4]) {
+        box(x, y, 0.2, 0.15, 0.05, '#33302c', true);
+        dot(x, y, 0.035, '#9a958c');
+      }
+    }
+    box(-0.4, 0, 0.18, 0.2, 0.04, '#3b3b40', true);
+    box(-0.02, 0, 0.6, 0.54, 0.05, '#ece6da', true);
+    box(-0.06, 0.06, 0.34, 0.26, 0.03, '#c9bfae');
+    line([[0.28, 0.12], [0.42, 0.12], [0.42, -0.02]], '#7a7670', 0.04);
+    dot(0.42, -0.04, 0.05, '#5a5650');
+    box(0.14, -0.15, 0.16, 0.13, 0.03, '#fafafa', true);
+    dot(0.22, -0.18, 0.025, '#1d4ed8');
+    dot(0.22, -0.12, 0.025, '#1d4ed8');
+  });
+}
+
+// Upright landmarks use the same side-view unit space as the rocket: base at y=0, top at y=-1.
+function withUprightSpace(cx, baseY, size, draw) {
+  ctx.save();
+  ctx.translate(cx, baseY);
+  ctx.scale(size, size);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  draw();
+  ctx.restore();
+}
+
+function outlinedLine(points, color, width) {
+  line(points, OUTLINE, width + 0.05);
+  line(points, color, width);
+}
+
+function drawFlag(cx, baseY, size, now) {
+  withUprightSpace(cx, baseY, size, () => {
+    const wave = Math.sin(now / 250) * 0.04;
+    outlinedLine([[0, 0], [0, -1]], '#e8eaef', 0.05);
+    ctx.beginPath();
+    ctx.moveTo(0.03, -0.98);
+    ctx.quadraticCurveTo(0.3, -0.98 + wave, 0.6, -0.96);
+    ctx.lineTo(0.6, -0.62);
+    ctx.quadraticCurveTo(0.3, -0.64 + wave, 0.03, -0.62);
+    ctx.closePath();
+    ctx.fillStyle = '#ff8c42';
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.03;
+    ctx.stroke();
+    dot(0.3, -0.8 + wave / 2, 0.08, '#ffffff');
+  });
+}
+
+function drawAntenna(cx, baseY, size, now) {
+  withUprightSpace(cx, baseY, size, () => {
+    outlinedLine([[-0.25, 0], [0, -0.45], [0.25, 0]], '#9aa1ad', 0.05);
+    outlinedLine([[0, 0], [0, -0.55]], '#9aa1ad', 0.05);
+    ctx.translate(0, -0.6);
+    ctx.rotate(-0.5);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.42, 0.18, 0, 0, Math.PI);
+    ctx.closePath();
+    ctx.fillStyle = '#f1f3f6';
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.03;
+    ctx.stroke();
+    line([[0, 0.1], [0, -0.3]], OUTLINE, 0.03);
+    dot(0, -0.32, 0.06, Math.floor(now / 600) % 2 ? '#ff3b30' : '#7a1d18');
+  });
+}
+
+export function drawPad(cx, cy, cell, now) {
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, cell * 0.42, cell * 0.14, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#2d2f38';
+  ctx.fill();
+  ctx.strokeStyle = `rgba(255, 214, 10, ${0.5 + 0.4 * Math.sin(now / 300)})`;
+  ctx.lineWidth = cell * 0.04;
+  ctx.stroke();
+}
+
+// Rocket stands upright (side view) in unit space: base at y=0, nose at y=-1.
+export function drawRocket(cx, baseY, size, flame, now) {
+  ctx.save();
+  ctx.translate(cx, baseY);
+  ctx.scale(size, size);
+  ctx.lineJoin = 'round';
+
+  if (flame) {
+    const len = 0.45 + 0.08 * Math.sin(now / 30);
+    const g = ctx.createLinearGradient(0, 0, 0, len);
+    g.addColorStop(0, '#fff3b0');
+    g.addColorStop(0.4, '#ffb703');
+    g.addColorStop(1, 'rgba(230, 57, 70, 0)');
+    ctx.beginPath();
+    ctx.moveTo(-0.11, -0.02);
+    ctx.quadraticCurveTo(0, len * 1.1, 0.11, -0.02);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  // Thick outline: the white body has to stand out even on pale ice.
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 0.04;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.18, -0.38);
+    ctx.lineTo(side * 0.36, -0.02);
+    ctx.lineTo(side * 0.18, -0.1);
+    ctx.closePath();
+    ctx.fillStyle = '#e63946';
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(-0.1, -0.1);
+  ctx.lineTo(0.1, -0.1);
+  ctx.lineTo(0.13, 0);
+  ctx.lineTo(-0.13, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#4a4d57';
+  ctx.fill();
+  ctx.stroke();
+
+  const body = new Path2D();
+  body.moveTo(-0.2, -0.1);
+  body.lineTo(-0.2, -0.6);
+  body.quadraticCurveTo(-0.2, -1, 0, -1);
+  body.quadraticCurveTo(0.2, -1, 0.2, -0.6);
+  body.lineTo(0.2, -0.1);
+  body.closePath();
+  const shade = ctx.createLinearGradient(-0.2, 0, 0.2, 0);
+  shade.addColorStop(0, '#c4c8d0');
+  shade.addColorStop(0.4, '#ffffff');
+  shade.addColorStop(1, '#a9aeb8');
+  ctx.fillStyle = shade;
+  ctx.fill(body);
+  ctx.save();
+  ctx.clip(body);
+  ctx.fillStyle = '#e63946';
+  ctx.fillRect(-0.25, -1.05, 0.5, 0.27);
+  ctx.restore();
+  ctx.stroke(body);
+
+  ctx.beginPath();
+  ctx.arc(0, -0.5, 0.09, 0, Math.PI * 2);
+  ctx.fillStyle = '#4cc9f0';
+  ctx.fill();
+  ctx.lineWidth = 0.035;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+export function drawText(text, x, y, size, align, color) {
+  ctx.font = `bold ${size}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.15;
+  ctx.strokeStyle = '#070a1f';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+export const ROVERS = { lunokhod: drawLunokhod, marsRover: drawMarsRover, icebreaker: drawIcebreaker };
+export const UPRIGHT_LANDMARKS = { flag: drawFlag, antenna: drawAntenna };

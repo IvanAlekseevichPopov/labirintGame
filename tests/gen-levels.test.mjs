@@ -4,17 +4,23 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ROOT, PLANETS, loadFormat } from './helpers.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseLevel, levelDistances } from '../level-format.js';
+import { PLANET_KEYS } from '../js/planets.js';
+
+const ROOT = new URL('../', import.meta.url);
 
 // The generator writes next to itself, so run a copy in a temp dir to keep the real levels.js intact.
 let dir, script, out;
 
 before(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'labirint-gen-'));
-  fs.mkdirSync(path.join(dir, 'tools'));
-  fs.copyFileSync(fileURLToPath(new URL('tools/gen-levels.mjs', ROOT)), path.join(dir, 'tools', 'gen-levels.mjs'));
-  fs.copyFileSync(fileURLToPath(new URL('level-format.js', ROOT)), path.join(dir, 'level-format.js'));
+  // The whole project minus levels.js, so whatever the generator imports is there.
+  const root = fileURLToPath(ROOT);
+  fs.cpSync(root, dir, {
+    recursive: true,
+    filter: src => !/\/(\.git|\.idea|node_modules)(\/|$)/.test(src) && src !== path.join(root, 'levels.js'),
+  });
   script = path.join(dir, 'tools', 'gen-levels.mjs');
   out = path.join(dir, 'levels.js');
   execFileSync(process.execPath, [script], { stdio: 'pipe' });
@@ -22,11 +28,12 @@ before(() => {
 
 after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-const readLevels = () => {
-  const { parseLevel } = loadFormat();
-  const source = fs.readFileSync(out, 'utf8');
-  return { source, levels: new Function(`${source}; return LEVELS;`)(), parseLevel };
-};
+// A fresh query string per read: import() caches modules by URL.
+let reads = 0;
+const readLevels = async () => ({
+  source: fs.readFileSync(out, 'utf8'),
+  levels: (await import(`${pathToFileURL(out).href}?read=${++reads}`)).LEVELS,
+});
 
 test('refuses to overwrite levels.js without --force', () => {
   const before = fs.readFileSync(out, 'utf8');
@@ -43,32 +50,31 @@ test('is deterministic', () => {
   assert.ok(!fs.existsSync(`${out}.tmp`));
 });
 
-test('--only regenerates the listed levels and keeps hand edits elsewhere', () => {
-  const { source, levels } = readLevels();
+test('--only regenerates the listed levels and keeps hand edits elsewhere', async () => {
+  const { source, levels } = await readLevels();
   // Stand-ins for hand edits: level 3 and level 7 get other valid mazes.
   fs.writeFileSync(out, source.replace(levels[2].map, levels[1].map).replace(levels[6].map, levels[0].map));
   execFileSync(process.execPath, [script, '--only', '3'], { stdio: 'pipe' });
 
-  const after = readLevels().levels;
+  const after = (await readLevels()).levels;
   assert.equal(after[2].map.trim(), levels[2].map.trim(), 'level 3 regenerated');
   assert.equal(after[6].map.trim(), levels[0].map.trim(), 'level 7 hand edit kept');
   execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
 });
 
-test('generates 40 valid levels cycling planets in blocks of 3', () => {
-  const { levels, parseLevel } = readLevels();
+test('generates 40 valid levels cycling planets in blocks of 3', async () => {
+  const { levels } = await readLevels();
   assert.equal(levels.length, 40);
   levels.forEach((level, i) => {
-    parseLevel(level, i + 1, PLANETS);
-    assert.equal(level.planet, PLANETS[Math.floor(i / 3) % PLANETS.length], `level ${i + 1}`);
+    parseLevel(level, i + 1, PLANET_KEYS);
+    assert.equal(level.planet, PLANET_KEYS[Math.floor(i / 3) % PLANET_KEYS.length], `level ${i + 1}`);
   });
 });
 
-test('routes get longer from the first levels to the last', () => {
-  const { levels, parseLevel } = readLevels();
-  const { levelDistances } = loadFormat();
+test('routes get longer from the first levels to the last', async () => {
+  const { levels } = await readLevels();
   const pathLength = i => {
-    const { maze, start, goal } = parseLevel(levels[i], i + 1, PLANETS);
+    const { maze, start, goal } = parseLevel(levels[i], i + 1, PLANET_KEYS);
     return levelDistances(maze, start).get(`${goal.x},${goal.y}`).dist;
   };
   const avg = idx => idx.reduce((sum, i) => sum + pathLength(i), 0) / idx.length;

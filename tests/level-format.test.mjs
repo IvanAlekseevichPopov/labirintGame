@@ -1,10 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadFormat, plain, PLANETS } from './helpers.mjs';
+import { parseLevel, levelDistances } from '../level-format.js';
+import { PLANET_KEYS } from '../js/planets.js';
 
-const { parseLevel, levelDistances } = loadFormat();
-
-const parse = (map, planet = 'moon') => plain(parseLevel({ planet, map }, 7, PLANETS));
+const parse = (map, planet = 'moon') => parseLevel({ planet, map }, 7, PLANET_KEYS);
 const failsWith = (map, pattern, planet) => assert.throws(() => parse(map, planet), pattern);
 
 const SMALL = `
@@ -62,8 +61,8 @@ test('reports uneven and even-sized maps', () => {
 });
 
 test('reports an empty level left by a stray comma', () => {
-  assert.throws(() => parseLevel(undefined, 3, PLANETS), /Уровень 3: пустой уровень/);
-  assert.throws(() => parseLevel(null, 3, PLANETS), /лишняя запятая/);
+  assert.throws(() => parseLevel(undefined, 3, PLANET_KEYS), /Уровень 3: пустой уровень/);
+  assert.throws(() => parseLevel(null, 3, PLANET_KEYS), /лишняя запятая/);
 });
 
 test('reports an unknown planet', () => {
@@ -74,5 +73,5 @@ test('levelDistances gives distance and first step for every reachable cell', ()
   const { maze, start } = parse(SMALL);
   const dist = levelDistances(maze, start);
   assert.equal(dist.size, 6);
-  assert.deepEqual(plain(dist.get('0,1')), { dist: 5, first: 'right' });
+  assert.deepEqual(dist.get('0,1'), { dist: 5, first: 'right' });
 });

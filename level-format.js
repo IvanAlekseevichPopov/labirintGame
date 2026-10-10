@@ -1,9 +1,9 @@
-// Level text format, shared by the game (classic <script>) and tools/gen-levels.mjs (via vm).
+// Level text format, shared by the game, tools/gen-levels.mjs and the tests.
 // Cells sit at odd rows/columns; the characters between them are walls.
 
 const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', F: 'flag', A: 'antenna', C: 'crater' };
 const LEVEL_WALL_CHARS = ['#', ' '];
-const LEVEL_DIRS = [
+export const LEVEL_DIRS = [
   { dx: 0, dy: -1, wall: 'top' },
   { dx: 0, dy: 1, wall: 'bottom' },
   { dx: -1, dy: 0, wall: 'left' },
@@ -12,7 +12,7 @@ const LEVEL_DIRS = [
 
 // Tolerates what hand editing tends to leave: CRLF, trailing spaces, a common indent,
 // blank lines around the map.
-function normalizeLevelLines(map) {
+export function normalizeLevelLines(map) {
   const lines = map.split(/\r?\n/).map(l => l.trimEnd());
   while (lines.length && !lines[0]) lines.shift();
   while (lines.length && !lines[lines.length - 1]) lines.pop();
@@ -20,7 +20,7 @@ function normalizeLevelLines(map) {
   return lines.map(l => l.slice(indent));
 }
 
-function parseLevel(level, number, planets) {
+export function parseLevel(level, number, planets) {
   const fail = msg => { throw new Error(`Уровень ${number}: ${msg}`); };
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
@@ -82,7 +82,7 @@ function parseLevel(level, number, planets) {
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,
 // where `first` is the wall name of the first step on a shortest path to that cell.
-function levelDistances(maze, from) {
+export function levelDistances(maze, from) {
   const seen = new Map([[`${from.x},${from.y}`, { dist: 0, first: null }]]);
   const queue = [from];
   while (queue.length) {
