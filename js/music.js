@@ -105,8 +105,8 @@ export function parseSong(song, name = 'song') {
 const repeat = (bar, times) => Array(times).fill(bar).join(' | ');
 const arp8 = (a, b, c, d) => `${a}/8 ${b}/8 ${c}/8 ${b}/8 ${d}/8 ${b}/8 ${c}/8 ${b}/8`;
 const bass = (root, fifth) => `${root}/2. ${fifth}/4`;
-const walk = (a, b, c) => `${a}/4 ${b}/4 ${c}/4 ${b}/4`;
-const drone = (a, b) => `${a}/2 ${b}/2`;
+const riff = (a, b) => `-/8 ${a}/8 ${a}/8 -/8 ${b}/8 -/8 ${a}/8 ${a}/8`;
+const bounce = (root, octave) => `${root}/8 ${root}/8 ${octave}/8 ${root}/8 ${root}/16 ${root}/16 ${octave}/8 ${root}/8 ${root}/8`;
 
 const MOON_CHORDS = {
   C: { arp: arp8('C4', 'G4', 'C5', 'E5'), bass: bass('C3', 'G2') },
@@ -117,15 +117,18 @@ const MOON_CHORDS = {
 };
 const MOON_PROGRESSION = ['C', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G'];
 
-// A harmonic minor: the G# gives the desert its eastern tint, the bass walks in even quarters.
+// D Dorian: minor with a major IV (G), the NES adventure sound. The bass is a bouncing
+// root/octave ostinato, pulse2 a syncopated riff on chord tones.
 const MARS_CHORDS = {
-  Am: { drone: drone('E4', 'A4'), bass: walk('A2', 'C3', 'E3') },
-  Dm: { drone: drone('F4', 'D4'), bass: walk('D3', 'F3', 'A2') },
-  E: { drone: drone('E4', 'G#4'), bass: walk('E2', 'G#2', 'B2') },
-  F: { drone: drone('F4', 'A4'), bass: walk('F2', 'A2', 'C3') },
+  Dm: { riff: riff('A4', 'F4'), bass: bounce('D2', 'D3') },
+  G: { riff: riff('B4', 'G4'), bass: bounce('G2', 'G3') },
+  C: { riff: riff('G4', 'E4'), bass: bounce('C2', 'C3') },
+  Am: { riff: riff('A4', 'E4'), bass: bounce('A2', 'A3') },
+  F: { riff: riff('C5', 'A4'), bass: bounce('F2', 'F3') },
 };
-const MARS_A = ['Am', 'Am', 'Dm', 'E', 'Am', 'F', 'E', 'Am'];
-const MARS_PROGRESSION = [...MARS_A, ...MARS_A];
+const MARS_A = ['Dm', 'Dm', 'G', 'G', 'Dm', 'Dm', 'C', 'G'];
+const MARS_B = ['F', 'G', 'Dm', 'Dm', 'F', 'G', 'Am', 'G'];
+const MARS_PROGRESSION = [...MARS_A, ...MARS_B, ...MARS_A];
 
 // E minor, two bars per chord; the bass is tied across them.
 const EUROPA_PROGRESSION = ['Em', 'Em', 'C', 'C', 'Am', 'Am', 'Bm', 'Bm', 'Em', 'C', 'Am', 'Bm'];
@@ -138,25 +141,26 @@ const MOON_LEAD_A2 = 'E5/4 G5/4 C6/2 | B5/4 A5/4 G5/2 | A5/2 F5/4 D5/4 | E5/2 -/
 const MOON_LEAD_B = 'G5/4. E5/8 B4/2 | C5/4. E5/8 A5/2 | A5/4 C6/4 A5/4 F5/4 | G5/2. -/4';
 const MOON_LEAD_A3 = 'E5/2. D5/4 | C5/2 E5/4 G5/4 | A5/2 F5/2 | D5/2 B4/4 -/4';
 
+// Short rising theme; the desert shows only in passing notes (Eb, Bb, C#).
 const MARS_LEAD_A = [
-  'E5/4 A5/4. G#5/8 A5/4',
-  'C6/4 B5/8 A5/8 G#5/2',
-  'F5/4 F5/8 E5/8 D5/4 F5/4',
-  'E5/2 G#5/4 B5/4',
-  'C6/4 B5/8 C6/8 A5/4 E5/4',
-  'F5/4. E5/8 D5/4 C5/4',
-  'D5/4 C5/8 B4/8 G#4/2',
-  'A4/2. -/4',
+  'D5/8 D5/16 D5/16 F5/8 G5/8 A5/4 A5/8 G5/8',
+  'A5/8 C6/8 D6/4 C6/8 A5/8 F5/4',
+  'G5/8 G5/16 G5/16 B5/8 D6/8 E6/4 D6/8 B5/8',
+  'A5/8 B5/8 A5/8 G5/8 E5/2',
+  'D5/8 D5/16 D5/16 F5/8 G5/8 A5/4 C6/8 D6/8',
+  'Eb6/16 D6/16 C6/8 A5/4 G5/8 F5/8 G5/4',
+  'E5/8 G5/8 C6/8 G5/8 A5/4 G5/4',
+  'F5/8 E5/8 D5/8 C#5/8 D5/2',
 ].join(' | ');
 const MARS_LEAD_B = [
-  'A5/8 B5/8 C6/8 B5/8 A5/4 G#5/4',
-  'A5/4 C6/4 E6/2',
-  'F6/8 E6/8 D6/8 C6/8 D6/4 A5/4',
-  'B5/4. G#5/8 E5/2',
-  'E5/8 F5/8 E5/8 D5/8 C5/4 A4/4',
-  'F5/4 A5/4 C6/4 A5/4',
-  'B5/4 G#5/8 B5/8 D6/4 B5/4',
-  'A5/2. -/4',
+  'A5/8 A5/16 A5/16 C6/8 D6/8 F6/4 E6/8 C6/8',
+  'D6/8 B5/8 G5/8 B5/8 D6/2',
+  'F6/8 E6/8 D6/8 C6/8 A5/4 F5/4',
+  'G5/8 A5/8 Bb5/16 A5/16 G5/8 F5/8 D5/4 A4/8',
+  'C5/8 D5/8 F5/8 G5/8 A5/4 C6/4',
+  'B5/8 A5/8 G5/8 A5/8 B5/4 D6/4',
+  'E6/8 D6/8 C6/8 B5/8 A5/4 C6/4',
+  'B5/8 C#6/8 D6/8 A5/8 G5/4 -/4',
 ].join(' | ');
 
 // Sparse drops on the ice; pulse2 repeats them an eighth later and quieter, as an echo.
@@ -183,7 +187,7 @@ const EUROPA_WIND = [
   '-/4 w/2.', 'W/1', 'w/1', 'W/2 w/2', '-/2 W/2', 'w/1',
 ].join(' | ');
 
-// Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 16 bars at 100 (~38 s),
+// Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 24 bars at 120 (48 s),
 // Europa 12 bars at 72 (~40 s).
 export const SONGS = {
   moon: {
@@ -199,15 +203,15 @@ export const SONGS = {
     },
   },
   mars: {
-    bpm: 100,
+    bpm: 120,
     channels: {
       pulse1: {
-        notes: [MARS_LEAD_A, MARS_LEAD_B].join(' | '),
-        duty: 0.25, env: 'soft', vol: 0.55, vibrato: { hz: 6, cents: 10, delay: 12 },
+        notes: [MARS_LEAD_A, MARS_LEAD_B, MARS_LEAD_A].join(' | '),
+        duty: 0.25, env: 'pluck', decay: 18, vol: 0.55, vibrato: { hz: 6, cents: 8, delay: 14 },
       },
-      pulse2: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'drone'), duty: 0.125, env: 'soft', vol: 0.3 },
+      pulse2: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'riff'), duty: 0.125, env: 'pluck', decay: 6, vol: 0.4 },
       triangle: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'bass'), env: 'hold', vol: 0.8 },
-      noise: { notes: repeat('K/4 H/8 H/8 S/4 H/8 H/8', 16), vol: 0.3 },
+      noise: { notes: repeat('K/8 H/8 S/8 H/8 K/8 K/16 H/16 S/8 H/16 H/16', 24), vol: 0.35 },
     },
   },
   europa: {
