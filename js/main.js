@@ -1,4 +1,4 @@
-// Entry point: loads and checks levels, switches scenes (title → playing, or error),
+// Entry point: loads and checks levels, switches scenes (title → playing → finale, or error),
 // routes input to the current scene, keeps #level in the URL.
 
 import { parseLevel } from '../level-format.js';
@@ -98,6 +98,11 @@ function onInput(action) {
     } else if (action.type === 'blur') {
       game.forgetSource('key');
     }
+  } else if (scene === 'finale') {
+    if (action.type === 'confirm' || action.type === 'restart') {
+      titleIndex = 0;
+      startPlaying(now);
+    }
   }
 }
 
@@ -134,6 +139,10 @@ function handle(event) {
       audio.sfx('liftoff');
       audio.sfx('cheer');
       break;
+    case 'finished':
+      scene = 'finale';
+      audio.playMusic('moon');
+      break;
   }
 }
 
@@ -147,6 +156,8 @@ function frame(now) {
     } else if (scene === 'playing') {
       for (const event of game.update(now, now - lastFrameAt, renderer.cellSize())) handle(event);
       renderer.render(now, { soundOff: !gestureSeen });
+    } else if (scene === 'finale') {
+      renderer.renderFinale(now);
     }
   } catch (error) {
     fail(error);

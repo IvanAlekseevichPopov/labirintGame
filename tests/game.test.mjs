@@ -242,6 +242,17 @@ test('driving onto a landmark reports it', () => {
   assert.deepEqual(events.slice(0, 2), [{ type: 'move', dir: 'up' }, { type: 'landmark', kind: 'flag' }]);
 });
 
+test('winning the last level finishes the game instead of starting another', () => {
+  game.startLevel(1, now);
+  run(INPUT_LOCK_MS);
+  driveToRocket();
+  const events = run(STEP_MS + WIN.next + FRAME_MS);
+  assert.equal(events.at(-1).type, 'finished');
+  assert.ok(!types(events).includes('levelStart'));
+  assert.equal(state.phase, 'finished');
+  assert.deepEqual(run(1000), [], 'nothing happens after the finish');
+});
+
 test('levels wrap around after the last one', () => {
   game.startLevel(2, now);
   assert.equal(state.index, 0);

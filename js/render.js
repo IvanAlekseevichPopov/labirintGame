@@ -1,7 +1,7 @@
 // Everything drawn on the canvas: layout, cached maze and track layers, the frame itself.
 
 import { state, roverPos } from './game.js';
-import { PLANETS } from './planets.js';
+import { PLANETS, PLANET_KEYS } from './planets.js';
 import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
@@ -288,6 +288,37 @@ export function render(now, { soundOff = false } = {}) {
 
   if (winT !== null && winT >= WIN.lift) drawText('Ура!', w / 2, h / 2, h * 0.18, 'center', '#ffd60a');
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
+}
+
+// After the last level: all three rovers in a row, bobbing happily, and a button to play again.
+export function renderFinale(now) {
+  const w = innerWidth, h = innerHeight;
+  drawSky(now, w, h);
+  drawText('Все роверы', w / 2, h * 0.16, h * 0.08, 'center', '#ffd60a');
+  drawText('выполнили свои миссии!', w / 2, h * 0.27, h * 0.08, 'center', '#ffd60a');
+
+  const size = Math.min(w * 0.18, h * 0.22);
+  PLANET_KEYS.forEach((planet, i) => {
+    const phase = now / 350 + i * 2;
+    const x = w / 2 + (i - 1) * size * 1.4;
+    const y = h * 0.53 + Math.sin(phase) * size * 0.06;
+    ROVERS[PLANETS[planet].rover](x, y, -Math.PI / 2 + Math.sin(phase * 0.7) * 0.15, size);
+  });
+
+  const bw = Math.min(w * 0.4, h * 0.75), bh = h * 0.11, by = h * 0.8;
+  ctx.save();
+  ctx.shadowColor = '#ffd60a';
+  ctx.shadowBlur = h * (0.02 + 0.015 * Math.sin(now / 300));
+  ctx.beginPath();
+  ctx.roundRect(w / 2 - bw / 2, by - bh / 2, bw, bh, bh / 2);
+  ctx.fillStyle = '#ffd60a';
+  ctx.fill();
+  ctx.restore();
+  ctx.font = `bold ${h * 0.05}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#070a1f';
+  ctx.fillText('Начать сначала', w / 2, by);
 }
 
 // Start screen: the rover of the level about to be played circles on a patch of its planet.

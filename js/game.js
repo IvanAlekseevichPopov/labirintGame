@@ -125,7 +125,8 @@ function flushTrack() {
 }
 
 // Advances the game to `now`; returns what happened since the last call:
-// levelStart, move, bump, landmark, stop, and the win sequence arrive → ignite → liftoff.
+// levelStart, move, bump, landmark, stop, the win sequence arrive → ignite → liftoff,
+// and finished after the last level's rocket has flown off.
 export function update(now, dt, cellPx) {
   step(now, dt, cellPx);
   // While a direction is still held the rover keeps going, even through the key-repeat pause,
@@ -159,10 +160,17 @@ function step(now, dt, cellPx) {
   state.angle += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt / 60);
   if (now - state.moveStart >= state.moveMs) flushTrack();
 
+  if (state.phase === 'finished') return;
   if (state.wonAt !== null) {
     resetInput();
     advanceWin(now);
-    if (now - state.wonAt > WIN.next) startLevel(state.index + 1, now);
+    if (now - state.wonAt <= WIN.next) return;
+    if (state.index < levels.length - 1) {
+      startLevel(state.index + 1, now);
+    } else {
+      state.phase = 'finished';
+      events.push({ type: 'finished' });
+    }
     return;
   }
   if (now < state.inputFrom) { resetInput(); return; }
