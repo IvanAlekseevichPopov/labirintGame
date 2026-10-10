@@ -1,6 +1,8 @@
-// Generates levels.js. Usage: node tools/gen-levels.mjs [--force]
-// Each level is the best of CANDIDATES random mazes, scored against a difficulty curve.
-// levels.js is meant to be curated by hand afterwards, so it is never overwritten without --force.
+// Generates levels.js. Each level is the best of CANDIDATES random mazes, scored against a
+// difficulty curve. levels.js is curated by hand afterwards, so:
+//   node tools/gen-levels.mjs --force       regenerate the whole set (overwrites hand edits)
+//   node tools/gen-levels.mjs --only 4,26   regenerate just these levels, keep the rest as is
+// To get a different maze for a level, bump its entry in VARIANTS and run --only for it.
 
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -16,11 +18,13 @@ const BRAID_RATIO = 0.3;
 const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
+// level → variant number; changes that level's seed while keeping generation reproducible.
+const VARIANTS = { 26: 1 };
 
 const OUT = new URL('../levels.js', import.meta.url);
-const { parseLevel, levelDistances, LEVEL_DIRS } = vm.runInContext(
+const { parseLevel, levelDistances, normalizeLevelLines, LEVEL_DIRS } = vm.runInContext(
   `${fs.readFileSync(new URL('../level-format.js', import.meta.url), 'utf8')}
-  ({ parseLevel, levelDistances, LEVEL_DIRS })`,
+  ({ parseLevel, levelDistances, normalizeLevelLines, LEVEL_DIRS })`,
   vm.createContext({}),
 );
 const OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
@@ -55,7 +59,8 @@ const maxNaiveRatio = level => 1.1 + 1.9 * curve(level);
 const MAX_DETOUR = 3;
 
 function levelSize(level) {
-  const rows = Math.min(4 + Math.floor((level - 1) / 5), MAX_ROWS);
+  // Only the first three levels are the smallest size; then it grows every five levels.
+  const rows = level <= 3 ? 4 : Math.min(4 + Math.max(1, Math.floor((level - 1) / 5)), MAX_ROWS);
   const cols = Math.min(Math.round(rows * 16 / 9), MAX_COLS);
   return { cols, rows };
 }
@@ -126,8 +131,9 @@ function naiveSteps(maze, start, goal) {
 }
 
 // Size of the largest region of off-route cells that touches the route at a single cell,
-// i.e. a dead end you have to drive all the way back out of.
-function biggestTrap(maze, onRoute) {
+// i.e. a dead end you have to drive all the way back out of. A region hanging only off the
+// rocket does not count: reaching the rocket ends the level.
+function biggestTrap(maze, onRoute, goal) {
   const seen = new Set();
   let biggest = 0;
   for (let y = 0; y < maze.rows; y++) {
@@ -145,7 +151,7 @@ function biggestTrap(maze, onRoute) {
           else if (!seen.has(key(n))) { seen.add(key(n)); queue.push(n); }
         }
       }
-      if (attachments.size <= 1) biggest = Math.max(biggest, size);
+      if (attachments.size === 1 && !attachments.has(key(goal))) biggest = Math.max(biggest, size);
     }
   }
   return biggest;
@@ -188,7 +194,7 @@ function candidate(level, spot) {
   const metrics = {
     path,
     naive: naiveSteps(maze, start, goal),
-    trap: biggestTrap(maze, onRoute),
+    trap: biggestTrap(maze, onRoute, goal),
     detour: path / manhattan(start, goal),
   };
   const penalty =
@@ -234,7 +240,7 @@ function toAscii(maze, marks) {
 }
 
 function makeLevel(level, prev) {
-  rand = mulberry32(SEED * 100 + level);
+  rand = mulberry32(SEED * 100 + level + (VARIANTS[level] ?? 0) * 7919);
   // The first levels start top-left like most kids expect; later ones vary.
   const spots = level <= 2 ? ['top-left'] : START_SPOTS.filter(s => s !== prev.spot);
   let best = null;
@@ -254,24 +260,61 @@ function makeLevel(level, prev) {
   };
 }
 
-if (fs.existsSync(OUT) && !process.argv.includes('--force')) {
-  console.error('levels.js уже есть и мог быть отредактирован руками. Перезаписать: --force');
-  process.exit(1);
+const args = process.argv.slice(2);
+const onlyArg = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+const only = onlyArg && new Set(onlyArg.split(',').map(Number));
+
+function readExisting() {
+  return vm.runInContext(`${fs.readFileSync(OUT, 'utf8')}\nLEVELS`, vm.createContext({}));
 }
 
-const made = [];
-let prev = { spot: null, types: [] };
-for (let level = 1; level <= LEVEL_COUNT; level++) {
-  prev = makeLevel(level, prev);
-  parseLevel(prev.level, level, PLANETS);
-  made.push(prev);
+// What makeLevel needs to know about the level before it, recovered from its map.
+function describe(level, number) {
+  const { maze, start, landmarks } = parseLevel(level, number, PLANETS);
+  return {
+    spot: START_SPOTS.find(s => key(spotCell(s, maze.cols, maze.rows)) === key(start)) ?? null,
+    types: landmarks.map(l => ({ flag: 'F', antenna: 'A', crater: 'C' })[l.type]),
+  };
 }
+
+let levels;
+const made = new Map();
+if (only) {
+  if (!fs.existsSync(OUT)) {
+    console.error('levels.js нет — сначала полная генерация с --force');
+    process.exit(1);
+  }
+  levels = Array.from(readExisting(), l => ({ planet: l.planet, map: normalizeLevelLines(l.map).join('\n') }));
+  for (const number of only) {
+    if (!Number.isInteger(number) || number < 1 || number > levels.length) {
+      console.error(`--only: нет уровня ${number}, всего ${levels.length}`);
+      process.exit(1);
+    }
+    const prev = number > 1 ? describe(levels[number - 2], number - 1) : { spot: null, types: [] };
+    const result = makeLevel(number, prev);
+    levels[number - 1] = result.level;
+    made.set(number, result);
+  }
+} else {
+  if (fs.existsSync(OUT) && !args.includes('--force')) {
+    console.error('levels.js уже есть и мог быть отредактирован руками. Перезаписать всё: --force, один уровень: --only N');
+    process.exit(1);
+  }
+  levels = [];
+  let prev = { spot: null, types: [] };
+  for (let level = 1; level <= LEVEL_COUNT; level++) {
+    prev = makeLevel(level, prev);
+    levels.push(prev.level);
+    made.set(level, prev);
+  }
+}
+levels.forEach((level, i) => parseLevel(level, i + 1, PLANETS));
 
 const source = `// Generated by tools/gen-levels.mjs (seed ${SEED}). Safe to edit, reorder or delete levels by hand.
 // Each cell is at an odd row/column; the characters between cells are walls.
 // # wall, S start, R rocket; landmarks: F flag, A antenna, C big crater.
 const LEVELS = [
-${made.map(({ level }, i) => `  // ${i + 1}
+${levels.map((level, i) => `  // ${i + 1}
   { planet: '${level.planet}', map: \`
 ${level.map}
 \` },`).join('\n')}
@@ -281,13 +324,13 @@ const tmp = new URL('../levels.js.tmp', import.meta.url);
 fs.writeFileSync(tmp, source);
 fs.renameSync(tmp, OUT);
 
-console.table(made.map(({ level, metrics: m }, i) => ({
-  level: i + 1,
+console.table([...made].map(([number, { level, metrics: m }]) => ({
+  level: number,
   planet: level.planet,
-  size: `${levelSize(i + 1).cols}x${levelSize(i + 1).rows}`,
+  size: `${levelSize(number).cols}x${levelSize(number).rows}`,
   path: m.path,
-  target: targetPath(i + 1),
-  naive: `${m.naive} (${(m.naive / m.path).toFixed(1)}x, цель ${targetNaiveRatio(i + 1).toFixed(1)})`,
-  trap: `${m.trap} ≤ ${maxTrap(i + 1)}`,
+  target: targetPath(number),
+  naive: `${m.naive} (${(m.naive / m.path).toFixed(1)}x, цель ${targetNaiveRatio(number).toFixed(1)})`,
+  trap: `${m.trap} ≤ ${maxTrap(number)}`,
   detour: m.detour.toFixed(1),
 })));

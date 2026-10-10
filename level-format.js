@@ -20,9 +20,12 @@ function normalizeLevelLines(map) {
   return lines.map(l => l.slice(indent));
 }
 
-function parseLevel({ planet, map }, number, planets) {
+function parseLevel(level, number, planets) {
   const fail = msg => { throw new Error(`Уровень ${number}: ${msg}`); };
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
+
+  if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
+  const { planet, map } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');

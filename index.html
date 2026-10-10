@@ -55,8 +55,8 @@ const PLANETS = {
   },
   europa: {
     name: 'Европа', drawRover: drawIcebreaker,
-    floor: '#cfe2ec', speck: '#e3f0f6', crater: '#b4cddb', craterRim: '#f1f8fb', track: '#a6c0cf',
-    wallBase: '#557f9e', wallTop: '#f4fbff', cracks: '#b8774c',
+    floor: '#cfe2ec', speck: '#e3f0f6', crater: '#b4cddb', craterRim: '#f1f8fb', track: '#7f9fb3',
+    wallBase: '#2e5570', wallTop: '#9ec7dd', polynya: '#2f5f80',
   },
 };
 
@@ -83,21 +83,6 @@ function scatter(rand, count, cols, rows, minR, maxR) {
     y: rand() * rows,
     r: minR + rand() * (maxR - minR),
   }));
-}
-
-// Europa's long reddish surface fractures: gently wandering polylines in cell units.
-function makeCracks(rand, count, cols, rows) {
-  return Array.from({ length: count }, () => {
-    let x = rand() * cols, y = rand() * rows, angle = rand() * Math.PI * 2;
-    const points = [[x, y]];
-    for (let i = 0; i < 5; i++) {
-      angle += (rand() - 0.5) * 0.8;
-      x += Math.cos(angle) * (0.6 + rand() * 0.5);
-      y += Math.sin(angle) * (0.6 + rand() * 0.5);
-      points.push([x, y]);
-    }
-    return points;
-  });
 }
 
 const state = {};
@@ -127,7 +112,6 @@ function startLevel(index) {
     inputFrom: performance.now() + INPUT_LOCK_MS,
     craters: scatter(rand, cols * rows * 0.5, cols, rows, 0.05, 0.15),
     specks: scatter(rand, cols * rows * 6, cols, rows, 0.01, 0.035),
-    cracks: makeCracks(rand, Math.ceil(cols * rows / 12), cols, rows),
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
@@ -135,12 +119,22 @@ function startLevel(index) {
   resetInput();
   buildMazeLayer();
   buildTrackLayer();
+  rememberLevelInUrl(index);
+}
+
+// Keeps #level=N in the address bar so a page refresh continues from the same level.
+// A fragment rather than ?level: Chrome refuses query changes on file:// pages.
+function rememberLevelInUrl(index) {
+  history.replaceState(null, '', `#level=${index + 1}`);
 }
 
 // Directions in press order; `fresh` is a press made with nothing else held (moves at once,
 // even if released before the next frame); `buffered` remembers a turn asked for slightly
 // before the corridor opens.
-const input = { held: [], fresh: null, buffered: null };
+// `bySource` tracks which device holds each direction, so releasing it on one device does not
+// cancel it while the other still holds it. It survives resetInput(): a direction still held
+// from the previous level is ignored until released.
+const input = { held: [], fresh: null, buffered: null, bySource: { key: new Set(), pad: new Set() } };
 
 function resetInput() {
   input.held.length = 0;
@@ -148,7 +142,8 @@ function resetInput() {
   input.buffered = null;
 }
 
-function press(dir) {
+function press(dir, source) {
+  input.bySource[source].add(dir);
   if (input.held.includes(dir)) return;
   if (!input.held.length) input.fresh = dir;
   input.held.push(dir);
@@ -156,7 +151,9 @@ function press(dir) {
   state.blocked = false;
 }
 
-function release(dir) {
+function release(dir, source) {
+  input.bySource[source].delete(dir);
+  if (Object.values(input.bySource).some(dirs => dirs.has(dir))) return;
   const i = input.held.indexOf(dir);
   if (i !== -1) input.held.splice(i, 1);
 }
@@ -169,25 +166,27 @@ addEventListener('keydown', e => {
   const dir = KEY_TO_DIR[e.key];
   if (!dir) return;
   e.preventDefault();
-  if (!e.repeat) press(dir);
+  if (!e.repeat) press(dir, 'key');
 });
 addEventListener('keyup', e => {
-  if (KEY_TO_DIR[e.key]) release(KEY_TO_DIR[e.key]);
+  if (KEY_TO_DIR[e.key]) release(KEY_TO_DIR[e.key], 'key');
 });
-addEventListener('blur', resetInput);
+// Key-ups that happen while the window is unfocused never arrive.
+addEventListener('blur', () => {
+  input.bySource.key.clear();
+  resetInput();
+});
 
 function restartLevel() {
   if (state.wonAt === null) startLevel(state.index);
 }
 
-// Directions currently held on any gamepad. Kept across resetInput() so a direction still
-// held from the previous level is ignored until released, same as a held key.
-const pad = { dirs: new Set(), restart: false };
+const pad = { restart: false };
 
 function readPadDirs(gp) {
   const dirs = new Set();
   // Hysteresis keeps a jittery axis near the threshold from re-pressing every frame.
-  const on = (dir, v) => v >= (pad.dirs.has(dir) ? PAD_RELEASE : PAD_PRESS);
+  const on = (dir, v) => v >= (input.bySource.pad.has(dir) ? PAD_RELEASE : PAD_PRESS);
   const [x = 0, y = 0] = gp.axes;
   if (on('left', -x)) dirs.add('left');
   if (on('right', x)) dirs.add('right');
@@ -207,9 +206,9 @@ function pollGamepads() {
     for (const dir of readPadDirs(gp)) dirs.add(dir);
     if (gp.buttons[PAD_RESTART_BUTTON]?.pressed) restart = true;
   }
-  for (const dir of pad.dirs) if (!dirs.has(dir)) release(dir);
-  for (const dir of dirs) if (!pad.dirs.has(dir)) press(dir);
-  pad.dirs = dirs;
+  const held = input.bySource.pad;
+  for (const dir of [...held]) if (!dirs.has(dir)) release(dir, 'pad');
+  for (const dir of dirs) if (!held.has(dir)) press(dir, 'pad');
   if (restart && !pad.restart) restartLevel();
   pad.restart = restart;
 }
@@ -322,17 +321,6 @@ function buildMazeLayer() {
     g.arc(x, y, r, Math.PI * 0.1, Math.PI * 0.9);
     g.stroke();
   }
-  if (p.cracks) {
-    g.strokeStyle = p.cracks;
-    g.lineWidth = cell * 0.045;
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    for (const crack of state.cracks) {
-      g.beginPath();
-      crack.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](ox + x * cell, oy + y * cell));
-      g.stroke();
-    }
-  }
   for (const l of state.landmarks.filter(l => l.type === 'crater')) {
     drawBigCrater(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * 0.4, p);
   }
@@ -375,6 +363,14 @@ function drawBigCrater(g, x, y, r, p) {
     g.fillStyle = fill;
     g.fill();
   };
+  // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
+  if (p.polynya) {
+    circle(x, y, r * 1.15, p.wallBase);
+    circle(x, y, r * 1.05, p.craterRim);
+    circle(x, y, r * 0.9, p.polynya);
+    circle(x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
+    return;
+  }
   circle(x, y, r * 1.15, p.craterRim);
   g.save();
   g.beginPath();
@@ -445,12 +441,14 @@ function dot(cx, cy, r, fill) {
 }
 
 function line(points, color, width) {
+  ctx.save();
   ctx.beginPath();
   ctx.moveTo(...points[0]);
   for (const pt of points.slice(1)) ctx.lineTo(...pt);
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.stroke();
+  ctx.restore();
 }
 
 // Rovers are drawn in unit space facing +x, scaled to `size` pixels.
@@ -480,33 +478,33 @@ function drawLunokhod(cx, cy, angle, size) {
   });
 }
 
+// The ice drill sits at the front, so the direction of travel is obvious at a glance.
 function drawIcebreaker(cx, cy, angle, size) {
   withRoverSpace(cx, cy, angle, size, () => {
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
     for (const y of [-0.36, 0.36]) {
-      box(0, y, 0.88, 0.2, 0.09, '#2b2d33', true);
-      for (let x = -0.36; x <= 0.36; x += 0.12) line([[x, y - 0.08], [x, y + 0.08]], '#5b5f6b', 0.03);
+      box(-0.04, y, 0.82, 0.2, 0.09, '#2b2d33', true);
+      for (let x = -0.4; x <= 0.33; x += 0.12) line([[x, y - 0.08], [x, y + 0.08]], '#5b5f6b', 0.03);
     }
     ctx.beginPath();
-    ctx.moveTo(-0.32, -0.09);
-    ctx.lineTo(-0.52, 0);
-    ctx.lineTo(-0.32, 0.09);
+    ctx.moveTo(0.27, -0.13);
+    ctx.lineTo(0.56, 0);
+    ctx.lineTo(0.27, 0.13);
     ctx.closePath();
-    ctx.fillStyle = '#9aa1ad';
+    ctx.fillStyle = '#c3c8d1';
     ctx.fill();
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 0.03;
     ctx.stroke();
-    line([[-0.36, -0.07], [-0.4, 0.05]], OUTLINE, 0.02);
-    line([[-0.42, -0.05], [-0.46, 0.03]], OUTLINE, 0.02);
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 0.03;
-    box(-0.01, 0, 0.62, 0.52, 0.1, '#ff7a1a', true);
-    box(0.17, 0, 0.16, 0.38, 0.05, '#1d3557', true);
-    line([[0.12, -0.13], [0.12, -0.02]], '#8fb8ff', 0.025);
-    dot(-0.12, 0, 0.06, '#ffd60a');
-    for (const y of [-0.19, 0.19]) dot(0.29, y, 0.045, '#fff3b0');
+    line([[0.33, -0.09], [0.37, 0.07]], OUTLINE, 0.02);
+    line([[0.41, -0.06], [0.45, 0.04]], OUTLINE, 0.02);
+    box(-0.06, 0, 0.62, 0.52, 0.1, '#ff7a1a', true);
+    box(0.13, 0, 0.13, 0.36, 0.04, '#1d3557', true);
+    line([[0.1, -0.12], [0.1, -0.02]], '#8fb8ff', 0.025);
+    for (const y of [-0.21, 0.21]) {
+      dot(0.19, y, 0.055, '#ffd60a');
+      ctx.stroke();
+    }
+    box(-0.3, 0, 0.08, 0.2, 0.03, '#7a3a10');
   });
 }
 
@@ -521,15 +519,11 @@ function drawMarsRover(cx, cy, angle, size) {
         dot(x, y, 0.035, '#9a958c');
       }
     }
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 0.03;
     box(-0.4, 0, 0.18, 0.2, 0.04, '#3b3b40', true);
     box(-0.02, 0, 0.6, 0.54, 0.05, '#ece6da', true);
     box(-0.06, 0.06, 0.34, 0.26, 0.03, '#c9bfae');
     line([[0.28, 0.12], [0.42, 0.12], [0.42, -0.02]], '#7a7670', 0.04);
     dot(0.42, -0.04, 0.05, '#5a5650');
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 0.03;
     box(0.14, -0.15, 0.16, 0.13, 0.03, '#fafafa', true);
     dot(0.22, -0.18, 0.025, '#1d4ed8');
     dot(0.22, -0.12, 0.025, '#1d4ed8');
@@ -622,8 +616,9 @@ function drawRocket(cx, baseY, size, flame, now) {
     ctx.fill();
   }
 
+  // Thick outline: the white body has to stand out even on pale ice.
   ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 0.025;
+  ctx.lineWidth = 0.04;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(side * 0.18, -0.38);
@@ -787,8 +782,21 @@ function validateLevels() {
   if (typeof LEVELS === 'undefined' || !Array.isArray(LEVELS) || !LEVELS.length) {
     throw new Error('levels.js не загрузился или в нём ошибка (подробности в консоли)');
   }
-  LEVELS.forEach((level, i) => parseLevel(level, i + 1, Object.keys(PLANETS)));
+  // A plain loop: forEach would silently skip a hole left by a stray comma.
+  for (let i = 0; i < LEVELS.length; i++) parseLevel(LEVELS[i], i + 1, Object.keys(PLANETS));
 }
+
+// #level=N or ?level=N (1-based) opens that level; the fragment wins, since the game keeps it current.
+function levelIndexFromUrl() {
+  const fromHash = location.hash.match(/^#level=(\d+)$/)?.[1];
+  const n = Number(fromHash ?? new URLSearchParams(location.search).get('level'));
+  return Number.isInteger(n) && n >= 1 ? n - 1 : 0;
+}
+
+// Typing a new #level=N in the address bar does not reload the page.
+addEventListener('hashchange', () => {
+  if (fatalError === null) startLevel(levelIndexFromUrl());
+});
 
 let lastFrameAt = performance.now();
 function frame(now) {
@@ -809,7 +817,7 @@ addEventListener('resize', resizeCanvas);
 resizeCanvas();
 try {
   validateLevels();
-  startLevel(0);
+  startLevel(levelIndexFromUrl());
 } catch (error) {
   fail(error);
 }
