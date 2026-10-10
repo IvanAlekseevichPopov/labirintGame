@@ -1,4 +1,4 @@
-// Entry point: loads and checks levels, switches scenes (title → playing → finale, or error),
+// Entry point: loads and checks levels, switches scenes (title → playing ⇄ paused → finale, or error),
 // routes input to the current scene, keeps #level in the URL.
 
 import { parseLevel } from '../level-format.js';
@@ -16,23 +16,33 @@ let titleIndex = 0;
 let gestureSeen = false;
 const audio = createAudio();
 
-const MUSIC_SETTING = 'labirint.music';
-function loadMusicSetting() {
+function loadSwitch(key) {
   try {
-    return localStorage.getItem(MUSIC_SETTING) !== 'off';
+    return localStorage.getItem(key) !== 'off';
   } catch {
     return true;
   }
 }
-function saveMusicSetting(on) {
+function saveSwitch(key, on) {
   try {
-    localStorage.setItem(MUSIC_SETTING, on ? 'on' : 'off');
+    localStorage.setItem(key, on ? 'on' : 'off');
   } catch {
     // Private mode or blocked storage: the switch still works until the page is reloaded.
   }
 }
-let musicOn = loadMusicSetting();
+let musicOn = loadSwitch('labirint.music');
+let soundOn = loadSwitch('labirint.sound');
 audio.setMusicEnabled(musicOn);
+audio.setMuted(!soundOn);
+
+// Game time stops while paused, so a step, the win sequence and animations resume where they left off.
+let pausedTotal = 0;
+let pausedAt = null;
+const gameTime = real => (pausedAt ?? real) - pausedTotal;
+
+const PAUSE_ITEMS = ['resume', 'restart', 'sound'];
+let pauseSelected = 0;
+const pauseLabels = () => ['Продолжить', 'Начать уровень заново', soundOn ? 'Звук: вкл' : 'Звук: выкл'];
 
 function fail(error) {
   console.error(error);
@@ -71,8 +81,42 @@ function rememberLevelInUrl(index) {
 
 function startPlaying(now) {
   audio.sfx('menu');
-  game.startLevel(titleIndex, now);
+  game.startLevel(titleIndex, gameTime(now));
   scene = 'playing';
+}
+
+function openPause(now) {
+  scene = 'paused';
+  pausedAt = now;
+  // The cursor starts on "continue", so a double press cannot restart by accident.
+  pauseSelected = 0;
+  // Directions held when pausing must be pressed again after it, not drive on by themselves.
+  game.forgetSource('key');
+  game.forgetSource('pad');
+  audio.setEngine(null);
+  audio.duckMusic();
+}
+
+function closePause(now) {
+  pausedTotal += now - pausedAt;
+  pausedAt = null;
+  scene = 'playing';
+  audio.unduckMusic();
+}
+
+function choosePauseItem(now) {
+  audio.sfx('menu');
+  const item = PAUSE_ITEMS[pauseSelected];
+  if (item === 'resume') {
+    closePause(now);
+  } else if (item === 'restart') {
+    closePause(now);
+    game.restartLevel(gameTime(now));
+  } else if (item === 'sound') {
+    soundOn = !soundOn;
+    audio.setMuted(!soundOn);
+    saveSwitch('labirint.sound', soundOn);
+  }
 }
 
 function onInput(action) {
@@ -84,22 +128,37 @@ function onInput(action) {
   if (action.type === 'toggleMusic') {
     musicOn = !musicOn;
     audio.setMusicEnabled(musicOn);
-    saveMusicSetting(musicOn);
+    saveSwitch('labirint.music', musicOn);
   }
+  const anyButton = ['confirm', 'pause', 'select', 'restart'].includes(action.type);
   if (scene === 'title') {
     // On the start screen any button or d-pad press starts, so a kid with only the gamepad can too.
-    if (action.type === 'confirm' || (action.type === 'dir' && action.down)) startPlaying(now);
+    if (anyButton || (action.type === 'dir' && action.down)) startPlaying(now);
   } else if (scene === 'playing') {
     if (action.type === 'dir') {
-      if (action.down) game.press(action.dir, action.source, now);
+      if (action.down) game.press(action.dir, action.source, gameTime(now));
       else game.release(action.dir, action.source);
+    } else if (action.type === 'pause') {
+      openPause(now);
     } else if (action.type === 'restart') {
-      game.restartLevel(now);
+      game.restartLevel(gameTime(now));
     } else if (action.type === 'blur') {
       game.forgetSource('key');
     }
+  } else if (scene === 'paused') {
+    if (action.type === 'pause') {
+      closePause(now);
+    } else if (action.type === 'confirm') {
+      choosePauseItem(now);
+    } else if (action.type === 'restart') {
+      closePause(now);
+      game.restartLevel(gameTime(now));
+    } else if (action.type === 'dir' && action.down && (action.dir === 'up' || action.dir === 'down')) {
+      const step = action.dir === 'up' ? -1 : 1;
+      pauseSelected = (pauseSelected + step + PAUSE_ITEMS.length) % PAUSE_ITEMS.length;
+    }
   } else if (scene === 'finale') {
-    if (action.type === 'confirm' || action.type === 'restart') {
+    if (anyButton) {
       titleIndex = 0;
       startPlaying(now);
     }
@@ -154,8 +213,11 @@ function frame(now) {
     if (scene === 'title') {
       renderer.renderTitle(now, { planet: levels[titleIndex].planet, levelNumber: titleIndex + 1 });
     } else if (scene === 'playing') {
-      for (const event of game.update(now, now - lastFrameAt, renderer.cellSize())) handle(event);
-      renderer.render(now, { soundOff: !gestureSeen });
+      for (const event of game.update(gameTime(now), now - lastFrameAt, renderer.cellSize())) handle(event);
+      renderer.render(gameTime(now), { soundOff: !gestureSeen || !soundOn });
+    } else if (scene === 'paused') {
+      renderer.render(gameTime(now));
+      renderer.renderPause(now, { items: pauseLabels(), selected: pauseSelected });
     } else if (scene === 'finale') {
       renderer.renderFinale(now);
     }
@@ -186,7 +248,7 @@ try {
   // Typing a new #level=N in the address bar does not reload the page.
   addEventListener('hashchange', () => {
     titleIndex = levelIndexFromUrl();
-    if (scene === 'playing') game.startLevel(titleIndex, performance.now());
+    if (scene === 'playing') game.startLevel(titleIndex, gameTime(performance.now()));
   });
 } catch (error) {
   fail(error);

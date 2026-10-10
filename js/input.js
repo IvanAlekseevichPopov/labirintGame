@@ -1,13 +1,16 @@
 // Keyboard, mouse and gamepad, turned into actions for main.js to route to the current scene:
 //   { type: 'dir', dir, down, source }   a direction pressed or released
 //   { type: 'confirm' }                   start / OK
-//   { type: 'restart' }
+//   { type: 'pause' }                     Start on the gamepad, Esc
+//   { type: 'select' }                    Select on the gamepad
+//   { type: 'restart' }                   R, for the parent
 //   { type: 'toggleMusic' }
 //   { type: 'gesture' }                   a key or click: the browser now allows sound
 //   { type: 'blur' }                      the window lost focus, key-ups will not arrive
 
 import {
-  CONFIRM_KEYS, KEY_TO_DIR, MUSIC_KEYS, PAD_PRESS, PAD_RELEASE, PAD_RESTART_BUTTON, PAD_STANDARD_DPAD, RESTART_KEYS,
+  CONFIRM_KEYS, KEY_TO_DIR, MUSIC_KEYS, PAD_PRESS, PAD_RELEASE, PAD_SELECT_BUTTON, PAD_STANDARD_DPAD, PAD_START_BUTTON,
+  PAUSE_KEYS, RESTART_KEYS,
 } from './config.js';
 
 export function installInput(handle) {
@@ -20,6 +23,7 @@ export function installInput(handle) {
     else if (RESTART_KEYS.includes(e.key)) handle({ type: 'restart' });
     else if (CONFIRM_KEYS.includes(e.key)) handle({ type: 'confirm' });
     else if (MUSIC_KEYS.includes(e.key)) handle({ type: 'toggleMusic' });
+    else if (PAUSE_KEYS.includes(e.key)) handle({ type: 'pause' });
   });
   addEventListener('keyup', e => {
     const dir = KEY_TO_DIR[e.key];
@@ -65,7 +69,8 @@ export function pollGamepads(handle) {
   for (const dir of dirs) if (!pad.dirs.has(dir)) handle({ type: 'dir', dir, down: true, source: 'pad' });
   for (const i of buttons) {
     if (pad.buttons.has(i)) continue;
-    handle({ type: i === PAD_RESTART_BUTTON ? 'restart' : 'confirm' });
+    const type = i === PAD_START_BUTTON ? 'pause' : i === PAD_SELECT_BUTTON ? 'select' : 'confirm';
+    handle({ type });
   }
   pad.dirs = dirs;
   pad.buttons = buttons;

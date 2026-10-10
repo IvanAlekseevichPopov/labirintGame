@@ -290,6 +290,41 @@ export function render(now, { soundOff = false } = {}) {
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
 }
 
+// Pause menu over the frozen game: large buttons, the selected one lit up yellow.
+export function renderPause(now, { items, selected }) {
+  const w = innerWidth, h = innerHeight;
+  ctx.fillStyle = 'rgba(7, 10, 31, 0.75)';
+  ctx.fillRect(0, 0, w, h);
+  drawText('Пауза', w / 2, h * 0.18, h * 0.09, 'center', '#ffd60a');
+
+  const bw = Math.min(w * 0.55, h * 0.95), bh = h * 0.12, gap = h * 0.045;
+  const top = h * 0.55 - (items.length * bh + (items.length - 1) * gap) / 2;
+  items.forEach((label, i) => {
+    const y = top + i * (bh + gap);
+    const lit = i === selected;
+    ctx.save();
+    if (lit) {
+      ctx.shadowColor = '#ffd60a';
+      ctx.shadowBlur = h * (0.02 + 0.015 * Math.sin(now / 300));
+    }
+    ctx.beginPath();
+    ctx.roundRect(w / 2 - bw / 2, y, bw, bh, bh / 2);
+    ctx.fillStyle = lit ? '#ffd60a' : '#1a2255';
+    ctx.fill();
+    if (!lit) {
+      ctx.lineWidth = h * 0.006;
+      ctx.strokeStyle = '#7f8fd1';
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.font = `bold ${h * 0.05}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = lit ? '#070a1f' : '#ffffff';
+    ctx.fillText(label, w / 2, y + bh / 2);
+  });
+}
+
 // After the last level: all three rovers in a row, bobbing happily, and a button to play again.
 export function renderFinale(now) {
   const w = innerWidth, h = innerHeight;

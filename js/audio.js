@@ -101,7 +101,7 @@ export function createAudio() {
   const noiseBuffers = new Map();
   const parsed = new Map();
   // Remembered while the context is locked, so unlock() can start what the game already asked for.
-  const wanted = { planet: null, rover: null, musicOn: true };
+  const wanted = { planet: null, rover: null, musicOn: true, muted: false };
   let music = null;
   let engine = null;
   let meter = null;
@@ -138,7 +138,7 @@ export function createAudio() {
     limiter.ratio.value = 8;
     limiter.attack.value = 0.002;
     limiter.release.value = 0.12;
-    const master = gain(VOLUME.master);
+    const master = gain(wanted.muted ? 0 : VOLUME.master);
     limiter.connect(master);
     meter = ctx.createAnalyser();
     meter.fftSize = 2048;
@@ -151,6 +151,7 @@ export function createAudio() {
       engine: gain(VOLUME.engine, limiter),
       duck,
       musicOn,
+      master,
     };
     for (const [duty, steps] of Object.entries(PULSE_STEPS)) {
       const { real, imag } = stepWave(steps, PULSE_HARMONICS);
@@ -322,6 +323,13 @@ export function createAudio() {
     if (seconds) bus.duck.gain.setTargetAtTime(1, now + seconds, 0.25);
   }
 
+  // Silences everything (the pause menu's sound switch), unlike setMusicEnabled.
+  function setMuted(on) {
+    wanted.muted = on;
+    if (!ctx) return;
+    bus.master.gain.setTargetAtTime(on ? 0 : VOLUME.master, ctx.currentTime, 0.03);
+  }
+
   function unduckMusic() {
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -467,6 +475,7 @@ export function createAudio() {
     playMusic,
     stopMusic,
     setMusicEnabled,
+    setMuted,
     duckMusic,
     unduckMusic,
     setEngine,

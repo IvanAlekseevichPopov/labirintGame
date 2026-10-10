@@ -22,10 +22,13 @@ export const DIRS = {
 export const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 export const RESTART_KEYS = ['r', 'R', 'к', 'К'];
 export const CONFIRM_KEYS = ['Enter', ' '];
+export const PAUSE_KEYS = ['Escape'];
 // The parent's switch for the music only; deliberately not on the gamepad.
 export const MUSIC_KEYS = ['m', 'M', 'ь', 'Ь'];
 // Cheap pads (mapping "") report the d-pad as axes 0/1; standard-mapped pads as buttons 12–15.
 export const PAD_PRESS = 0.5;
 export const PAD_RELEASE = 0.3;
 export const PAD_STANDARD_DPAD = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
-export const PAD_RESTART_BUTTON = 8;
+// Select does nothing in play: a kid would hit it by accident. Restart lives in the pause menu.
+export const PAD_SELECT_BUTTON = 8;
+export const PAD_START_BUTTON = 9;
