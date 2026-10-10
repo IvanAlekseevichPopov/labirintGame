@@ -20,6 +20,8 @@ const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
+// level → level whose difficulty it should get, keeping its own size; for levels that felt off in play.
+const DIFFICULTY_AS = { 5: 8 };
 
 const OUT = new URL('../levels.js', import.meta.url);
 const { parseLevel, levelDistances, normalizeLevelLines, LEVEL_DIRS } = vm.runInContext(
@@ -48,7 +50,7 @@ const unkey = k => { const [x, y] = k.split(',').map(Number); return { x, y }; }
 const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 // Difficulty curve, t = 0 on the first level and 1 on the last.
-const curve = level => (level - 1) / (LEVEL_COUNT - 1);
+const curve = level => ((DIFFICULTY_AS[level] ?? level) - 1) / (LEVEL_COUNT - 1);
 const targetPath = level => Math.round(8 + 62 * curve(level));
 // Biggest dead-end region hanging off the route: tiny at first, large on the last levels.
 const maxTrap = level => Math.round(2 + 58 * curve(level) ** 1.5);
