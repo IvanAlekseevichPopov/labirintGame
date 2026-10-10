@@ -2,10 +2,11 @@
 // routes input to the current scene, keeps #level in the URL.
 
 import { parseLevel } from '../level-format.js';
-import { PLANET_KEYS } from './planets.js';
+import { PLANETS, PLANET_KEYS } from './planets.js';
 import * as game from './game.js';
 import * as renderer from './render.js';
 import { installInput, pollGamepads } from './input.js';
+import { createAudio } from './audio.js';
 
 let scene = 'loading';
 let fatalError = null;
@@ -13,6 +14,25 @@ let levels = [];
 let titleIndex = 0;
 // Sound may only start after a key press or click on the page; gamepad input does not count.
 let gestureSeen = false;
+const audio = createAudio();
+
+const MUSIC_SETTING = 'labirint.music';
+function loadMusicSetting() {
+  try {
+    return localStorage.getItem(MUSIC_SETTING) !== 'off';
+  } catch {
+    return true;
+  }
+}
+function saveMusicSetting(on) {
+  try {
+    localStorage.setItem(MUSIC_SETTING, on ? 'on' : 'off');
+  } catch {
+    // Private mode or blocked storage: the switch still works until the page is reloaded.
+  }
+}
+let musicOn = loadMusicSetting();
+audio.setMusicEnabled(musicOn);
 
 function fail(error) {
   console.error(error);
@@ -50,13 +70,22 @@ function rememberLevelInUrl(index) {
 }
 
 function startPlaying(now) {
+  audio.sfx('menu');
   game.startLevel(titleIndex, now);
   scene = 'playing';
 }
 
 function onInput(action) {
   const now = performance.now();
-  if (action.type === 'gesture') gestureSeen = true;
+  if (action.type === 'gesture') {
+    gestureSeen = true;
+    audio.unlock();
+  }
+  if (action.type === 'toggleMusic') {
+    musicOn = !musicOn;
+    audio.setMusicEnabled(musicOn);
+    saveMusicSetting(musicOn);
+  }
   if (scene === 'title') {
     // On the start screen any button or d-pad press starts, so a kid with only the gamepad can too.
     if (action.type === 'confirm' || (action.type === 'dir' && action.down)) startPlaying(now);
@@ -72,10 +101,39 @@ function onInput(action) {
   }
 }
 
+// Game events drive the picture and the sound.
 function handle(event) {
-  if (event.type === 'levelStart') {
-    renderer.levelChanged();
-    rememberLevelInUrl(event.index);
+  const planet = PLANETS[game.state.planet];
+  switch (event.type) {
+    case 'levelStart':
+      renderer.levelChanged();
+      rememberLevelInUrl(event.index);
+      audio.setEngine(null);
+      audio.playMusic(game.state.planet);
+      audio.sfx(event.restart ? 'restart' : 'levelStart');
+      break;
+    case 'move':
+      audio.setEngine(planet.rover);
+      break;
+    case 'stop':
+      audio.setEngine(null);
+      break;
+    case 'bump':
+    case 'ignite':
+      audio.sfx(event.type);
+      break;
+    case 'landmark':
+      // Only things people left there feel like a checkpoint; a crater or ice hole is just ground.
+      if (event.kind !== 'crater') audio.sfx('landmark');
+      break;
+    case 'arrive':
+      audio.setEngine(null);
+      audio.sfx('arrive');
+      break;
+    case 'liftoff':
+      audio.sfx('liftoff');
+      audio.sfx('cheer');
+      break;
   }
 }
 
@@ -112,6 +170,8 @@ try {
   game.setLevels(levels);
   titleIndex = levelIndexFromUrl();
   scene = 'title';
+  // Starts once a key press unlocks sound: the title plays the tune of the planet ahead.
+  audio.playMusic(levels[titleIndex].planet);
   // Typing a new #level=N in the address bar does not reload the page.
   addEventListener('hashchange', () => {
     titleIndex = levelIndexFromUrl();

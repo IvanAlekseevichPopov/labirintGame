@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Тест звука</title>
+<style>
+  body { font: 18px/1.4 ui-monospace, monospace; background: #111; color: #eee; padding: 16px; max-width: 900px; }
+  h3 { margin: 24px 0 8px; color: #7ee8fa; }
+  button { font: inherit; padding: 8px 14px; margin: 4px; background: #333; color: #eee; border: 1px solid #666; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #444; }
+  button.on { background: #2a6; border-color: #4d8; }
+  #unlock { font-size: 22px; padding: 12px 24px; background: #c60; }
+  #unlock.on { background: #2a6; }
+  #meter { height: 12px; background: #333; border-radius: 6px; overflow: hidden; margin: 8px 4px; }
+  #meter div { height: 100%; width: 0; background: #7ee8fa; }
+  #log { white-space: pre; color: #aaa; font-size: 14px; }
+</style>
+</head>
+<body>
+<button id="unlock">Включить звук</button>
+<div id="meter"><div></div></div>
+<div id="peak">пик: —</div>
+
+<h3>Эффекты</h3>
+<div id="sfx"></div>
+
+<h3>Музыка</h3>
+<div id="music"></div>
+<button id="music-toggle" class="on">Музыка: вкл</button>
+<button id="cheer-duck">Джингл победы с приглушением музыки</button>
+
+<h3>Мотор</h3>
+<div id="engine"></div>
+
+<h3>Лог</h3>
+<div id="log"></div>
+
+<script type="module">
+import { createAudio } from '../js/audio.js';
+
+const audio = createAudio();
+window.audio = audio;
+const log = document.getElementById('log');
+const say = text => { log.textContent = `${text}\n${log.textContent}`.split('\n').slice(0, 20).join('\n'); };
+
+const button = (parent, label, onClick) => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.addEventListener('click', () => { onClick(b); say(label); });
+  document.getElementById(parent).append(b);
+  return b;
+};
+const select = (group, chosen) => group.forEach(b => b.classList.toggle('on', b === chosen));
+
+const unlock = document.getElementById('unlock');
+unlock.addEventListener('click', () => {
+  audio.unlock();
+  unlock.classList.toggle('on', audio.unlocked);
+  unlock.textContent = audio.unlocked ? 'Звук включён' : 'Web Audio недоступен';
+});
+
+for (const name of ['bump', 'landmark', 'arrive', 'ignite', 'liftoff', 'cheer', 'levelStart', 'restart', 'menu']) {
+  button('sfx', name, () => say(`${name}: ${audio.sfx(name).toFixed(2)} с`));
+}
+button('sfx', 'arrive → ignite → liftoff → cheer', () => {
+  audio.sfx('arrive');
+  setTimeout(() => audio.sfx('ignite'), 600);
+  setTimeout(() => audio.sfx('liftoff'), 1000);
+  setTimeout(() => audio.sfx('cheer'), 1400);
+});
+
+const musicButtons = [
+  ...['moon', 'mars', 'europa'].map(planet => button('music', planet, b => { audio.playMusic(planet); select(musicButtons, b); })),
+  button('music', 'стоп', b => { audio.stopMusic(); select(musicButtons, b); }),
+];
+
+let musicOn = true;
+const toggle = document.getElementById('music-toggle');
+toggle.addEventListener('click', () => {
+  musicOn = !musicOn;
+  audio.setMusicEnabled(musicOn);
+  toggle.textContent = `Музыка: ${musicOn ? 'вкл' : 'выкл'}`;
+  toggle.classList.toggle('on', musicOn);
+});
+document.getElementById('cheer-duck').addEventListener('click', () => {
+  audio.duckMusic(2.5);
+  audio.sfx('cheer');
+});
+
+const engineButtons = [
+  ...['lunokhod', 'marsRover', 'icebreaker'].map(rover => button('engine', rover, b => { audio.setEngine(rover); select(engineButtons, b); })),
+  button('engine', 'стоп мотор', b => { audio.setEngine(null); select(engineButtons, b); }),
+];
+
+addEventListener('keydown', e => {
+  if (e.key === 'Enter') unlock.click();
+  if (e.key === 'm' || e.key === 'M') toggle.click();
+});
+
+const bar = document.querySelector('#meter div');
+const peakText = document.getElementById('peak');
+let held = 0;
+(function tick() {
+  const peak = audio.peak();
+  held = Math.max(peak, held * 0.96);
+  bar.style.width = `${Math.min(100, held * 100)}%`;
+  peakText.textContent = `пик: ${peak.toFixed(2)}`;
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

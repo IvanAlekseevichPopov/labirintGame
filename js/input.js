@@ -2,11 +2,12 @@
 //   { type: 'dir', dir, down, source }   a direction pressed or released
 //   { type: 'confirm' }                   start / OK
 //   { type: 'restart' }
+//   { type: 'toggleMusic' }
 //   { type: 'gesture' }                   a key or click: the browser now allows sound
 //   { type: 'blur' }                      the window lost focus, key-ups will not arrive
 
 import {
-  CONFIRM_KEYS, KEY_TO_DIR, PAD_PRESS, PAD_RELEASE, PAD_RESTART_BUTTON, PAD_STANDARD_DPAD, RESTART_KEYS,
+  CONFIRM_KEYS, KEY_TO_DIR, MUSIC_KEYS, PAD_PRESS, PAD_RELEASE, PAD_RESTART_BUTTON, PAD_STANDARD_DPAD, RESTART_KEYS,
 } from './config.js';
 
 export function installInput(handle) {
@@ -18,6 +19,7 @@ export function installInput(handle) {
     if (dir) handle({ type: 'dir', dir, down: true, source: 'key' });
     else if (RESTART_KEYS.includes(e.key)) handle({ type: 'restart' });
     else if (CONFIRM_KEYS.includes(e.key)) handle({ type: 'confirm' });
+    else if (MUSIC_KEYS.includes(e.key)) handle({ type: 'toggleMusic' });
   });
   addEventListener('keyup', e => {
     const dir = KEY_TO_DIR[e.key];
