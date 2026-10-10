@@ -85,6 +85,21 @@ function scatter(rand, count, cols, rows, minR, maxR) {
   }));
 }
 
+// Wall edges in grid units, [x0, y0, x1, y1] between cell corners.
+function wallSegments({ cols, rows, cells }) {
+  const segments = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const c = cells[y][x];
+      if (c.top) segments.push([x, y, x + 1, y]);
+      if (c.left) segments.push([x, y, x, y + 1]);
+      if (x === cols - 1 && c.right) segments.push([x + 1, y, x + 1, y + 1]);
+      if (y === rows - 1 && c.bottom) segments.push([x, y + 1, x + 1, y + 1]);
+    }
+  }
+  return segments;
+}
+
 const state = {};
 
 function startLevel(index) {
@@ -112,6 +127,7 @@ function startLevel(index) {
     inputFrom: performance.now() + INPUT_LOCK_MS,
     craters: scatter(rand, cols * rows * 0.5, cols, rows, 0.05, 0.15),
     specks: scatter(rand, cols * rows * 6, cols, rows, 0.01, 0.035),
+    walls: wallSegments(maze),
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
@@ -293,7 +309,7 @@ function buildMazeLayer() {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   const { cell, ox, oy } = layout();
-  const { cols, rows, cells } = state.maze;
+  const { cols, rows } = state.maze;
   const p = state.planet;
   const wall = cell * WALL_RATIO;
 
@@ -326,34 +342,47 @@ function buildMazeLayer() {
   }
   g.restore();
 
-  const walls = new Path2D();
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const c = cells[y][x];
-      const x0 = ox + x * cell, y0 = oy + y * cell, x1 = x0 + cell, y1 = y0 + cell;
-      if (c.top) { walls.moveTo(x0, y0); walls.lineTo(x1, y0); }
-      if (c.left) { walls.moveTo(x0, y0); walls.lineTo(x0, y1); }
-      if (x === cols - 1 && c.right) { walls.moveTo(x1, y0); walls.lineTo(x1, y1); }
-      if (y === rows - 1 && c.bottom) { walls.moveTo(x0, y1); walls.lineTo(x1, y1); }
-    }
+  const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
+    state.walls.map(seg => raggedWall(seg, halfWidth, amp, state.index).map(([x, y]) => [ox + (x + dx) * cell, oy + (y + dy) * cell]));
+  const half = WALL_RATIO / 2;
+  fillShapes(g, ragged(half, 0.03, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
+  fillShapes(g, ragged(half, 0.03), p.wallBase);
+  fillShapes(g, ragged(half * 0.45, 0.015, -0.008, -0.016), p.wallTop);
+}
+
+// Cheap deterministic noise in [-1, 1] for a grid-unit point; shared by touching walls,
+// so ragged edges line up where segments meet.
+function wallNoise(x, y, salt) {
+  const v = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
+  return (v - Math.floor(v)) * 2 - 1;
+}
+
+// Outline of one wall segment with a ragged edge on both sides and roughly round ends.
+function raggedWall([x0, y0, x1, y1], halfWidth, amp, salt) {
+  const STEPS = 6;
+  const nx = y0 - y1, ny = x1 - x0;
+  const side = sign => Array.from({ length: STEPS + 1 }, (_, k) => {
+    const t = k / STEPS, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+    const w = halfWidth + amp * wallNoise(x * STEPS, y * STEPS, salt + sign);
+    return [x + nx * w * sign, y + ny * w * sign];
+  });
+  const cap = (cx, cy, from) => Array.from({ length: 5 }, (_, k) => {
+    const a = from - (k + 1) * Math.PI / 6;
+    const w = halfWidth + amp * wallNoise(cx * 7 + k, cy * 7, salt);
+    return [cx + Math.cos(a) * w, cy + Math.sin(a) * w];
+  });
+  const angle = Math.atan2(ny, nx);
+  return [...side(1), ...cap(x1, y1, angle), ...side(-1).reverse(), ...cap(x0, y0, angle + Math.PI)];
+}
+
+function fillShapes(g, shapes, color) {
+  g.fillStyle = color;
+  for (const pts of shapes) {
+    g.beginPath();
+    pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y));
+    g.closePath();
+    g.fill();
   }
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  g.save();
-  g.translate(wall * 0.15, wall * 0.3);
-  g.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-  g.lineWidth = wall;
-  g.stroke(walls);
-  g.restore();
-  g.strokeStyle = p.wallBase;
-  g.lineWidth = wall;
-  g.stroke(walls);
-  g.save();
-  g.translate(-wall * 0.06, -wall * 0.12);
-  g.strokeStyle = p.wallTop;
-  g.lineWidth = wall * 0.5;
-  g.stroke(walls);
-  g.restore();
 }
 
 function drawBigCrater(g, x, y, r, p) {
