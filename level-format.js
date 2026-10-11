@@ -97,8 +97,10 @@ export function parseLevel(level, number, planets) {
     if (impacts.length !== 1 || triggers.length > 1) fail(`метеорит: нужна ровно одна M и не больше одной T, а тут M: ${impacts.length}, T: ${triggers.length}`);
     const [cell] = impacts, trigger = triggers[0] ?? null;
     const setOff = trigger ?? start;
+    if (dark || storm) fail('метеорит на ночном уровне или в бурю не поддерживается: его не видно под пеленой, а фары не знают о кратере');
     const fromTrigger = levelDistances(maze, setOff).get(`${cell.x},${cell.y}`);
-    if (!fromTrigger || fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${trigger ? 'T' : 'старта'}`);
+    if (!fromTrigger) fail(`до метеорита M не доехать от ${trigger ? 'T' : 'старта'}`);
+    if (fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${trigger ? 'T' : 'старта'}`);
     const blocked = blockCell(maze, cell);
     for (const [name, from] of [['старта', start], ['T', trigger]]) {
       if (from && !levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);

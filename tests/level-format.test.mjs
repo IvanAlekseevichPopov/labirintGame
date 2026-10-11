@@ -128,3 +128,11 @@ test('blockCell walls a cell off from both sides', () => {
   assert.ok(blocked.cells[0][0].right && blocked.cells[0][2].left);
   assert.equal(maze.cells[0][0].right, false, 'the original is untouched');
 });
+
+test('a meteor is refused under a veil, and an unreachable M says so', () => {
+  assert.throws(() => parseLevel({ planet: 'moon', map: LOOP, dark: true }, 1, PLANET_KEYS), /ночном уровне/);
+  assert.throws(() => parseLevel({ planet: 'mars', map: LOOP, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS), /бурю/);
+  // M in a pocket of its own: the parser must not call it "too close".
+  const pocket = LOOP.replace('#S   T     M   R#', '#S   T    #M#  R#');
+  assert.throws(() => parseLevel({ planet: 'moon', map: pocket }, 1, PLANET_KEYS), /не доехать/);
+});

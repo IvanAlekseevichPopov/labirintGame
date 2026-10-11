@@ -216,12 +216,15 @@ function step(now, dt, cellPx) {
   }
   const { meteor } = state;
   if (meteor?.phase === 'waiting' && !meteor.trigger && now >= meteor.at) setMeteorOff(now);
-  if (meteor?.phase === 'falling' && now >= meteor.at) {
+  // While the rover sits on the cell the rock hangs in its last frame (`at` stays), and lands
+  // once the rover has moved off; `at` then becomes the real moment of impact.
+  if (meteor?.phase === 'falling' && now >= Math.max(meteor.at, meteor.retryAt ?? 0)) {
     const onCell = c => c.x === meteor.cell.x && c.y === meteor.cell.y;
     if (onCell(state.player)) {
-      meteor.at = now + METEOR.retryMs;
+      meteor.retryAt = now + METEOR.retryMs;
     } else {
       meteor.phase = 'fallen';
+      meteor.at = now;
       state.maze = blockCell(state.maze, meteor.cell);
       state.landmarks.push({ type: 'impact', ...meteor.cell });
       events.push({ type: 'meteorImpact' });

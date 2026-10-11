@@ -87,6 +87,7 @@ function startPlaying(now) {
 
 function openPause(now) {
   scene = 'paused';
+  audio.cutSweeps();
   pausedAt = now;
   // The cursor starts on "continue", so a double press cannot restart by accident.
   pauseSelected = 0;
@@ -167,6 +168,7 @@ function handle(event) {
       rememberLevelInUrl(event.index);
       audio.setEngine(null);
       audio.playMusic(songFor(game.state));
+      if (event.restart) audio.cutSweeps();
       audio.sfx(event.restart ? 'restart' : 'levelStart');
       break;
     case 'lightsOn':

@@ -356,6 +356,7 @@ export function createAudio() {
   // A source whose pitch and level glide: `points` are [secondsFromT0, level] pairs.
   function sweep({ src, from, to, t0, points, out }) {
     const g = gain(0, out);
+    sweeping.add(g);
     const param = src.playbackRate ? src.playbackRate : src.frequency;
     if (from !== undefined) {
       param.setValueAtTime(from, t0);
@@ -366,6 +367,20 @@ export function createAudio() {
     src.connect(g);
     src.start(t0);
     release(src, [src, g], t0 + points[points.length - 1][0] + 0.02);
+    setTimeout(() => sweeping.delete(g), (points[points.length - 1][0] + 0.1) * 1000);
+  }
+
+  // Every sweep still sounding; a restart or a pause cuts them (the meteor's whistle, mostly).
+  const sweeping = new Set();
+  function cutSweeps() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    for (const g of sweeping) {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.linearRampToValueAtTime(0, now + 0.05);
+    }
+    sweeping.clear();
   }
 
   const SFX = {
@@ -499,6 +514,7 @@ export function createAudio() {
   return {
     unlock,
     playMusic,
+    cutSweeps,
     stopMusic,
     setMusicEnabled,
     setMuted,

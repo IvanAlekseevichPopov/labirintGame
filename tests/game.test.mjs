@@ -401,13 +401,16 @@ test('the meteor waits while the rover is on its cell, and a restart resets it',
   run(INPUT_LOCK_MS);
   drive('right', 5);
   assert.equal(state.player.x, 5, 'on M');
+  const due = state.meteor.at;
   const held = run(METEOR.warnMs + METEOR.retryMs * 3);
   assert.deepEqual(meteorEvents(held), [], 'no hit under the rover');
   assert.equal(state.meteor.phase, 'falling');
+  assert.equal(state.meteor.at, due, 'the picture does not jump while it waits');
   tap('right');
   const hit = run(STEP_MS + METEOR.retryMs + FRAME_MS * 2);
   assert.equal(state.player.x, 6);
   assert.deepEqual(meteorEvents(hit), ['meteorImpact'], 'lands once the rover has moved off');
+  assert.ok(state.meteor.at > due && state.meteor.at <= now, 'the impact time is when it really hit');
   game.restartLevel(now);
   run(INPUT_LOCK_MS);
   assert.equal(state.meteor.phase, 'waiting');

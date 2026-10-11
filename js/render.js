@@ -85,8 +85,7 @@ function sizeVeilLayer() {
   veilLayer.height = drawVeil ? canvas.height : 0;
 }
 
-// A meteor crater appeared: redraw the cached layer. The walls the crater adds to the maze are
-// not drawn; the crater itself has to look impassable.
+// A meteor crater appeared: redraw the cached layer.
 export function mazeChanged() {
   buildMazeLayer();
 }
@@ -160,31 +159,49 @@ function buildMazeLayer() {
   for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
   g.restore();
 
-  // Meteor impacts bend the walls around them outwards and knock pieces out of them.
+  // Meteor impacts bend the walls around them outwards and knock pieces out of them; the walls
+  // the crater adds to the maze are not drawn, the crater itself has to look impassable. The
+  // outer frame is left alone, it is the edge of the world.
   const impacts = floorMarks.filter(l => l.type === 'impact').map(l => ({ x: l.x + 0.5, y: l.y + 0.5 }));
   const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
-    decor.walls.map(seg => raggedWall(seg, halfWidth, amp * (nearImpact(seg, impacts) ? 3 : 1), state.index)
-      .map(([x, y]) => blastDeform([x + dx, y + dy], impacts))
-      .map(([x, y]) => [ox + x * cell, oy + y * cell]));
+    decor.walls.map(seg => {
+      const frame = isFrame(seg, cols, rows);
+      return raggedWall(seg, halfWidth, (x, y) => amp * (frame ? 1 : 1 + 2 * blastAt([x, y], impacts)), state.index)
+        .map(([x, y]) => (frame ? [x + dx, y + dy] : blastDeform([x + dx, y + dy], impacts)))
+        .map(([x, y]) => [ox + x * cell, oy + y * cell]);
+    });
   const half = WALL_RATIO / 2;
   wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   fillShapes(g, ragged(half, 0.03, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
   fillShapes(g, ragged(half, 0.03), p.wallBase);
   fillShapes(g, ragged(half * 0.45, 0.015, -0.008, -0.016), p.wallTop);
+  // Rays and rubble stay on the ground, never on the sky.
+  g.save();
+  g.beginPath();
+  g.roundRect(ox - wall / 2, oy - wall / 2, cell * cols + wall, cell * rows + wall, wall);
+  g.clip();
   for (const c of impacts) {
-    knockOutWalls(g, c, cell, ox, oy, p);
+    knockOutWalls(g, c, cell, ox, oy, p, cols, rows);
     drawMark({ type: 'impact', x: c.x - 0.5, y: c.y - 0.5 });
   }
+  g.restore();
 }
 
 // How far (cells) a blast reaches into the walls, and how much it pushes them at the crater's edge.
-const BLAST = { reach: 1.7, push: 0.16 };
+export const BLAST = { reach: 1.7, push: 0.16 };
 
-const nearImpact = ([x0, y0, x1, y1], impacts) =>
-  impacts.some(c => Math.hypot((x0 + x1) / 2 - c.x, (y0 + y1) / 2 - c.y) < BLAST.reach);
+const isFrame = ([x0, y0, x1, y1], cols, rows) =>
+  (x0 === x1 && (x0 === 0 || x0 === cols)) || (y0 === y1 && (y0 === 0 || y0 === rows));
+
+// 1 at an impact, fading to 0 at BLAST.reach; smooth, so touching wall segments still line up.
+export function blastAt([x, y], impacts) {
+  let k = 0;
+  for (const c of impacts) k = Math.max(k, 1 - Math.min(1, Math.hypot(x - c.x, y - c.y) / BLAST.reach));
+  return k;
+}
 
 // Pushes a wall point (grid units) away from every nearby impact, more the closer it is.
-function blastDeform([x, y], impacts) {
+export function blastDeform([x, y], impacts) {
   for (const c of impacts) {
     const dx = x - c.x, dy = y - c.y, d = Math.hypot(dx, dy);
     if (!d || d >= BLAST.reach) continue;
@@ -196,9 +213,10 @@ function blastDeform([x, y], impacts) {
 }
 
 // Floor-coloured bites out of the walls next to the crater, and the knocked-out rubble lying about.
-function knockOutWalls(g, c, cell, ox, oy, p) {
+// A bite is shallower than half the wall, so the wall never looks broken through.
+function knockOutWalls(g, c, cell, ox, oy, p, cols, rows) {
   const cx = ox + c.x * cell, cy = oy + c.y * cell;
-  const bites = decor.walls.flatMap(([x0, y0, x1, y1]) => {
+  const bites = decor.walls.filter(seg => !isFrame(seg, cols, rows)).flatMap(([x0, y0, x1, y1]) => {
     const pts = [];
     for (let t = 0.15; t < 1; t += 0.35) {
       const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
@@ -209,11 +227,14 @@ function knockOutWalls(g, c, cell, ox, oy, p) {
   });
   g.fillStyle = p.floor;
   for (const b of bites) {
-    const r = cell * (0.1 + 0.1 * (1.1 - b.d));
+    // Bitten from the crater's side: the bite's centre sits on the wall's face, not its middle.
+    const towards = Math.atan2(c.y - b.y, c.x - b.x);
+    const bx = ox + (b.x + Math.cos(towards) * WALL_RATIO * 0.5) * cell, by = oy + (b.y + Math.sin(towards) * WALL_RATIO * 0.5) * cell;
+    const r = cell * WALL_RATIO * (0.3 + 0.15 * (1.1 - b.d));
     g.beginPath();
     for (let k = 0; k <= 8; k++) {
       const a = (k / 8) * Math.PI * 2, rr = r * (1 + 0.35 * wallNoise(b.x * 31 + k, b.y * 31, c.x));
-      g[k ? 'lineTo' : 'moveTo'](ox + b.x * cell + Math.cos(a) * rr, oy + b.y * cell + Math.sin(a) * rr);
+      g[k ? 'lineTo' : 'moveTo'](bx + Math.cos(a) * rr, by + Math.sin(a) * rr);
     }
     g.closePath();
     g.fill();
@@ -240,17 +261,18 @@ function wallNoise(x, y, salt) {
 }
 
 // Outline of one wall segment with a ragged edge on both sides and roughly round ends.
-function raggedWall([x0, y0, x1, y1], halfWidth, amp, salt) {
+// `ampAt(x, y)` gives the raggedness at a point, so it can grow smoothly towards a crater.
+function raggedWall([x0, y0, x1, y1], halfWidth, ampAt, salt) {
   const STEPS = 6;
   const nx = y0 - y1, ny = x1 - x0;
   const side = sign => Array.from({ length: STEPS + 1 }, (_, k) => {
     const t = k / STEPS, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
-    const w = halfWidth + amp * wallNoise(x * STEPS, y * STEPS, salt + sign);
+    const w = halfWidth + ampAt(x, y) * wallNoise(x * STEPS, y * STEPS, salt + sign);
     return [x + nx * w * sign, y + ny * w * sign];
   });
   const cap = (cx, cy, from) => Array.from({ length: 5 }, (_, k) => {
     const a = from - (k + 1) * Math.PI / 6;
-    const w = halfWidth + amp * wallNoise(cx * 7 + k, cy * 7, salt);
+    const w = halfWidth + ampAt(cx, cy) * wallNoise(cx * 7 + k, cy * 7, salt);
     return [cx + Math.cos(a) * w, cy + Math.sin(a) * w];
   });
   const angle = Math.atan2(ny, nx);
@@ -360,6 +382,8 @@ export function render(now, { soundOff = false } = {}) {
   }
 
   drawMeteor(ctx, state.meteor, now, cell, toPx);
+  // The shake stops here: the veil, the weather and the title stay put (the lights drift from the
+  // rover by at most a twentieth of a cell, not worth the cost of shaking the layer too).
   ctx.restore();
 
   if (drawVeil) {
