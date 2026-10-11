@@ -1,7 +1,9 @@
 // Level text format, shared by the game, tools/gen-levels.mjs and the tests.
 // Cells sit at odd rows/columns; the characters between them are walls.
 
-const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', F: 'flag', A: 'antenna', C: 'crater' };
+import { LANDMARK_BY_CHAR } from './js/landmarks.js';
+
+const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', ...LANDMARK_BY_CHAR };
 const LEVEL_WALL_CHARS = ['#', ' '];
 export const LEVEL_DIRS = [
   { dx: 0, dy: -1, wall: 'top' },
@@ -50,7 +52,7 @@ export function parseLevel(level, number, planets) {
     const isCell = row % 2 === 1 && col % 2 === 1;
     if (onFrame && ch !== '#') fail(`${at(row, col)}: дыра во внешней стене`);
     if (isCell && !(ch in LEVEL_CELL_CHARS)) {
-      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, F, A, C — латиницей)`);
+      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
     }
     if (!isCell && !LEVEL_WALL_CHARS.includes(ch)) {
       fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только # или пробел`);

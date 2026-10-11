@@ -3,6 +3,7 @@
 
 import { parseLevel } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
+import { LANDMARKS } from './landmarks.js';
 import * as game from './game.js';
 import * as renderer from './render.js';
 import { installInput, pollGamepads } from './input.js';
@@ -182,8 +183,7 @@ function handle(event) {
       audio.sfx(event.type);
       break;
     case 'landmark':
-      // Only things people left there feel like a checkpoint; a crater or ice hole is just ground.
-      if (event.kind !== 'crater') audio.sfx('landmark');
+      if (LANDMARKS[event.kind].chime) audio.sfx('landmark');
       break;
     case 'arrive':
       audio.setEngine(null);

@@ -86,3 +86,15 @@ test('dark and storm are optional and checked', () => {
   assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: 0.5 }, 1, PLANET_KEYS), /storm/);
   assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0.7, to: 0.2 } }, 1, PLANET_KEYS), /storm/);
 });
+
+test('landmark letters come from the registry and are unique', async () => {
+  const { LANDMARKS, LANDMARK_BY_CHAR } = await import('../js/landmarks.js');
+  assert.equal(Object.keys(LANDMARK_BY_CHAR).length, Object.keys(LANDMARKS).length);
+  for (const [type, l] of Object.entries(LANDMARKS)) {
+    assert.equal(LANDMARK_BY_CHAR[l.char], type);
+    assert.equal(typeof l.draw, 'function');
+    assert.equal(typeof l.chime, 'boolean');
+  }
+  const level = parse(SMALL.replace('F', 'A'));
+  assert.deepEqual(level.landmarks, [{ type: 'antenna', x: 2, y: 0 }]);
+});

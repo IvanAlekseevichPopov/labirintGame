@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import { parseLevel, levelDistances, normalizeLevelLines, LEVEL_DIRS } from '../level-format.js';
 import { PLANET_KEYS } from '../js/planets.js';
+import { LANDMARKS as LANDMARK_KINDS } from '../js/landmarks.js';
 import { mulberry32 } from '../js/random.js';
 
 const SEED = 20261010;
@@ -14,7 +15,7 @@ const LEVEL_COUNT = 40;
 const LEVELS_PER_PLANET = 3;
 // Planets come in this order, LEVELS_PER_PLANET levels each.
 const PLANETS = PLANET_KEYS;
-const LANDMARKS = ['F', 'A', 'C'];
+const LANDMARKS = Object.values(LANDMARK_KINDS).map(l => l.char);
 const CANDIDATES = 300;
 const BRAID_RATIO = 0.3;
 // Chance the maze carver keeps going straight: longer corridors, fewer turns per step.
@@ -268,7 +269,7 @@ function describe(level, number) {
   const { maze, start, landmarks } = parseLevel(level, number, PLANETS);
   return {
     spot: START_SPOTS.find(s => key(spotCell(s, maze.cols, maze.rows)) === key(start)) ?? null,
-    types: landmarks.map(l => ({ flag: 'F', antenna: 'A', crater: 'C' })[l.type]),
+    types: landmarks.map(l => LANDMARK_KINDS[l.type].char),
   };
 }
 

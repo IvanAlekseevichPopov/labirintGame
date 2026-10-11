@@ -3,6 +3,7 @@
 // veil is dust, not dark, and it has an edge you can drive out of.
 
 import { createHeadlights, fillPolygon, headlightPreset, radial } from './headlights.js';
+import { LANDMARKS } from './landmarks.js';
 
 export const STORM = {
   see: 0.5,        // glow right around the rover inside the storm, cells
@@ -81,8 +82,10 @@ export function createStorm(span, planet) {
     g.globalAlpha = 1;
     if (rover) radial(g, rover.x, rover.y, cell * STORM.see * (0.9 + 0.2 * gust), 0.7);
     headlights.cut(g, scene, 1);
+    // Man-made landmarks show through the dust, dimmer than at night.
     for (const l of scene.landmarks) {
-      if (l.type === 'antenna') radial(g, l.x, l.y, cell * 0.7, Math.floor(now / 600) % 2 ? 0.6 : 0.15);
+      const light = LANDMARKS[l.type].light?.(now);
+      if (light) radial(g, l.x, l.y, cell * light.r * 0.9, light.strength * 0.7);
     }
     const pulse = 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
     radial(g, scene.goal.x, scene.goal.y, cell * 0.6 * pulse, 0.6);

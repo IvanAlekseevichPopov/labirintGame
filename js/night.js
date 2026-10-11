@@ -3,6 +3,7 @@
 // beacon on the rocket, meteor impacts. Drawn by render.js after the rover.
 
 import { createHeadlights, headlightPreset, radial } from './headlights.js';
+import { LANDMARKS } from './landmarks.js';
 
 export const NIGHT = {
   glow: 0.95,       // faint light around the rover itself, cells
@@ -17,13 +18,6 @@ export function brightness(sinceLightsAt, now) {
   const level = SWITCH_ON.find(([until]) => sinceLightsAt < until)[1];
   return level * (0.97 + 0.03 * Math.sin(now / 90) * Math.sin(now / 37));
 }
-
-// Only man-made landmarks carry a light (same rule as the chime in audio.js): radius in cells,
-// how much light, and its colour on top of the hole. A crater or a polynya is just ground.
-const LANDMARK_LIGHTS = {
-  antenna: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, tint: '255,70,50' }),
-  flag: () => ({ r: 0.85, strength: 0.75, tint: '255,220,150' }),
-};
 
 // Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
 const jitter = now => (Math.sin(now / 23) * 43758.5453) % 1;
@@ -58,7 +52,7 @@ export function createNight(planet) {
     if (rover) radial(g, rover.x, rover.y, cell * NIGHT.glow, 0.3 + 0.7 * b);
     headlights.cut(g, scene, b);
 
-    const lit = scene.landmarks.map(l => ({ ...l, light: LANDMARK_LIGHTS[l.type]?.(now) })).filter(l => l.light);
+    const lit = scene.landmarks.map(l => ({ ...l, light: LANDMARKS[l.type].light?.(now) })).filter(l => l.light);
     for (const { x, y, light } of lit) radial(g, x, y, cell * light.r, light.strength);
     const pulse = 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
     radial(g, scene.goal.x, scene.goal.y, cell * NIGHT.beacon * pulse, 0.9);
@@ -70,7 +64,7 @@ export function createNight(planet) {
     // Colour on top of the holes, so each light looks like its own kind of light.
     headlights.paint(ctx, scene, b, dt);
     for (const { x, y, light } of lit) {
-      radial(ctx, x, y, cell * light.r, light.strength * 0.3, light.tint);
+      radial(ctx, x, y, cell * light.r, light.strength * 0.3, light.color);
     }
     for (const l of scene.lights) radial(ctx, l.x, l.y, l.r, 0.35 * l.strength, '255,190,120');
     if (scene.flame) radial(ctx, scene.goal.x, scene.goal.y, cell * 5, 0.2 + 0.05 * jitter(now), '255,170,80');

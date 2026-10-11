@@ -129,7 +129,7 @@ function outlinedLine(points, color, width) {
   line(points, color, width);
 }
 
-function drawFlag(cx, baseY, size, now) {
+export function drawFlag(cx, baseY, size, now) {
   withUprightSpace(cx, baseY, size, () => {
     const wave = Math.sin(now / 250) * 0.04;
     outlinedLine([[0, 0], [0, -1]], '#e8eaef', 0.05);
@@ -148,7 +148,7 @@ function drawFlag(cx, baseY, size, now) {
   });
 }
 
-function drawAntenna(cx, baseY, size, now) {
+export function drawAntenna(cx, baseY, size, now) {
   withUprightSpace(cx, baseY, size, () => {
     outlinedLine([[-0.25, 0], [0, -0.45], [0.25, 0]], '#9aa1ad', 0.05);
     outlinedLine([[0, 0], [0, -0.55]], '#9aa1ad', 0.05);
@@ -165,6 +165,33 @@ function drawAntenna(cx, baseY, size, now) {
     line([[0, 0.1], [0, -0.3]], OUTLINE, 0.03);
     dot(0, -0.32, 0.06, Math.floor(now / 600) % 2 ? '#ff3b30' : '#7a1d18');
   });
+}
+
+// Drawn into the cached maze layer, so it takes its context instead of using the shared one.
+export function drawBigCrater(g, x, y, r, p) {
+  const circle = (cx, cy, cr, fill) => {
+    g.beginPath();
+    g.arc(cx, cy, cr, 0, Math.PI * 2);
+    g.fillStyle = fill;
+    g.fill();
+  };
+  // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
+  if (p.polynya) {
+    circle(x, y, r * 1.15, p.wallBase);
+    circle(x, y, r * 1.05, p.craterRim);
+    circle(x, y, r * 0.9, p.polynya);
+    circle(x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
+    return;
+  }
+  circle(x, y, r * 1.15, p.craterRim);
+  g.save();
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.clip();
+  circle(x, y, r, '#00000055');
+  circle(x + r * 0.22, y + r * 0.22, r, p.crater);
+  g.restore();
+  circle(x + r * 0.1, y + r * 0.1, r * 0.14, p.craterRim);
 }
 
 export function drawPad(cx, cy, cell, now) {
@@ -264,7 +291,6 @@ export function drawText(text, x, y, size, align, color) {
 }
 
 export const ROVERS = { lunokhod: drawLunokhod, marsRover: drawMarsRover, icebreaker: drawIcebreaker };
-export const UPRIGHT_LANDMARKS = { flag: drawFlag, antenna: drawAntenna };
 
 // Speaker with a cross: the game runs, but the browser has not allowed sound yet.
 export function drawSoundOff(cx, cy, size) {

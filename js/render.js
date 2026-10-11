@@ -7,7 +7,8 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
+import { ROVERS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
+import { LANDMARKS } from './landmarks.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -147,8 +148,8 @@ function buildMazeLayer() {
     g.arc(x, y, r, Math.PI * 0.1, Math.PI * 0.9);
     g.stroke();
   }
-  for (const l of state.landmarks.filter(l => l.type === 'crater')) {
-    drawBigCrater(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * 0.4, p);
+  for (const l of state.landmarks.filter(l => !LANDMARKS[l.type].upright)) {
+    LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * 0.4, p);
   }
   g.restore();
 
@@ -194,32 +195,6 @@ function fillShapes(g, shapes, color) {
     g.closePath();
     g.fill();
   }
-}
-
-function drawBigCrater(g, x, y, r, p) {
-  const circle = (cx, cy, cr, fill) => {
-    g.beginPath();
-    g.arc(cx, cy, cr, 0, Math.PI * 2);
-    g.fillStyle = fill;
-    g.fill();
-  };
-  // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
-  if (p.polynya) {
-    circle(x, y, r * 1.15, p.wallBase);
-    circle(x, y, r * 1.05, p.craterRim);
-    circle(x, y, r * 0.9, p.polynya);
-    circle(x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
-    return;
-  }
-  circle(x, y, r * 1.15, p.craterRim);
-  g.save();
-  g.beginPath();
-  g.arc(x, y, r, 0, Math.PI * 2);
-  g.clip();
-  circle(x, y, r, '#00000055');
-  circle(x + r * 0.22, y + r * 0.22, r, p.crater);
-  g.restore();
-  circle(x + r * 0.1, y + r * 0.1, r * 0.14, p.craterRim);
 }
 
 function drawTrack(g, { a, b }, cell, ox, oy) {
@@ -284,9 +259,9 @@ export function render(now, { soundOff = false } = {}) {
   drawNewTracks();
   ctx.drawImage(trackLayer, 0, 0, w, h);
 
-  for (const l of state.landmarks) {
+  for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {
     const [lx, ly] = toPx(l);
-    UPRIGHT_LANDMARKS[l.type]?.(lx, ly + cell * 0.3, cell * 0.75, now);
+    LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now);
   }
 
   const [gx, gy] = toPx(state.goal);
