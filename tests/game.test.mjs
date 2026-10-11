@@ -280,3 +280,24 @@ test('a plain level never reports lightsOn', () => {
   const events = run(LIGHTS_ON_MS * 2);
   assert.ok(!events.some(e => e.type === 'lightsOn'));
 });
+
+test('entering a storm switches the headlights on, leaving it switches them off', () => {
+  // The corridor's right half is in the storm: cells x ≥ 3 of 6.
+  game.setLevels([{ ...CORRIDOR, storm: { from: 0.5, to: 1 } }, CORRIDOR]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  assert.equal(state.lightsOn, false, 'starts outside the storm, lights off');
+  game.press('right', 'key', now);
+  const events = run(FIRST_REPEAT_MS + 3 * STEP_MS + FRAME_MS);
+  game.release('right', 'key');
+  assert.equal(state.player.x, 4);
+  assert.ok(events.some(e => e.type === 'lightsOn'));
+  run(LIGHTS_FLICKER_MS);
+  assert.equal(state.lightsOn, true);
+  game.press('left', 'key', now);
+  const back = run(FIRST_REPEAT_MS + 2 * STEP_MS + FRAME_MS);
+  game.release('left', 'key');
+  assert.ok(state.player.x < 3);
+  assert.ok(back.some(e => e.type === 'lightsOff'));
+  assert.equal(state.lightsOn, false);
+});

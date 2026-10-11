@@ -3,11 +3,12 @@
 // beacon on the rocket, meteor impacts. Drawn by render.js after the rover.
 
 import { createHeadlights, headlightPreset, radial } from './headlights.js';
-import { LANDMARKS } from './landmarks.js';
+import { createClock, cutCommon, layerContext, paintCommon } from './veil.js';
 
 export const NIGHT = {
   glow: 0.95,       // faint light around the rover itself, cells
   beacon: 0.55,
+  flame: 5,         // how far the rocket's blast lights the ground, cells
   dark: 'rgba(3, 4, 14, 0.985)',
 };
 
@@ -19,54 +20,33 @@ export function brightness(sinceLightsAt, now) {
   return level * (0.97 + 0.03 * Math.sin(now / 90) * Math.sin(now / 37));
 }
 
-// Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
-const jitter = now => (Math.sin(now / 23) * 43758.5453) % 1;
-
 export function createNight(planet) {
   const headlights = createHeadlights(headlightPreset('night', planet));
-  let last = null;
+  const clock = createClock();
 
-  // scene: { w, h, cell, walls (px segments), rover: { x, y, angle, size } | null, goal: { x, y },
-  //         flame, landmarks: [{ type, x, y }] (px), sinceLightsAt, lights: [{ x, y, r, strength }],
-  //         trackLayer }
+  // scene: { w, h, cell, walls (px segments), rover: { x, y, angle, size, draw } | null,
+  //         goal: { x, y }, flame, launch, landmarks: [{ type, x, y }] (px), sinceLightsAt,
+  //         lights: [{ x, y, r, strength }], trackLayer }
   return function drawNight(ctx, layer, now, scene) {
     const { w, h, cell, rover } = scene;
-    const dt = last === null ? 0 : Math.min(0.05, Math.max(0, (now - last) / 1000));
-    last = now;
+    const dt = clock(now);
     const b = brightness(scene.sinceLightsAt, now);
 
-    const g = layer.getContext('2d');
-    const dpr = devicePixelRatio || 1;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = layerContext(layer);
     g.globalCompositeOperation = 'copy';
-    g.globalAlpha = 1;
     g.fillStyle = NIGHT.dark;
     g.fillRect(0, 0, w, h);
 
     g.globalCompositeOperation = 'destination-out';
-    // Old tracks stay faintly visible: a trail of where the rover has already been.
-    g.globalAlpha = 0.55;
-    g.drawImage(scene.trackLayer, 0, 0, w, h);
-    g.globalAlpha = 1;
-
+    const lit = cutCommon(g, scene, now, { tracks: 0.55, beacon: { r: NIGHT.beacon, strength: 0.9 }, flame: NIGHT.flame });
     if (rover) radial(g, rover.x, rover.y, cell * NIGHT.glow, 0.3 + 0.7 * b);
     headlights.cut(g, scene, b);
-
-    const lit = scene.landmarks.map(l => ({ ...l, light: LANDMARKS[l.type].light?.(now) })).filter(l => l.light);
-    for (const { x, y, light } of lit) radial(g, x, y, cell * light.r, light.strength);
-    const pulse = 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
-    radial(g, scene.goal.x, scene.goal.y, cell * NIGHT.beacon * pulse, 0.9);
-    if (scene.flame) radial(g, scene.goal.x, scene.goal.y, cell * 5, 0.95 + 0.05 * jitter(now));
     for (const l of scene.lights) radial(g, l.x, l.y, l.r, l.strength);
 
     ctx.drawImage(layer, 0, 0, w, h);
 
-    // Colour on top of the holes, so each light looks like its own kind of light.
     headlights.paint(ctx, scene, b, dt);
-    for (const { x, y, light } of lit) {
-      radial(ctx, x, y, cell * light.r, light.strength * 0.3, light.color);
-    }
+    paintCommon(ctx, scene, now, lit, { flame: NIGHT.flame });
     for (const l of scene.lights) radial(ctx, l.x, l.y, l.r, 0.35 * l.strength, '255,190,120');
-    if (scene.flame) radial(ctx, scene.goal.x, scene.goal.y, cell * 5, 0.2 + 0.05 * jitter(now), '255,170,80');
   };
 }

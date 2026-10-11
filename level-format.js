@@ -5,6 +5,8 @@ import { LANDMARK_BY_CHAR } from './js/landmarks.js';
 
 const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', ...LANDMARK_BY_CHAR };
 const LEVEL_WALL_CHARS = ['#', ' '];
+// Narrower and the storm's two billowing fronts would cross (see STORM.edge in js/storm.js).
+export const STORM_MIN_CELLS = 3;
 export const LEVEL_DIRS = [
   { dx: 0, dy: -1, wall: 'top' },
   { dx: 0, dy: 1, wall: 'bottom' },
@@ -84,6 +86,7 @@ export function parseLevel(level, number, planets) {
   const [start] = starts, [goal] = rockets;
   const toGoal = levelDistances(maze, start).get(`${goal.x},${goal.y}`);
   if (!toGoal) fail('до ракеты не доехать');
+  if (storm && (storm.to - storm.from) * cols < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
   return { planet, dark, storm, maze, start, goal, landmarks, startDir: toGoal.first };
 }
 

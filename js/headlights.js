@@ -17,7 +17,14 @@ const DEFAULT = {
   dust: { kind: 'motes', count: 28, color: '255,246,220' },
 };
 
-const merge = (base, over) => ({ ...base, ...over, dust: over.dust === null ? null : { ...base.dust, ...over.dust } });
+// Nested settings (dust, tail) are merged field by field; `dust: null` switches the dust off.
+function merge(base, over) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(over)) {
+    out[k] = v && typeof v === 'object' && base[k] && typeof base[k] === 'object' ? merge(base[k], v) : v;
+  }
+  return out;
+}
 
 // [veil][planet]; a planet not listed gets the veil's `default`.
 export const HEADLIGHTS = {
@@ -33,7 +40,7 @@ export const HEADLIGHTS = {
 };
 
 export const headlightPreset = (veil, planet) =>
-  merge(DEFAULT, { ...HEADLIGHTS[veil].default, ...(HEADLIGHTS[veil][planet] ?? {}) });
+  merge(merge(DEFAULT, HEADLIGHTS[veil].default), HEADLIGHTS[veil][planet] ?? {});
 
 // Lamp positions in rover space (facing +x, 1 = rover size); the third number of a front lamp
 // is which way its beam splays. The rovers in art.js draw their lamps at these spots.
@@ -55,7 +62,7 @@ export function castRay(px, py, dx, dy, max, walls) {
   return best;
 }
 
-export function beamPolygon(ox, oy, angle, reach, walls, { rays, halfAngle } = DEFAULT) {
+export function beamPolygon(ox, oy, angle, reach, walls, { rays, halfAngle }) {
   const pts = [[ox, oy]];
   for (let k = 0; k <= rays; k++) {
     const a = angle - halfAngle + (2 * halfAngle * k) / rays;

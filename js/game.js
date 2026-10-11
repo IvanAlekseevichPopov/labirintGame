@@ -39,16 +39,28 @@ export function startLevel(index, now, { restart = false } = {}) {
     targetAngle: facing.angle,
     wonAt: null,
     phase: 'playing',
-    inputFrom: now + (dark ? LIGHTS_ON_MS + LIGHTS_FLICKER_MS : INPUT_LOCK_MS),
-    lightsAt: now + LIGHTS_ON_MS,
+    inputFrom: now + INPUT_LOCK_MS,
+    lightsAt: Infinity,
     lightsOn: false,
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
   });
   resetInput();
+  // Headlights are needed in the dark and inside a storm; the rover waits for them to settle.
+  if (needsLights()) {
+    state.lightsAt = now + LIGHTS_ON_MS;
+    state.inputFrom = state.lightsAt + LIGHTS_FLICKER_MS;
+  }
   events.push({ type: 'levelStart', index, restart });
 }
+
+const inStorm = ({ x }) => {
+  if (!state.storm) return false;
+  const at = (x + 0.5) / state.maze.cols;
+  return at >= state.storm.from && at <= state.storm.to;
+};
+const needsLights = () => state.dark || inStorm(state.player);
 
 export function restartLevel(now) {
   if (state.maze && state.wonAt === null) startLevel(state.index, now, { restart: true });
@@ -112,6 +124,16 @@ function move(dir, now, cellPx) {
   state.pendingTrack = { a: { x, y }, b: state.player };
   state.moving = true;
   events.push({ type: 'move', dir });
+  // Crossing the edge of a storm switches the headlights on (they flicker, see night.js) or off.
+  if (state.storm && needsLights() !== (state.lightsOn || state.lightsAt < Infinity)) {
+    if (needsLights()) {
+      state.lightsAt = now;
+    } else {
+      state.lightsAt = Infinity;
+      state.lightsOn = false;
+      events.push({ type: 'lightsOff' });
+    }
+  }
   const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
 }
@@ -129,7 +151,7 @@ function flushTrack() {
 }
 
 // Advances the game to `now`; returns what happened since the last call:
-// levelStart, move, bump, landmark, stop, the win sequence arrive → ignite → liftoff,
+// levelStart, move, bump, landmark, stop, lightsOn / lightsOff, the win sequence arrive → ignite → liftoff,
 // and finished after the last level's rocket has flown off.
 export function update(now, dt, cellPx) {
   step(now, dt, cellPx);
@@ -165,7 +187,7 @@ function step(now, dt, cellPx) {
   if (now - state.moveStart >= state.moveMs) flushTrack();
 
   if (state.phase === 'finished') return;
-  if (state.dark && !state.lightsOn && now >= state.lightsAt) {
+  if (!state.lightsOn && now >= state.lightsAt) {
     state.lightsOn = true;
     events.push({ type: 'lightsOn' });
   }

@@ -170,7 +170,8 @@ function handle(event) {
       audio.sfx(event.restart ? 'restart' : 'levelStart');
       break;
     case 'lightsOn':
-      audio.sfx('lightsOn');
+    case 'lightsOff':
+      audio.sfx(event.type);
       break;
     case 'move':
       audio.setEngine(planet.rover);

@@ -16,7 +16,7 @@ test('castRay stops at the nearest wall in its direction, or at its reach', () =
 });
 
 test('beamPolygon is the lamp plus one point per ray, none past a wall', () => {
-  const pts = beamPolygon(10, 50, 0, 500, [...BOX, WALL]);
+  const pts = beamPolygon(10, 50, 0, 500, [...BOX, WALL], headlightPreset('night', 'moon'));
   assert.equal(pts.length, headlightPreset('night', 'moon').rays + 2);
   assert.deepEqual(pts[0], [10, 50]);
   for (const [x, y] of pts.slice(1)) {
@@ -30,6 +30,20 @@ test('headlights are off, then flicker, then hold', () => {
   assert.ok(brightness(100, 0) < 0.2, 'first blink');
   assert.ok(brightness(1000, 0) > 0.9);
   assert.ok(brightness(1000, 5000) > 0.9);
+});
+
+test('a planet can override one dust or tail field without losing the rest', () => {
+  HEADLIGHTS.storm.test = { dust: { count: 80 }, tail: { r: 0.2 } };
+  const p = headlightPreset('storm', 'test');
+  delete HEADLIGHTS.storm.test;
+  assert.equal(p.dust.kind, 'sand');
+  assert.equal(p.dust.count, 80);
+  assert.ok(p.dust.wind > 0);
+  assert.equal(p.tail.r, 0.2);
+  assert.ok(p.tail.color);
+  HEADLIGHTS.night.test = { dust: null };
+  assert.equal(headlightPreset('night', 'test').dust, null);
+  delete HEADLIGHTS.night.test;
 });
 
 test('headlight presets fill in from the defaults and can drop the dust', () => {

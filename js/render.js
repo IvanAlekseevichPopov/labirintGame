@@ -282,16 +282,18 @@ export function render(now, { soundOff = false } = {}) {
     const nudge = bumpT < 1 ? Math.sin(Math.PI * bumpT) * cell * 0.1 : 0;
     const { dx, dy } = state.bump ? DIRS[state.bump.dir] : DIRS.right;
     rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
-    ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
+    rover.draw = () => ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
+    rover.draw();
   }
 
   if (drawVeil) {
     drawVeil(ctx, veilLayer, now, {
-      w, h, cell, walls: wallsPx, rover, flame, trackLayer,
+      w, h, cell, walls: wallsPx, rover, flame, launch: liftT, trackLayer,
       area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cols: state.maze.cols },
       goal: { x: gx, y: padY - cell * 0.4 - lift },
       landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
       sinceLightsAt: now - state.lightsAt,
+      lightsOn: state.lightsOn,
       lights: drawWeather?.lights(cell) ?? [],
     });
   }
