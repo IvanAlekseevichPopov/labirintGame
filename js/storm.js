@@ -1,11 +1,12 @@
 // A dust storm standing over part of a Mars level: inside it the rover sees only a little way
 // around itself, the rest is a wall of blowing sand. Same idea as the night (night.js), but the
-// veil is dust, not dark, it has an edge you can drive out of, and there are no headlights.
+// veil is dust, not dark, and it has an edge you can drive out of. The headlights reach less far.
 
-import { fillPolygon, radial } from './night.js';
+import { createHeadlights, fillPolygon, radial } from './night.js';
 
 export const STORM = {
-  see: 1.5,        // how far the rover sees inside the storm, cells
+  see: 0.5,        // glow right around the rover inside the storm, cells
+  reach: 2.4,      // headlight range in the dust, cells
   haze: '214,124,78',
   density: 0.96,   // opacity of the veil deep inside
   edge: 0.6,       // how far the front billows, cells
@@ -22,6 +23,7 @@ export function createStorm(span) {
     x: Math.random(), y: Math.random(), speed: 0.7 + Math.random() * 0.6, len: 0.5 + Math.random(),
     dark: Math.random() < 0.35,
   }));
+  const headlights = createHeadlights({ reach: STORM.reach, strength: 0.9, tint: 0.4 });
   const clouds = Array.from({ length: 7 }, (_, i) => ({ u: Math.random(), v: Math.random(), r: 0.9 + Math.random() * 0.8, phase: i * 1.3 }));
   let last = null;
 
@@ -78,10 +80,8 @@ export function createStorm(span) {
     g.globalAlpha = 0.45;
     g.drawImage(scene.trackLayer, 0, 0, w, h);
     g.globalAlpha = 1;
-    if (rover) {
-      const see = cell * STORM.see * (0.9 + 0.2 * gust);
-      radial(g, rover.x, rover.y, see, 1);
-    }
+    if (rover) radial(g, rover.x, rover.y, cell * STORM.see * (0.9 + 0.2 * gust), 0.7);
+    headlights.cut(g, scene, 1);
     for (const l of scene.landmarks) {
       if (l.type === 'antenna') radial(g, l.x, l.y, cell * 0.7, Math.floor(now / 600) % 2 ? 0.6 : 0.15);
     }
@@ -91,6 +91,7 @@ export function createStorm(span) {
     g.restore();
 
     ctx.drawImage(layer, 0, 0, w, h);
+    headlights.paint(ctx, scene, 1, dt);
 
     // Sand streaking through the storm, drawn only inside it.
     ctx.save();

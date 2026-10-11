@@ -109,6 +109,7 @@ function drawMarsRover(cx, cy, angle, size) {
     box(0.14, -0.15, 0.16, 0.13, 0.03, '#fafafa', true);
     dot(0.22, -0.18, 0.025, '#1d4ed8');
     dot(0.22, -0.12, 0.025, '#1d4ed8');
+    for (const y of [-0.16, 0.16]) dot(0.31, y, 0.05, '#ffd60a');
   });
 }
 
