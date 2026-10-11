@@ -194,6 +194,68 @@ export function drawBigCrater(g, x, y, r, p) {
   circle(x + r * 0.1, y + r * 0.1, r * 0.14, p.craterRim);
 }
 
+// A fresh impact crater filling its cell wall to wall: a deep dark bowl, a raised ragged rim
+// bulging over the neighbouring walls, cracks running into them, thrown-out dust and rocks,
+// and the meteorite still sitting in the middle. Into the maze layer, like drawBigCrater.
+export function drawImpactCrater(g, x, y, r, p) {
+  const circle = (cx, cy, cr, fill) => {
+    g.beginPath();
+    g.arc(cx, cy, cr, 0, Math.PI * 2);
+    g.fillStyle = fill;
+    g.fill();
+  };
+  const rim = k => r * (1.18 + 0.1 * Math.sin(k * 2.7) + 0.05 * Math.sin(k * 7.1));
+  g.save();
+  g.lineCap = 'round';
+  // Dust blanket and rays.
+  circle(x, y, r * 2.1, 'rgba(0, 0, 0, 0.12)');
+  g.strokeStyle = p.craterRim;
+  for (let k = 0; k < 11; k++) {
+    const a = k * 0.57 + 0.2, len = r * (1.9 + (k % 3) * 0.45);
+    g.lineWidth = r * (0.08 + 0.04 * (k % 2));
+    g.beginPath();
+    g.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
+    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    g.stroke();
+  }
+  // Cracks into the ground and the walls around.
+  g.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+  for (let k = 0; k < 6; k++) {
+    const a = k * 1.05 + 0.6;
+    g.lineWidth = r * 0.05;
+    g.beginPath();
+    g.moveTo(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15);
+    g.lineTo(x + Math.cos(a + 0.25) * r * 1.6, y + Math.sin(a + 0.25) * r * 1.6);
+    g.lineTo(x + Math.cos(a + 0.1) * r * 2.0, y + Math.sin(a + 0.1) * r * 2.0);
+    g.stroke();
+  }
+  // Rim: a shadow below, the ragged raised ring, a lit inner edge.
+  const ring = (dx, dy, scale, fill) => {
+    g.beginPath();
+    for (let k = 0; k <= 24; k++) {
+      const a = (k / 24) * Math.PI * 2, rr = rim(k) * scale;
+      g[k ? 'lineTo' : 'moveTo'](x + dx + Math.cos(a) * rr, y + dy + Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  };
+  ring(r * 0.06, r * 0.08, 1, 'rgba(0, 0, 0, 0.35)');
+  ring(0, 0, 1, p.wallBase);
+  ring(-r * 0.03, -r * 0.05, 0.9, p.wallTop);
+  // The bowl.
+  circle(x, y, r * 0.86, p.wallBase);
+  circle(x + r * 0.1, y + r * 0.12, r * 0.74, p.crater);
+  circle(x + r * 0.18, y + r * 0.2, r * 0.5, 'rgba(0, 0, 0, 0.35)');
+  // The meteorite and a few rocks on the rim.
+  circle(x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328');
+  circle(x - r * 0.13, y - r * 0.03, r * 0.11, '#6b6050');
+  for (const [a, s] of [[0.4, 0.12], [2.3, 0.09], [4.1, 0.1], [5.4, 0.08]]) {
+    circle(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15, r * s, p.wallBase);
+  }
+  g.restore();
+}
+
 export function drawPad(cx, cy, cell, now) {
   ctx.beginPath();
   ctx.ellipse(cx, cy, cell * 0.42, cell * 0.14, 0, 0, Math.PI * 2);

@@ -1,7 +1,8 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
-import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { levelDistances } from '../level-format.js';
+import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -355,4 +356,61 @@ test('restarting from inside the storm puts the lights out quietly', () => {
   const events = run(INPUT_LOCK_MS);
   assert.equal(state.lightsOn, false);
   assert.deepEqual(lightEvents(events), []);
+});
+
+// A loop: top corridor S → T → M → R, bottom corridor back round. Driving onto T sets the meteor off.
+const LOOP = {
+  planet: 'moon',
+  map: `
+#################
+#S   T     M   R#
+# ############# #
+#               #
+#################
+`,
+};
+const meteorEvents = events => events.filter(e => e.type.startsWith('meteor')).map(e => e.type);
+
+test('driving onto T starts the meteor, which lands after METEOR.warnMs and walls M off', () => {
+  game.setLevels([LOOP, LOOP]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  assert.equal(state.meteor.phase, 'waiting');
+  const warn = drive('right', 2);
+  assert.equal(state.player.x, 2);
+  assert.deepEqual(meteorEvents(warn), ['meteorWarn']);
+  assert.equal(state.meteor.phase, 'falling');
+  const quiet = run(state.meteor.at - now - FRAME_MS * 2);
+  assert.deepEqual(meteorEvents(quiet), []);
+  const hit = run(FRAME_MS * 4);
+  assert.deepEqual(meteorEvents(hit), ['meteorImpact']);
+  assert.equal(state.meteor.phase, 'fallen');
+  assert.ok(state.maze.cells[0][5].left && state.maze.cells[0][4].right, 'M is walled off');
+  assert.ok(state.landmarks.some(l => l.type === 'impact' && l.x === 5 && l.y === 0));
+  drive('right', 2);
+  assert.equal(state.player.x, 4);
+  const bump = [...drive('right', 1), ...run(STEP_MS)];
+  assert.equal(state.player.x, 4, 'cannot drive into the crater');
+  assert.ok(bump.some(e => e.type === 'bump'));
+  assert.ok(levelDistances(state.maze, state.player).has('7,0'), 'the other way round is still open');
+});
+
+test('the meteor waits while the rover is on its cell, and a restart resets it', () => {
+  game.setLevels([LOOP, LOOP]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  drive('right', 5);
+  assert.equal(state.player.x, 5, 'on M');
+  const held = run(METEOR.warnMs + METEOR.retryMs * 3);
+  assert.deepEqual(meteorEvents(held), [], 'no hit under the rover');
+  assert.equal(state.meteor.phase, 'falling');
+  tap('right');
+  const hit = run(STEP_MS + METEOR.retryMs + FRAME_MS * 2);
+  assert.equal(state.player.x, 6);
+  assert.deepEqual(meteorEvents(hit), ['meteorImpact'], 'lands once the rover has moved off');
+  game.restartLevel(now);
+  run(INPUT_LOCK_MS);
+  assert.equal(state.meteor.phase, 'waiting');
+  assert.equal(state.maze.cells[0][5].left, false, 'the crater is gone');
+  assert.ok(!state.landmarks.some(l => l.type === 'impact'));
 });

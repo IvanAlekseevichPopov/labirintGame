@@ -11,6 +11,9 @@ export const LIGHTS_ON_MS = 500;
 export const LIGHTS_FLICKER_MS = 300;
 // Back into the storm sooner than this after leaving it and the lights just stay on: no new flicker or click.
 export const LIGHTS_REARM_MS = 1000;
+// A meteor: its shadow grows on the target cell for METEOR_WARN_MS, then it hits and the ground
+// shakes for METEOR_SHAKE_MS. If the rover happens to be on the cell, the hit waits a little.
+export const METEOR = { warnMs: 900, shakeMs: 350, retryMs: 150 };
 export const BUMP_MS = 140;
 export const WALL_RATIO = 0.26;
 export const ROVER_RATIO = 0.78;

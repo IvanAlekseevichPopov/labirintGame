@@ -171,6 +171,11 @@ function handle(event) {
       break;
     case 'lightsOn':
     case 'lightsOff':
+    case 'meteorWarn':
+      audio.sfx(event.type);
+      break;
+    case 'meteorImpact':
+      renderer.mazeChanged();
       audio.sfx(event.type);
       break;
     case 'move':

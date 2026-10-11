@@ -7,7 +7,7 @@
 // Otherwise it is part of the ground, drawn once into the maze layer, draw(g, x, y, r, palette).
 // light(now): { r (cells), strength 0..1, color 'r,g,b' } or null.
 
-import { drawAntenna, drawBigCrater, drawFlag } from './art.js';
+import { drawAntenna, drawBigCrater, drawFlag, drawImpactCrater } from './art.js';
 
 export const LANDMARKS = {
   flag: {
@@ -20,7 +20,10 @@ export const LANDMARKS = {
     light: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, color: '255,70,50' }),
   },
   crater: { char: 'C', chime: false, upright: false, draw: drawBigCrater, light: null },
+  // Left by a meteor during play (game.js), so it has no letter of its own in a level.
+  // Fills its cell wall to wall (size is the radius in cells), so it reads as blocked without new walls.
+  impact: { char: null, chime: false, upright: false, draw: drawImpactCrater, size: 0.5, light: null },
 };
 
 // 'F' → 'flag'
-export const LANDMARK_BY_CHAR = Object.fromEntries(Object.entries(LANDMARKS).map(([type, l]) => [l.char, type]));
+export const LANDMARK_BY_CHAR = Object.fromEntries(Object.entries(LANDMARKS).filter(([, l]) => l.char).map(([type, l]) => [l.char, type]));

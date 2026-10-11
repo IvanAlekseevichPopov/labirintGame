@@ -1,10 +1,10 @@
 // Game rules without DOM: level state, input model, movement and winning.
 // Time (`now`, ms) and the on-screen cell size are passed in, so this runs under node tests too.
 
-import { parseLevel } from '../level-format.js';
+import { blockCell, parseLevel } from '../level-format.js';
 import { PLANET_KEYS } from './planets.js';
 import {
-  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -17,13 +17,15 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, meteor, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
     planet,
     dark,
     storm,
+    // phase: waiting (for the rover to reach the trigger) → falling (hits at `at`) → fallen
+    meteor: meteor && { ...meteor, phase: 'waiting', at: null },
     maze,
     goal,
     landmarks,
@@ -143,6 +145,12 @@ function move(dir, now, cellPx) {
   state.moving = true;
   events.push({ type: 'move', dir });
   if (state.storm) switchLightsAtStormEdge(now);
+  const { meteor } = state;
+  if (meteor?.phase === 'waiting' && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) {
+    meteor.phase = 'falling';
+    meteor.at = now + METEOR.warnMs;
+    events.push({ type: 'meteorWarn' });
+  }
   const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
 }
@@ -160,7 +168,8 @@ function flushTrack() {
 }
 
 // Advances the game to `now`; returns what happened since the last call:
-// levelStart, move, bump, landmark, stop, lightsOn / lightsOff, the win sequence arrive → ignite → liftoff,
+// levelStart, move, bump, landmark, stop, lightsOn / lightsOff, meteorWarn / meteorImpact,
+// the win sequence arrive → ignite → liftoff,
 // and finished after the last level's rocket has flown off.
 export function update(now, dt, cellPx) {
   step(now, dt, cellPx);
@@ -199,6 +208,18 @@ function step(now, dt, cellPx) {
   if (!state.lightsOn && now >= state.lightsAt) {
     state.lightsOn = true;
     events.push({ type: 'lightsOn' });
+  }
+  const { meteor } = state;
+  if (meteor?.phase === 'falling' && now >= meteor.at) {
+    const onCell = c => c.x === meteor.cell.x && c.y === meteor.cell.y;
+    if (onCell(state.player)) {
+      meteor.at = now + METEOR.retryMs;
+    } else {
+      meteor.phase = 'fallen';
+      state.maze = blockCell(state.maze, meteor.cell);
+      state.landmarks.push({ type: 'impact', ...meteor.cell });
+      events.push({ type: 'meteorImpact' });
+    }
   }
   if (state.lightsOffAt !== null && now >= state.lightsOffAt) {
     Object.assign(state, { lightsOffAt: null, lightsOutAt: now, lightsAt: Infinity, lightsOn: false });

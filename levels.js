@@ -3,6 +3,7 @@
 // # wall, S start, R rocket; landmarks: F flag, A antenna, C big crater.
 // `dark: true` makes it a night level: black except the rover's headlights.
 // `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
+// M and T: a meteor lands on M (walling the cell off) once the rover drives onto T.
 export const LEVELS = [
   // 1
   { planet: 'moon', map: `
@@ -138,18 +139,18 @@ export const LEVELS = [
 #R    #          S#
 ###################
 ` },
-  // 11
+  // 11 — метеорит: на T падает тень, M становится кратером, объезд справа
   { planet: 'moon', map: `
 #######################
 #S        #           #
 ######### # ######### #
 #         # #  R  #   #
 # ######### # ### # # #
-# #         # # #   # #
+# #         #M# #   # #
 # # ######### # ### # #
 #   #         # #   # #
 # ### ######### # ### #
-# #   # #       # #   #
+# #  T# #       # #   #
 # ### # # # ##### #####
 #    F#   #           #
 #######################

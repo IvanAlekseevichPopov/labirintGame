@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLevel, levelDistances } from '../level-format.js';
+import { blockCell, parseLevel, levelDistances } from '../level-format.js';
 import { PLANET_KEYS } from '../js/planets.js';
 
 const parse = (map, planet = 'moon') => parseLevel({ planet, map }, 7, PLANET_KEYS);
@@ -89,12 +89,39 @@ test('dark and storm are optional and checked', () => {
 
 test('landmark letters come from the registry and are unique', async () => {
   const { LANDMARKS, LANDMARK_BY_CHAR } = await import('../js/landmarks.js');
-  assert.equal(Object.keys(LANDMARK_BY_CHAR).length, Object.keys(LANDMARKS).length);
+  const lettered = Object.entries(LANDMARKS).filter(([, l]) => l.char);
+  assert.equal(Object.keys(LANDMARK_BY_CHAR).length, lettered.length);
   for (const [type, l] of Object.entries(LANDMARKS)) {
-    assert.equal(LANDMARK_BY_CHAR[l.char], type);
+    if (l.char) assert.equal(LANDMARK_BY_CHAR[l.char], type);
     assert.equal(typeof l.draw, 'function');
     assert.equal(typeof l.chime, 'boolean');
   }
   const level = parse(SMALL.replace('F', 'A'));
   assert.deepEqual(level.landmarks, [{ type: 'antenna', x: 2, y: 0 }]);
+});
+
+// Two ways round: the top corridor and the bottom one, so walling M off still leaves a route.
+const LOOP = `
+#################
+#S   T     M   R#
+# ############# #
+#               #
+#################
+`;
+
+test('a meteor needs one M and one T, far enough apart, with a way round', () => {
+  const level = parseLevel({ planet: 'moon', map: LOOP }, 1, PLANET_KEYS);
+  assert.deepEqual(level.meteor, { cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } });
+  assert.equal(parse(SMALL).meteor, null);
+  failsWith(LOOP.replace('T', ' '), /ровно одна M и одна T/);
+  failsWith(LOOP.replace('T     M', 'T M    '), /не ближе/);
+  failsWith(LOOP.replace('#               #', '#       #       #'), /после падения метеорита/);
+});
+
+test('blockCell walls a cell off from both sides', () => {
+  const { maze } = parse(SMALL);
+  const blocked = blockCell(maze, { x: 1, y: 0 });
+  assert.ok(blocked.cells[0][1].left && blocked.cells[0][1].right);
+  assert.ok(blocked.cells[0][0].right && blocked.cells[0][2].left);
+  assert.equal(maze.cells[0][0].right, false, 'the original is untouched');
 });

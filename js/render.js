@@ -9,6 +9,7 @@ import { createNight } from './night.js';
 import { createStorm } from './storm.js';
 import { ROVERS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 import { LANDMARKS } from './landmarks.js';
+import { drawMeteor, meteorShake } from './meteor.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -84,6 +85,12 @@ function sizeVeilLayer() {
   veilLayer.height = drawVeil ? canvas.height : 0;
 }
 
+// A meteor crater appeared: redraw the cached layer. The walls the crater adds to the maze are
+// not drawn; the crater itself has to look impassable.
+export function mazeChanged() {
+  buildMazeLayer();
+}
+
 export function resize() {
   const dpr = devicePixelRatio || 1;
   canvas.width = innerWidth * dpr;
@@ -149,7 +156,7 @@ function buildMazeLayer() {
     g.stroke();
   }
   for (const l of state.landmarks.filter(l => !LANDMARKS[l.type].upright)) {
-    LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * 0.4, p);
+    LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p);
   }
   g.restore();
 
@@ -255,6 +262,9 @@ export function render(now, { soundOff = false } = {}) {
   const winT = state.wonAt === null ? null : now - state.wonAt;
 
   drawSky(now, w, h);
+  const [shakeX, shakeY] = meteorShake(state.meteor, now, cell);
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
   ctx.drawImage(mazeLayer, 0, 0, w, h);
   drawNewTracks();
   ctx.drawImage(trackLayer, 0, 0, w, h);
@@ -285,6 +295,9 @@ export function render(now, { soundOff = false } = {}) {
     rover.draw = () => ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
     rover.draw();
   }
+
+  drawMeteor(ctx, state.meteor, now, cell, toPx);
+  ctx.restore();
 
   if (drawVeil) {
     drawVeil(ctx, veilLayer, now, {

@@ -388,6 +388,20 @@ export function createAudio() {
       sweep({ src: noise('short', 5), t0, points: [[0.003, 0.25], [0.025, 0]], out: bus.sfx });
       return 0.03;
     },
+    // A thin whistle sliding down for as long as the shadow grows (METEOR.warnMs).
+    meteorWarn() {
+      const t0 = ctx.currentTime + 0.005;
+      sweep({ src: tone('pulse', 0.125, 1900), from: 1900, to: 500, t0, points: [[0.05, 0.08], [0.7, 0.2], [0.9, 0]], out: bus.sfx });
+      return 0.9;
+    },
+    // A soft deep thump and a short rumble: big, but not a bang that would scare.
+    meteorImpact() {
+      const t0 = ctx.currentTime + 0.005;
+      sweep({ src: noise('long', 14), t0, points: [[0.01, 0.55], [0.25, 0.3], [0.9, 0]], out: bus.sfx });
+      sweep({ src: tone('triangle', 0, 70), from: 70, to: 30, t0, points: [[0.01, 0.7], [0.3, 0.4], [0.8, 0]], out: bus.sfx });
+      sweep({ src: noise('long', 10), t0: t0 + 0.05, points: [[0.02, 0.2], [0.2, 0]], out: bus.sfx });
+      return 0.9;
+    },
     ignite() {
       const t0 = ctx.currentTime + 0.005;
       sweep({ src: noise('long', 11), from: 0.7, to: 1.6, t0, points: [[0.4, 0.7], [0.75, 0.7], [1.05, 0]], out: bus.sfx });
