@@ -5,6 +5,7 @@ import { PLANETS, PLANET_KEYS } from './planets.js';
 import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
+import { createNight } from './night.js';
 import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 
 const canvas = document.getElementById('game');
@@ -14,10 +15,16 @@ useContext(ctx);
 // drawn once into offscreen layers instead of every frame.
 const mazeLayer = document.createElement('canvas');
 const trackLayer = document.createElement('canvas');
+const darkLayer = document.createElement('canvas');
 let drawnTracks = 0;
 let decor = null;
 let drawWeather = null;
+let drawNight = null;
+let wallsPx = [];
 let stars = [];
+
+// On a dark level the tracks are pale, so they can glow through the night.
+const NIGHT_TRACK = '#9fcbe8';
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -58,6 +65,7 @@ function makeDecor() {
 export function levelChanged(levelCount) {
   decor = makeDecor();
   drawWeather = createWeather(state.planet, weatherIntensity(state.index + 1, levelCount));
+  drawNight = state.dark ? createNight() : null;
   buildMazeLayer();
   buildTrackLayer();
 }
@@ -69,6 +77,8 @@ export function resize() {
   canvas.style.width = `${innerWidth}px`;
   canvas.style.height = `${innerHeight}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  darkLayer.width = canvas.width;
+  darkLayer.height = canvas.height;
   makeStars();
   if (decor) {
     buildMazeLayer();
@@ -133,6 +143,7 @@ function buildMazeLayer() {
   const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
     decor.walls.map(seg => raggedWall(seg, halfWidth, amp, state.index).map(([x, y]) => [ox + (x + dx) * cell, oy + (y + dy) * cell]));
   const half = WALL_RATIO / 2;
+  wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   fillShapes(g, ragged(half, 0.03, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
   fillShapes(g, ragged(half, 0.03), p.wallBase);
   fillShapes(g, ragged(half * 0.45, 0.015, -0.008, -0.016), p.wallTop);
@@ -225,7 +236,7 @@ function drawNewTracks() {
   const g = trackLayer.getContext('2d');
   const dpr = devicePixelRatio || 1;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.fillStyle = PLANETS[state.planet].track;
+  g.fillStyle = state.dark ? NIGHT_TRACK : PLANETS[state.planet].track;
   const { cell, ox, oy } = layout();
   for (; drawnTracks < state.tracks.length; drawnTracks++) drawTrack(g, state.tracks[drawnTracks], cell, ox, oy);
 }
@@ -263,7 +274,6 @@ export function render(now, { soundOff = false } = {}) {
   ctx.drawImage(mazeLayer, 0, 0, w, h);
   drawNewTracks();
   ctx.drawImage(trackLayer, 0, 0, w, h);
-  drawText(`${planet.name} — уровень ${state.index + 1}`, ox, header / 2, header * 0.45, 'left', '#ffffff');
 
   for (const l of state.landmarks) {
     const [lx, ly] = toPx(l);
@@ -281,13 +291,26 @@ export function render(now, { soundOff = false } = {}) {
   drawRocket(gx + shake, padY - lift, cell * 0.95, flame, now);
 
   const shrink = winT === null ? 1 : 1 - clamp01((winT - WIN.shrinkStart) / WIN.shrinkMs);
+  let rover = null;
   if (shrink > 0) {
     const [rx, ry] = toPx(roverPos(now));
     const bumpT = state.bump ? (now - state.bump.at) / BUMP_MS : 1;
     const nudge = bumpT < 1 ? Math.sin(Math.PI * bumpT) * cell * 0.1 : 0;
     const { dx, dy } = state.bump ? DIRS[state.bump.dir] : DIRS.right;
-    ROVERS[planet.rover](rx + dx * nudge, ry + dy * nudge, state.angle, cell * ROVER_RATIO * shrink);
+    rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
+    ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
   }
+
+  if (drawNight) {
+    drawNight(ctx, darkLayer, now, {
+      w, h, cell, walls: wallsPx, rover, flame, trackLayer,
+      goal: { x: gx, y: padY - cell * 0.4 },
+      landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
+      sinceLightsAt: now - state.lightsAt,
+      lights: drawWeather?.lights?.(cell) ?? [],
+    });
+  }
+  drawText(`${planet.name} — уровень ${state.index + 1}`, ox, header / 2, header * 0.45, 'left', '#ffffff');
 
   if (drawWeather) {
     const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };

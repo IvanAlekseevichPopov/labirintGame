@@ -376,6 +376,13 @@ export function createAudio() {
       sweep({ src: noise('long', 13), t0, points: [[0.004, 0.06], [0.03, 0]], out: bus.sfx });
       return 0.08;
     },
+    // A relay click and a short whine: the headlights coming on.
+    lightsOn() {
+      const t0 = ctx.currentTime + 0.005;
+      sweep({ src: noise('short', 5), t0, points: [[0.003, 0.3], [0.025, 0]], out: bus.sfx });
+      sweep({ src: tone('pulse', 0.125, 900), from: 900, to: 2200, t0: t0 + 0.03, points: [[0.005, 0.12], [0.09, 0]], out: bus.sfx });
+      return 0.13;
+    },
     ignite() {
       const t0 = ctx.currentTime + 0.005;
       sweep({ src: noise('long', 11), from: 0.7, to: 1.6, t0, points: [[0.4, 0.7], [0.75, 0.7], [1.05, 0]], out: bus.sfx });

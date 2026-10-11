@@ -162,8 +162,11 @@ function handle(event) {
       renderer.levelChanged(levels.length);
       rememberLevelInUrl(event.index);
       audio.setEngine(null);
-      audio.playMusic(game.state.planet);
+      audio.playMusic(game.state.dark ? 'moonNight' : game.state.planet);
       audio.sfx(event.restart ? 'restart' : 'levelStart');
+      break;
+    case 'lightsOn':
+      audio.sfx('lightsOn');
       break;
     case 'move':
       audio.setEngine(planet.rover);

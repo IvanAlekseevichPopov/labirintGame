@@ -4,7 +4,7 @@
 import { parseLevel } from '../level-format.js';
 import { PLANET_KEYS } from './planets.js';
 import {
-  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_ON_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -17,11 +17,12 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
     planet,
+    dark,
     maze,
     goal,
     landmarks,
@@ -38,6 +39,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     wonAt: null,
     phase: 'playing',
     inputFrom: now + INPUT_LOCK_MS,
+    lightsAt: now + LIGHTS_ON_MS,
+    lightsOn: false,
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
@@ -161,6 +164,10 @@ function step(now, dt, cellPx) {
   if (now - state.moveStart >= state.moveMs) flushTrack();
 
   if (state.phase === 'finished') return;
+  if (state.dark && !state.lightsOn && now >= state.lightsAt) {
+    state.lightsOn = true;
+    events.push({ type: 'lightsOn' });
+  }
   if (state.wonAt !== null) {
     resetInput();
     advanceWin(now);

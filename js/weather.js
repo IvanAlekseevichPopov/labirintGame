@@ -19,12 +19,15 @@ export function createWeather(planet, intensity) {
   const system = make(intensity);
   let last = null;
   // Time comes from the game clock, so the weather freezes with the pause.
-  return (ctx, now, screen, area) => {
+  const draw = (ctx, now, screen, area) => {
     const dt = last === null ? 0 : Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     system.update(dt, now, screen, area);
     system.draw(ctx, now, screen, area);
   };
+  // Light the weather gives off, for dark levels: [{ x, y, r, strength }] in px.
+  draw.lights = cell => system.lights?.(cell) ?? [];
+  return draw;
 }
 
 // Particle counts and sizes scale with the screen, so a TV and a laptop look the same.
@@ -224,6 +227,10 @@ function meteors(intensity) {
       streaks = streaks.filter(s => s.t < 1);
       for (const p of puffs) p.age += dt / 0.9;
       puffs = puffs.filter(p => p.age < 1);
+    },
+    // An impact flashes bright and fades with the dust.
+    lights(cell) {
+      return puffs.map(p => ({ x: p.x, y: p.y, r: cell * (1.6 + p.age * 1.2), strength: (1 - p.age) ** 1.5 }));
     },
     draw(ctx) {
       ctx.save();

@@ -25,7 +25,7 @@ export function parseLevel(level, number, planets) {
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
   if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
-  const { planet, map } = level;
+  const { planet, map, dark = false } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');
@@ -77,7 +77,7 @@ export function parseLevel(level, number, planets) {
   const [start] = starts, [goal] = rockets;
   const toGoal = levelDistances(maze, start).get(`${goal.x},${goal.y}`);
   if (!toGoal) fail('до ракеты не доехать');
-  return { planet, maze, start, goal, landmarks, startDir: toGoal.first };
+  return { planet, dark, maze, start, goal, landmarks, startDir: toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

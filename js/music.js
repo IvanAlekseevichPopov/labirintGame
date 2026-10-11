@@ -108,14 +108,18 @@ const bass = (root, fifth) => `${root}/2. ${fifth}/4`;
 const riff = (a, b) => `-/8 ${a}/8 ${a}/8 -/8 ${b}/8 -/8 ${a}/8 ${a}/8`;
 const bounce = (root, octave) => `${root}/8 ${root}/8 ${octave}/8 ${root}/8 ${root}/16 ${root}/16 ${octave}/8 ${root}/8 ${root}/8`;
 
+const octaveDown = track => track.replace(/([A-G][#b]?)(\d)/g, (_, note, octave) => `${note}${octave - 1}`);
+
 const MOON_CHORDS = {
-  C: { arp: arp8('C4', 'G4', 'C5', 'E5'), bass: bass('C3', 'G2') },
-  Am: { arp: arp8('A3', 'E4', 'A4', 'C5'), bass: bass('A2', 'E2') },
-  F: { arp: arp8('F3', 'C4', 'F4', 'A4'), bass: bass('F2', 'C3') },
-  G: { arp: arp8('G3', 'D4', 'G4', 'B4'), bass: bass('G2', 'D3') },
-  Em: { arp: arp8('E3', 'B3', 'E4', 'G4'), bass: bass('E2', 'B2') },
+  C: { arp: arp8('C4', 'G4', 'C5', 'E5'), bass: bass('C3', 'G2'), pad: 'C3/1' },
+  Am: { arp: arp8('A3', 'E4', 'A4', 'C5'), bass: bass('A2', 'E2'), pad: 'A2/1' },
+  F: { arp: arp8('F3', 'C4', 'F4', 'A4'), bass: bass('F2', 'C3'), pad: 'F2/1' },
+  G: { arp: arp8('G3', 'D4', 'G4', 'B4'), bass: bass('G2', 'D3'), pad: 'G2/1' },
+  Em: { arp: arp8('E3', 'B3', 'E4', 'G4'), bass: bass('E2', 'B2'), pad: 'E2/1' },
 };
 const MOON_PROGRESSION = ['C', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G'];
+// Night: parallel minors (Am for C, Em for G) in a few spots, a little darker but not sad.
+const MOON_NIGHT_PROGRESSION = ['Am', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G', 'Em', 'Am', 'F', 'Em', 'Am', 'Am', 'F', 'G'];
 
 // D Dorian: minor with a major IV (G), the NES adventure sound. The bass is a bouncing
 // root/octave ostinato, pulse2 a syncopated riff on chord tones.
@@ -140,6 +144,14 @@ const MOON_LEAD_A1 = 'E5/2. G5/4 | A5/2 G5/4 E5/4 | F5/2. A5/4 | G5/1';
 const MOON_LEAD_A2 = 'E5/4 G5/4 C6/2 | B5/4 A5/4 G5/2 | A5/2 F5/4 D5/4 | E5/2 -/2';
 const MOON_LEAD_B = 'G5/4. E5/8 B4/2 | C5/4. E5/8 A5/2 | A5/4 C6/4 A5/4 F5/4 | G5/2. -/4';
 const MOON_LEAD_A3 = 'E5/2. D5/4 | C5/2 E5/4 G5/4 | A5/2 F5/2 | D5/2 B4/4 -/4';
+const MOON_LEAD = [MOON_LEAD_A1, MOON_LEAD_A2, MOON_LEAD_B, MOON_LEAD_A3].join(' | ');
+// Pieces of the tune surface for two bars at a time, then sink back into the arpeggio.
+const MOON_NIGHT_FRAGMENTS = octaveDown([
+  '-/1 | -/1 | -/1 | -/1',
+  'E5/4 G5/4 C6/2 | B5/4 A5/4 G5/2 | -/1 | -/1',
+  '-/1 | -/1 | A5/4 C6/4 A5/4 F5/4 | G5/2. -/4',
+  'E5/2. D5/4 | C5/2 E5/4 G5/4 | -/1 | -/1',
+].join(' | '));
 
 // Short rising theme; the desert shows only in passing notes (Eb, Bb, C#).
 const MARS_LEAD_A = [
@@ -188,13 +200,13 @@ const EUROPA_WIND = [
 ].join(' | ');
 
 // Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 24 bars at 120 (48 s),
-// Europa 12 bars at 72 (~40 s).
+// Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s).
 export const SONGS = {
   moon: {
     bpm: 84,
     channels: {
       pulse1: {
-        notes: [MOON_LEAD_A1, MOON_LEAD_A2, MOON_LEAD_B, MOON_LEAD_A3].join(' | '),
+        notes: MOON_LEAD,
         duty: 0.5, env: 'soft', vol: 0.55, vibrato: { hz: 5.5, cents: 12, delay: 10 },
       },
       pulse2: { notes: follow(MOON_CHORDS, MOON_PROGRESSION, 'arp'), duty: 0.25, env: 'pluck', decay: 14, vol: 0.4 },
@@ -221,6 +233,17 @@ export const SONGS = {
       pulse2: { notes: EUROPA_ECHO, duty: 0.25, env: 'pluck', decay: 16, vol: 0.28 },
       triangle: { notes: EUROPA_BASS_LINE, env: 'soft', vol: 1 },
       noise: { notes: EUROPA_WIND, vol: 0.45 },
+    },
+  },
+  // Dark Moon: the arpeggio and a held bass carry the loop; the tune shows up only in fragments,
+  // thin and far away, over a soft thump once a bar.
+  moonNight: {
+    bpm: 72,
+    channels: {
+      pulse1: { notes: MOON_NIGHT_FRAGMENTS, duty: 0.125, env: 'soft', vol: 0.4, vibrato: { hz: 5, cents: 10, delay: 12 } },
+      pulse2: { notes: follow(MOON_CHORDS, MOON_NIGHT_PROGRESSION, 'arp'), duty: 0.25, env: 'pluck', decay: 30, vol: 0.3 },
+      triangle: { notes: follow(MOON_CHORDS, MOON_NIGHT_PROGRESSION, 'pad'), env: 'soft', vol: 0.85 },
+      noise: { notes: repeat('K/1', 16), vol: 0.12 },
     },
   },
 };

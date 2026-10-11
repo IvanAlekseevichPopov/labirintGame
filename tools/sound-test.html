@@ -70,7 +70,7 @@ button('sfx', 'arrive → ignite → liftoff → cheer', () => {
 });
 
 const musicButtons = [
-  ...['moon', 'mars', 'europa'].map(planet => button('music', planet, b => { audio.playMusic(planet); select(musicButtons, b); })),
+  ...['moon', 'mars', 'europa', 'moonNight'].map(planet => button('music', planet, b => { audio.playMusic(planet); select(musicButtons, b); })),
   button('music', 'стоп', b => { audio.stopMusic(); select(musicButtons, b); }),
 ];
 
