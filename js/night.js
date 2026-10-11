@@ -91,10 +91,14 @@ function nearby(walls, x, y, reach) {
 // (the layer must be in destination-out), `paint` colours them on the finished frame and
 // drifts dust through the beams. `opts.reach` is in cells, `opts.strength` how much of the
 // veil a beam clears (less in dust than in clear night air), `opts.tint` how yellow the beams are.
-export function createHeadlights({ reach: reachCells = NIGHT.reach, strength = 1, tint = 0.16 } = {}) {
+// `opts.wind` (cells per second, screen-space, blowing to +x) turns the slow motes into sand
+// streaking through the beams.
+export function createHeadlights({ reach: reachCells = NIGHT.reach, strength = 1, tint = 0.16, wind = 0 } = {}) {
   // Dust motes live in beam space: `d` along the beam (0..1), `a` across it (-1..1).
-  const dust = LAMPS.front.map(() => Array.from({ length: DUST_PER_BEAM }, () => ({
+  // In wind they live in screen space around the lamp instead: `ox`/`oy` in units of reach.
+  const dust = LAMPS.front.map(() => Array.from({ length: wind ? DUST_PER_BEAM * 2 : DUST_PER_BEAM }, () => ({
     d: Math.random(), a: Math.random() * 2 - 1, speed: 0.04 + Math.random() * 0.08, r: 0.6 + Math.random(),
+    ox: Math.random() * 2 - 1, oy: Math.random() * 2 - 1,
   })));
   let beams = [], lamp = null, reach = 0;
 
@@ -139,6 +143,22 @@ export function createHeadlights({ reach: reachCells = NIGHT.reach, strength = 1
         ctx.closePath();
         ctx.clip();
         ctx.fillStyle = '#fff6dc';
+        if (wind) {
+          ctx.strokeStyle = '#fff1d6';
+          ctx.lineWidth = cell * 0.035;
+          for (const m of dust[i]) {
+            m.ox += (wind * cell * dt / reach) * (0.7 + m.speed * 4);
+            if (m.ox > 1) { m.ox -= 2; m.oy = (Math.random() * 2 - 1) * 0.7; }
+            const x = beam.x + m.ox * reach, y = beam.y + m.oy * reach;
+            ctx.globalAlpha = 0.9 * b * Math.max(0, 1 - Math.hypot(m.ox, m.oy) * 0.8);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x - cell * 0.22 * m.r, y);
+            ctx.stroke();
+          }
+          ctx.restore();
+          return;
+        }
         for (const m of dust[i]) {
           m.d += m.speed * dt;
           if (m.d > 1) { m.d -= 1; m.a = Math.random() * 2 - 1; }

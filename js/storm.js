@@ -6,7 +6,7 @@ import { createHeadlights, fillPolygon, radial } from './night.js';
 
 export const STORM = {
   see: 0.5,        // glow right around the rover inside the storm, cells
-  reach: 2.4,      // headlight range in the dust, cells
+  reach: 3.2,      // headlight range in the dust, cells
   haze: '214,124,78',
   density: 0.96,   // opacity of the veil deep inside
   edge: 0.6,       // how far the front billows, cells
@@ -23,7 +23,7 @@ export function createStorm(span) {
     x: Math.random(), y: Math.random(), speed: 0.7 + Math.random() * 0.6, len: 0.5 + Math.random(),
     dark: Math.random() < 0.35,
   }));
-  const headlights = createHeadlights({ reach: STORM.reach, strength: 0.9, tint: 0.4 });
+  const headlights = createHeadlights({ reach: STORM.reach, strength: 0.9, tint: 0.4, wind: STORM.speed });
   const clouds = Array.from({ length: 7 }, (_, i) => ({ u: Math.random(), v: Math.random(), r: 0.9 + Math.random() * 0.8, phase: i * 1.3 }));
   let last = null;
 
