@@ -243,12 +243,23 @@ export function drawImpactCrater(g, x, y, r, p) {
   ring(r * 0.06, r * 0.08, 1, 'rgba(0, 0, 0, 0.35)');
   ring(0, 0, 1, p.wallBase);
   ring(-r * 0.03, -r * 0.05, 0.9, p.wallTop);
-  // The bowl.
-  circle(x, y, r * 0.86, p.wallBase);
-  circle(x + r * 0.1, y + r * 0.12, r * 0.74, p.crater);
-  circle(x + r * 0.18, y + r * 0.2, r * 0.5, 'rgba(0, 0, 0, 0.35)');
+  // The bowl: ragged terraces, each a little off-centre, down to the shadowed bottom.
+  const blob = (cx, cy, cr, fill, seed, amp = 0.12) => {
+    g.beginPath();
+    for (let k = 0; k <= 20; k++) {
+      const a = (k / 20) * Math.PI * 2;
+      const rr = cr * (1 + amp * Math.sin(k * 1.9 + seed) + amp * 0.6 * Math.sin(k * 4.3 + seed * 2));
+      g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  };
+  blob(x, y, r * 0.86, p.wallBase, 1);
+  blob(x + r * 0.1, y + r * 0.12, r * 0.74, p.crater, 2);
+  blob(x + r * 0.18, y + r * 0.2, r * 0.5, 'rgba(0, 0, 0, 0.35)', 3, 0.18);
   // The meteorite and a few rocks on the rim.
-  circle(x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328');
+  blob(x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328', 4, 0.2);
   circle(x - r * 0.13, y - r * 0.03, r * 0.11, '#6b6050');
   for (const [a, s] of [[0.4, 0.12], [2.3, 0.09], [4.1, 0.1], [5.4, 0.08]]) {
     circle(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15, r * s, p.wallBase);
