@@ -69,7 +69,7 @@ export function levelChanged(levelCount) {
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
   drawWeather = createWeather(state.planet, intensity);
-  drawVeil = state.dark ? createNight() : state.storm ? createStorm(state.storm) : null;
+  drawVeil = state.dark ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
   sizeVeilLayer();
   buildMazeLayer();
   buildTrackLayer();

@@ -1,12 +1,11 @@
 // A dust storm standing over part of a Mars level: inside it the rover sees only a little way
 // around itself, the rest is a wall of blowing sand. Same idea as the night (night.js), but the
-// veil is dust, not dark, and it has an edge you can drive out of. The headlights reach less far.
+// veil is dust, not dark, and it has an edge you can drive out of.
 
-import { createHeadlights, fillPolygon, radial } from './night.js';
+import { createHeadlights, fillPolygon, headlightPreset, radial } from './headlights.js';
 
 export const STORM = {
   see: 0.5,        // glow right around the rover inside the storm, cells
-  reach: 3.2,      // headlight range in the dust, cells
   haze: '214,124,78',
   density: 0.96,   // opacity of the veil deep inside
   edge: 0.6,       // how far the front billows, cells
@@ -18,12 +17,12 @@ const noise = (y, now) => Math.sin(y * 1.7 + now / 900) * 0.6 + Math.sin(y * 4.3
 
 // scene: { w, h, cell, area: { x, y, w, h, cols }, rover, goal, flame, landmarks, trackLayer }
 // `span` is the storm's extent as fractions of the maze width: { from, to }.
-export function createStorm(span) {
+export function createStorm(span, planet) {
   const grains = Array.from({ length: STORM.grains }, () => ({
     x: Math.random(), y: Math.random(), speed: 0.7 + Math.random() * 0.6, len: 0.5 + Math.random(),
     dark: Math.random() < 0.35,
   }));
-  const headlights = createHeadlights({ reach: STORM.reach, strength: 0.9, tint: 0.4, wind: STORM.speed });
+  const headlights = createHeadlights(headlightPreset('storm', planet));
   const clouds = Array.from({ length: 7 }, (_, i) => ({ u: Math.random(), v: Math.random(), r: 0.9 + Math.random() * 0.8, phase: i * 1.3 }));
   let last = null;
 

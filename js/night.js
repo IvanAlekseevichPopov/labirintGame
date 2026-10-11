@@ -1,20 +1,14 @@
 // Night on a dark level: the scene is drawn as usual, then covered with black that only the
-// lights cut through: the rover's headlights (stopped by walls), its tail lights, a glow around
-// the landmarks, the beacon on the rocket, meteor impacts. Drawn by render.js after the rover.
+// lights cut through: the rover's headlights (headlights.js), a glow around the landmarks, the
+// beacon on the rocket, meteor impacts. Drawn by render.js after the rover.
+
+import { createHeadlights, headlightPreset, radial } from './headlights.js';
 
 export const NIGHT = {
-  reach: 3.4,       // headlight range, cells
-  halfAngle: 0.27,  // half of one beam's width, radians
-  splay: 0.14,      // each beam turned outwards by this much, so the two read as two
-  rays: 48,         // rays per beam; more is smoother shadows, slower frames
   glow: 0.95,       // faint light around the rover itself, cells
   beacon: 0.55,
   dark: 'rgba(3, 4, 14, 0.985)',
 };
-
-// Lamp positions in rover space (facing +x, 1 = rover size); the third number of a front lamp
-// is which way its beam splays. The rovers in art.js draw their lamps at these spots.
-export const LAMPS = { front: [[0.31, -0.16, -1], [0.31, 0.16, 1]], rear: [[-0.4, -0.2], [-0.4, 0.2]] };
 
 // Switching on: dark, a couple of flickers, then steady. [ms since lightsAt, brightness].
 const SWITCH_ON = [[80, 1], [150, 0.1], [230, 1], [290, 0.25], [Infinity, 1]];
@@ -34,150 +28,8 @@ const LANDMARK_LIGHTS = {
 // Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
 const jitter = now => (Math.sin(now / 23) * 43758.5453) % 1;
 
-const DUST_PER_BEAM = 28;
-
-// Distance along the ray (px) to the nearest wall, or `max` if none within reach.
-export function castRay(px, py, dx, dy, max, walls) {
-  let best = max;
-  for (const [ax, ay, bx, by] of walls) {
-    const sx = bx - ax, sy = by - ay;
-    const denom = dx * sy - dy * sx;
-    if (!denom) continue;
-    const qx = ax - px, qy = ay - py;
-    const t = (qx * sy - qy * sx) / denom;
-    if (t <= 0 || t >= best) continue;
-    const u = (qx * dy - qy * dx) / denom;
-    if (u >= 0 && u <= 1) best = t;
-  }
-  return best;
-}
-
-export function beamPolygon(ox, oy, angle, reach, walls) {
-  const pts = [[ox, oy]];
-  for (let k = 0; k <= NIGHT.rays; k++) {
-    const a = angle - NIGHT.halfAngle + (2 * NIGHT.halfAngle * k) / NIGHT.rays;
-    const dx = Math.cos(a), dy = Math.sin(a);
-    const t = castRay(ox, oy, dx, dy, reach, walls);
-    pts.push([ox + dx * t, oy + dy * t]);
-  }
-  return pts;
-}
-
-export function fillPolygon(g, pts, style) {
-  g.fillStyle = style;
-  g.beginPath();
-  pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y));
-  g.closePath();
-  g.fill();
-}
-
-export function radial(g, x, y, r, alpha, rgb = '0,0,0') {
-  const grad = g.createRadialGradient(x, y, 0, x, y, r);
-  grad.addColorStop(0, `rgba(${rgb},${alpha})`);
-  grad.addColorStop(0.5, `rgba(${rgb},${alpha * 0.6})`);
-  grad.addColorStop(1, `rgba(${rgb},0)`);
-  g.fillStyle = grad;
-  g.fillRect(x - r, y - r, r * 2, r * 2);
-}
-
-// Walls near the lamp are the only ones a beam can hit.
-function nearby(walls, x, y, reach) {
-  return walls.filter(([ax, ay, bx, by]) =>
-    Math.max(ax, bx) >= x - reach && Math.min(ax, bx) <= x + reach &&
-    Math.max(ay, by) >= y - reach && Math.min(ay, by) <= y + reach);
-}
-
-// The rover's lights, shared by the night and the storm: `cut` punches them out of the veil
-// (the layer must be in destination-out), `paint` colours them on the finished frame and
-// drifts dust through the beams. `opts.reach` is in cells, `opts.strength` how much of the
-// veil a beam clears (less in dust than in clear night air), `opts.tint` how yellow the beams are.
-// `opts.wind` (cells per second, screen-space, blowing to +x) turns the slow motes into sand
-// streaking through the beams.
-export function createHeadlights({ reach: reachCells = NIGHT.reach, strength = 1, tint = 0.16, wind = 0 } = {}) {
-  // Dust motes live in beam space: `d` along the beam (0..1), `a` across it (-1..1).
-  // In wind they live in screen space around the lamp instead: `ox`/`oy` in units of reach.
-  const dust = LAMPS.front.map(() => Array.from({ length: wind ? DUST_PER_BEAM * 2 : DUST_PER_BEAM }, () => ({
-    d: Math.random(), a: Math.random() * 2 - 1, speed: 0.04 + Math.random() * 0.08, r: 0.6 + Math.random(),
-    ox: Math.random() * 2 - 1, oy: Math.random() * 2 - 1,
-  })));
-  let beams = [], lamp = null, reach = 0;
-
-  return {
-    cut(g, { rover, walls, cell }, b) {
-      reach = cell * reachCells;
-      lamp = rover && (([lx, ly]) => {
-        const cos = Math.cos(rover.angle), sin = Math.sin(rover.angle);
-        return [rover.x + (lx * cos - ly * sin) * rover.size, rover.y + (lx * sin + ly * cos) * rover.size];
-      });
-      beams = rover && b > 0
-        ? LAMPS.front.map(l => {
-          const [x, y] = lamp(l), angle = rover.angle + l[2] * NIGHT.splay;
-          return { x, y, angle, pts: beamPolygon(x, y, angle, reach, nearby(walls, x, y, reach)) };
-        })
-        : [];
-      for (const beam of beams) {
-        const grad = g.createRadialGradient(beam.x, beam.y, 0, beam.x, beam.y, reach);
-        grad.addColorStop(0, `rgba(0,0,0,${b * strength})`);
-        grad.addColorStop(0.55, `rgba(0,0,0,${b * strength * 0.85})`);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        fillPolygon(g, beam.pts, grad);
-      }
-      if (beams.length) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(g, x, y, cell * 0.14, 0.4 * b); }
-    },
-
-    paint(ctx, { cell }, b, dt) {
-      for (const beam of beams) {
-        const glow = ctx.createRadialGradient(beam.x, beam.y, 0, beam.x, beam.y, reach);
-        glow.addColorStop(0, `rgba(255, 230, 120, ${tint * b})`);
-        glow.addColorStop(0.6, `rgba(255, 230, 120, ${tint * b * 0.5})`);
-        glow.addColorStop(1, 'rgba(255, 230, 120, 0)');
-        fillPolygon(ctx, beam.pts, glow);
-      }
-      if (beams.length) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(ctx, x, y, cell * 0.16, 0.35 * b, '255,40,30'); }
-
-      // Dust drifting in the beams, clipped by the same shadows.
-      beams.forEach((beam, i) => {
-        ctx.save();
-        ctx.beginPath();
-        beam.pts.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x, y));
-        ctx.closePath();
-        ctx.clip();
-        ctx.fillStyle = '#fff6dc';
-        if (wind) {
-          ctx.strokeStyle = '#fff1d6';
-          ctx.lineWidth = cell * 0.035;
-          for (const m of dust[i]) {
-            m.ox += (wind * cell * dt / reach) * (0.7 + m.speed * 4);
-            if (m.ox > 1) { m.ox -= 2; m.oy = (Math.random() * 2 - 1) * 0.7; }
-            const x = beam.x + m.ox * reach, y = beam.y + m.oy * reach;
-            ctx.globalAlpha = 0.9 * b * Math.max(0, 1 - Math.hypot(m.ox, m.oy) * 0.8);
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x - cell * 0.22 * m.r, y);
-            ctx.stroke();
-          }
-          ctx.restore();
-          return;
-        }
-        for (const m of dust[i]) {
-          m.d += m.speed * dt;
-          if (m.d > 1) { m.d -= 1; m.a = Math.random() * 2 - 1; }
-          const a = beam.angle + m.a * NIGHT.halfAngle * 0.9;
-          const dist = m.d * reach;
-          ctx.globalAlpha = (1 - m.d) * 0.7 * b * Math.min(1, m.d * 6);
-          ctx.beginPath();
-          ctx.arc(beam.x + Math.cos(a) * dist, beam.y + Math.sin(a) * dist, m.r * cell / 60, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      });
-      ctx.globalAlpha = 1;
-    },
-  };
-}
-
-export function createNight() {
-  const headlights = createHeadlights();
+export function createNight(planet) {
+  const headlights = createHeadlights(headlightPreset('night', planet));
   let last = null;
 
   // scene: { w, h, cell, walls (px segments), rover: { x, y, angle, size } | null, goal: { x, y },
