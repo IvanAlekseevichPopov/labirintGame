@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
-import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -281,23 +281,78 @@ test('a plain level never reports lightsOn', () => {
   assert.ok(!events.some(e => e.type === 'lightsOn'));
 });
 
-test('entering a storm switches the headlights on, leaving it switches them off', () => {
-  // The corridor's right half is in the storm: cells x ≥ 3 of 6.
-  game.setLevels([{ ...CORRIDOR, storm: { from: 0.5, to: 1 } }, CORRIDOR]);
+// The corridor's right half is in the storm: cells x ≥ 3 of 6.
+const STORMY = { ...CORRIDOR, storm: { from: 0.5, to: 1 } };
+const lightEvents = events => events.filter(e => e.type.startsWith("lights")).map(e => e.type);
+const drive = (dir, steps) => {
+  game.press(dir, 'key', now);
+  const events = run(FIRST_REPEAT_MS + (steps - 1) * STEP_MS + FRAME_MS);
+  game.release(dir, 'key');
+  return events;
+};
+
+test('entering a storm switches the headlights on, leaving it switches them off after the step', () => {
+  game.setLevels([STORMY, CORRIDOR]);
   game.startLevel(0, now);
   run(INPUT_LOCK_MS);
   assert.equal(state.lightsOn, false, 'starts outside the storm, lights off');
-  game.press('right', 'key', now);
-  const events = run(FIRST_REPEAT_MS + 3 * STEP_MS + FRAME_MS);
-  game.release('right', 'key');
+  assert.deepEqual(lightEvents(drive('right', 4)), ['lightsOn']);
   assert.equal(state.player.x, 4);
-  assert.ok(events.some(e => e.type === 'lightsOn'));
   run(LIGHTS_FLICKER_MS);
   assert.equal(state.lightsOn, true);
   game.press('left', 'key', now);
-  const back = run(FIRST_REPEAT_MS + 2 * STEP_MS + FRAME_MS);
+  const leaving = run(FIRST_REPEAT_MS + STEP_MS + FRAME_MS);
+  assert.equal(state.player.x, 2);
+  assert.equal(state.lightsOn, true, 'still lit while the step out is under way');
+  const settled = run(STEP_MS + FRAME_MS);
   game.release('left', 'key');
-  assert.ok(state.player.x < 3);
-  assert.ok(back.some(e => e.type === 'lightsOff'));
+  assert.deepEqual(lightEvents([...leaving, ...settled]), ['lightsOff']);
   assert.equal(state.lightsOn, false);
+});
+
+test('straight back into the storm keeps the lights on without a new flicker or click', () => {
+  game.setLevels([STORMY, CORRIDOR]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  drive('right', 3);
+  run(LIGHTS_FLICKER_MS);
+  const out = drive('left', 1);
+  run(STEP_MS * 2);
+  assert.ok(lightEvents(out).includes('lightsOff') || state.lightsOn === false);
+  const back = [...drive('right', 1), ...run(STEP_MS)];
+  assert.deepEqual(lightEvents(back), []);
+  assert.equal(state.lightsOn, true);
+  assert.ok(now - state.lightsAt >= LIGHTS_FLICKER_MS, 'no flicker: lights count as long on');
+  drive('left', 1);
+  run(STEP_MS * 2 + LIGHTS_REARM_MS);
+  const later = [...drive('right', 1), ...run(STEP_MS)];
+  assert.deepEqual(lightEvents(later), ['lightsOn'], 'after a while the switch-on is real again');
+});
+
+test('a level that starts inside a storm waits for the lights like a dark one', () => {
+  game.setLevels([{ ...CORRIDOR, storm: { from: 0, to: 0.5 } }, CORRIDOR]);
+  game.startLevel(0, now);
+  const early = run(LIGHTS_ON_MS - FRAME_MS);
+  assert.deepEqual(lightEvents(early), []);
+  assert.deepEqual(lightEvents(run(FRAME_MS * 2)), ['lightsOn']);
+  tap('right');
+  run(FRAME_MS);
+  assert.equal(state.player.x, 0, 'parked while the lights flicker');
+  run(LIGHTS_FLICKER_MS);
+  tap('right');
+  run(STEP_MS);
+  assert.equal(state.player.x, 1);
+});
+
+test('restarting from inside the storm puts the lights out quietly', () => {
+  game.setLevels([STORMY, CORRIDOR]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  drive('right', 4);
+  run(LIGHTS_FLICKER_MS);
+  assert.equal(state.lightsOn, true);
+  game.restartLevel(now);
+  const events = run(INPUT_LOCK_MS);
+  assert.equal(state.lightsOn, false);
+  assert.deepEqual(lightEvents(events), []);
 });

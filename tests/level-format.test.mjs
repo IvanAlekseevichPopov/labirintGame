@@ -81,7 +81,7 @@ test('dark and storm are optional and checked', () => {
   assert.equal(level.dark, false);
   assert.equal(level.storm, null);
   assert.equal(parseLevel({ planet: 'moon', map: SMALL, dark: true }, 1, PLANET_KEYS).dark, true);
-  assert.deepEqual(parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS).storm, { from: 0, to: 1 });
+  assert.deepEqual(parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS).storm, { from: 0, to: 3 }, 'in cell columns');
   assert.throws(() => parseLevel({ planet: 'moon', map: SMALL, dark: 'yes' }, 1, PLANET_KEYS), /dark/);
   assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: 0.5 }, 1, PLANET_KEYS), /storm/);
   assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0.7, to: 0.2 } }, 1, PLANET_KEYS), /storm/);

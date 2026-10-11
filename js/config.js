@@ -9,6 +9,8 @@ export const INPUT_LOCK_MS = 400;
 // LIGHTS_FLICKER_MS before they hold; the rover cannot move until they do.
 export const LIGHTS_ON_MS = 500;
 export const LIGHTS_FLICKER_MS = 300;
+// Back into the storm sooner than this after leaving it and the lights just stay on: no new flicker or click.
+export const LIGHTS_REARM_MS = 1000;
 export const BUMP_MS = 140;
 export const WALL_RATIO = 0.26;
 export const ROVER_RATIO = 0.78;

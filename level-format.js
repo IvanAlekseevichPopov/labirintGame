@@ -86,8 +86,10 @@ export function parseLevel(level, number, planets) {
   const [start] = starts, [goal] = rockets;
   const toGoal = levelDistances(maze, start).get(`${goal.x},${goal.y}`);
   if (!toGoal) fail('до ракеты не доехать');
-  if (storm && (storm.to - storm.from) * cols < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm, maze, start, goal, landmarks, startDir: toGoal.first };
+  // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
+  const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
+  if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
+  return { planet, dark, storm: stormCells, maze, start, goal, landmarks, startDir: toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

@@ -25,7 +25,7 @@ export function layerContext(layer) {
 }
 
 // Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
-export const jitter = now => (Math.sin(now / 23) * 43758.5453) % 1;
+export const jitter = now => { const v = Math.sin(now / 23) * 43758.5453; return v - Math.floor(v); };
 
 const beaconPulse = now => 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
 

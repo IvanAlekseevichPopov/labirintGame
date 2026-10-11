@@ -12,7 +12,6 @@ export const STORM = {
   haze: '214,124,78',
   density: 0.96,   // opacity of the veil deep inside
   edge: 0.6,       // how far the front billows, cells
-  minWidth: 3,     // narrower than this and the two fronts would cross, cells
   grains: 220,
   speed: 7,        // grain speed, cells per second
   blast: 3,        // how far the rocket's blast pushes the dust back at ignition, cells
@@ -23,27 +22,24 @@ export const STORM = {
 const noise = (y, now, phase) => Math.sin(y * 1.7 + now / 900 + phase) * 0.6 + Math.sin(y * 4.3 - now / 600 + phase) * 0.4;
 
 // The storm's outline in px: `left` and `right` run top to bottom along each front (two points
-// where the storm just runs off the maze), `polygon` goes round, and `x0`/`x1` are the fixed
-// bounds the fronts never leave. `area` is the maze on screen, `span` { from, to } in widths.
+// where the storm just runs off the maze), `polygon` goes round, and `x0`/`x1` are the storm's
+// cell bounds. The fronts billow inwards from those bounds, never over a cell that counts as
+// outside (game.js inStorm). `area` is the maze on screen, `span` { from, to } in cell columns.
 export function stormOutline(span, area, cell, now) {
-  const front = (fraction, sign, phase) => {
-    const x0 = area.x + area.w * fraction;
+  const reach = cell * STORM.edge * 1.4;
+  const front = (line, sign, phase) => {
     const pts = [];
     for (let y = area.y - cell; y <= area.y + area.h + cell; y += cell / 4) {
-      pts.push([x0 + sign * cell * STORM.edge * (noise(y / cell, now, phase) + 0.4 * Math.sin(now / 4000 + phase)), y]);
+      pts.push([line + sign * cell * STORM.edge * (noise(y / cell, now, phase) + 0.4 * Math.sin(now / 4000 + phase)), y]);
     }
     return pts;
   };
   const off = (x) => [[x, area.y - cell], [x, area.y + area.h + cell]];
-  const left = span.from > 0 ? front(span.from, -1, 0) : off(area.x - cell * 2);
-  const right = span.to < 1 ? front(span.to, 1, 2.3) : off(area.x + area.w + cell * 2);
-  const reach = cell * STORM.edge * 1.4;
-  return {
-    left, right,
-    polygon: [...left, ...right.slice().reverse()],
-    x0: span.from > 0 ? area.x + area.w * span.from - reach : area.x - cell * 2,
-    x1: span.to < 1 ? area.x + area.w * span.to + reach : area.x + area.w + cell * 2,
-  };
+  const x0 = span.from > 0 ? area.x + cell * span.from : area.x - cell * 2;
+  const x1 = span.to < area.cols ? area.x + cell * span.to : area.x + area.w + cell * 2;
+  const left = span.from > 0 ? front(x0 + reach, -1, 0) : off(x0);
+  const right = span.to < area.cols ? front(x1 - reach, 1, 2.3) : off(x1);
+  return { left, right, polygon: [...left, ...right.slice().reverse()], x0, x1 };
 }
 
 const clipPolygon = (c, pts) => {
@@ -121,19 +117,24 @@ export function createStorm(span, planet) {
     ctx.clip();
     clipPolygon(ctx, polygon);
     headlights.paint(ctx, scene, b, dt);
-    paintCommon(ctx, scene, now, lit, { dim: 0.8, flame: blast });
+    // Sand streaks, one path per colour.
     ctx.lineCap = 'round';
     ctx.lineWidth = cell * 0.025;
-    for (const s of grains) {
-      s.x += dt * STORM.speed * cell * s.speed * (0.7 + 0.6 * gust) / stormW;
-      if (s.x > 1) { s.x -= 1; s.y = Math.random(); }
-      const x = x0 + s.x * stormW, y = area.y + s.y * area.h + Math.sin(now / 200 + s.len * 9) * cell * 0.05;
-      ctx.strokeStyle = s.dark ? 'rgba(122, 52, 24, 0.55)' : 'rgba(250, 214, 170, 0.7)';
+    for (const [dark, color] of [[false, 'rgba(250, 214, 170, 0.7)'], [true, 'rgba(122, 52, 24, 0.55)']]) {
+      ctx.strokeStyle = color;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - cell * 0.12 * s.len * (0.6 + gust), y);
+      for (const s of grains) {
+        if (s.dark !== dark) continue;
+        s.x += dt * STORM.speed * cell * s.speed * (0.7 + 0.6 * gust) / stormW;
+        if (s.x > 1) { s.x -= 1; s.y = Math.random(); }
+        const x = x0 + s.x * stormW, y = area.y + s.y * area.h + Math.sin(now / 200 + s.len * 9) * cell * 0.05;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - cell * 0.12 * s.len * (0.6 + gust), y);
+      }
       ctx.stroke();
     }
     ctx.restore();
+    // Lamp colours and the flame's glow are not clipped: the rocket climbs above the maze.
+    paintCommon(ctx, scene, now, lit, { dim: 0.8, flame: blast });
   };
 }

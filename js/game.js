@@ -4,7 +4,7 @@
 import { parseLevel } from '../level-format.js';
 import { PLANET_KEYS } from './planets.js';
 import {
-  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -42,6 +42,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     inputFrom: now + INPUT_LOCK_MS,
     lightsAt: Infinity,
     lightsOn: false,
+    lightsOffAt: null,
+    lightsOutAt: -Infinity,
     tracks: [],
     trackKeys: new Set(),
     pendingTrack: null,
@@ -55,12 +57,28 @@ export function startLevel(index, now, { restart = false } = {}) {
   events.push({ type: 'levelStart', index, restart });
 }
 
-const inStorm = ({ x }) => {
-  if (!state.storm) return false;
-  const at = (x + 0.5) / state.maze.cols;
-  return at >= state.storm.from && at <= state.storm.to;
-};
+const inStorm = ({ x }) => Boolean(state.storm) && x >= state.storm.from && x < state.storm.to;
 const needsLights = () => state.dark || inStorm(state.player);
+
+// Crossing the edge of a storm switches the headlights on (they flicker, see night.js) or off.
+// They go out only once the step out is finished, and coming straight back in does not restart
+// the flicker and the click.
+function switchLightsAtStormEdge(now) {
+  const want = inStorm(state.player);
+  const have = Number.isFinite(state.lightsAt) && state.lightsOffAt === null;
+  if (want && !have) {
+    const recently = state.lightsOffAt !== null || now - state.lightsOutAt < LIGHTS_REARM_MS;
+    state.lightsOffAt = null;
+    if (recently) {
+      state.lightsAt = now - LIGHTS_FLICKER_MS;
+      state.lightsOn = true;
+    } else {
+      state.lightsAt = now;
+    }
+  } else if (!want && have) {
+    state.lightsOffAt = now + state.moveMs;
+  }
+}
 
 export function restartLevel(now) {
   if (state.maze && state.wonAt === null) startLevel(state.index, now, { restart: true });
@@ -124,16 +142,7 @@ function move(dir, now, cellPx) {
   state.pendingTrack = { a: { x, y }, b: state.player };
   state.moving = true;
   events.push({ type: 'move', dir });
-  // Crossing the edge of a storm switches the headlights on (they flicker, see night.js) or off.
-  if (state.storm && needsLights() !== (state.lightsOn || state.lightsAt < Infinity)) {
-    if (needsLights()) {
-      state.lightsAt = now;
-    } else {
-      state.lightsAt = Infinity;
-      state.lightsOn = false;
-      events.push({ type: 'lightsOff' });
-    }
-  }
+  if (state.storm) switchLightsAtStormEdge(now);
   const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
 }
@@ -190,6 +199,10 @@ function step(now, dt, cellPx) {
   if (!state.lightsOn && now >= state.lightsAt) {
     state.lightsOn = true;
     events.push({ type: 'lightsOn' });
+  }
+  if (state.lightsOffAt !== null && now >= state.lightsOffAt) {
+    Object.assign(state, { lightsOffAt: null, lightsOutAt: now, lightsAt: Infinity, lightsOn: false });
+    events.push({ type: 'lightsOff' });
   }
   if (state.wonAt !== null) {
     resetInput();

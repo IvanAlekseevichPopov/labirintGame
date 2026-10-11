@@ -293,7 +293,6 @@ export function render(now, { soundOff = false } = {}) {
       goal: { x: gx, y: padY - cell * 0.4 - lift },
       landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
       sinceLightsAt: now - state.lightsAt,
-      lightsOn: state.lightsOn,
       lights: drawWeather?.lights(cell) ?? [],
     });
   }

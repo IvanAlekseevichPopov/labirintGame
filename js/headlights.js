@@ -17,11 +17,14 @@ const DEFAULT = {
   dust: { kind: 'motes', count: 28, color: '255,246,220' },
 };
 
-// Nested settings (dust, tail) are merged field by field; `dust: null` switches the dust off.
+// Nested settings (dust, tail) are merged field by field; `dust: null` switches the dust off,
+// and a planet setting dust again on top of null starts from the defaults.
+const isPlain = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 function merge(base, over) {
   const out = { ...base };
   for (const [k, v] of Object.entries(over)) {
-    out[k] = v && typeof v === 'object' && base[k] && typeof base[k] === 'object' ? merge(base[k], v) : v;
+    const under = isPlain(base[k]) ? base[k] : isPlain(DEFAULT[k]) ? DEFAULT[k] : null;
+    out[k] = isPlain(v) && under ? merge(under, v) : v;
   }
   return out;
 }
