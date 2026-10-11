@@ -155,18 +155,81 @@ function buildMazeLayer() {
     g.arc(x, y, r, Math.PI * 0.1, Math.PI * 0.9);
     g.stroke();
   }
-  for (const l of state.landmarks.filter(l => !LANDMARKS[l.type].upright)) {
-    LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p);
-  }
+  const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
+  const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p);
+  for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
   g.restore();
 
+  // Meteor impacts bend the walls around them outwards and knock pieces out of them.
+  const impacts = floorMarks.filter(l => l.type === 'impact').map(l => ({ x: l.x + 0.5, y: l.y + 0.5 }));
   const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
-    decor.walls.map(seg => raggedWall(seg, halfWidth, amp, state.index).map(([x, y]) => [ox + (x + dx) * cell, oy + (y + dy) * cell]));
+    decor.walls.map(seg => raggedWall(seg, halfWidth, amp * (nearImpact(seg, impacts) ? 3 : 1), state.index)
+      .map(([x, y]) => blastDeform([x + dx, y + dy], impacts))
+      .map(([x, y]) => [ox + x * cell, oy + y * cell]));
   const half = WALL_RATIO / 2;
   wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   fillShapes(g, ragged(half, 0.03, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
   fillShapes(g, ragged(half, 0.03), p.wallBase);
   fillShapes(g, ragged(half * 0.45, 0.015, -0.008, -0.016), p.wallTop);
+  for (const c of impacts) {
+    knockOutWalls(g, c, cell, ox, oy, p);
+    drawMark({ type: 'impact', x: c.x - 0.5, y: c.y - 0.5 });
+  }
+}
+
+// How far (cells) a blast reaches into the walls, and how much it pushes them at the crater's edge.
+const BLAST = { reach: 1.7, push: 0.16 };
+
+const nearImpact = ([x0, y0, x1, y1], impacts) =>
+  impacts.some(c => Math.hypot((x0 + x1) / 2 - c.x, (y0 + y1) / 2 - c.y) < BLAST.reach);
+
+// Pushes a wall point (grid units) away from every nearby impact, more the closer it is.
+function blastDeform([x, y], impacts) {
+  for (const c of impacts) {
+    const dx = x - c.x, dy = y - c.y, d = Math.hypot(dx, dy);
+    if (!d || d >= BLAST.reach) continue;
+    const k = (1 - d / BLAST.reach) ** 2 * BLAST.push * (0.8 + 0.4 * wallNoise(x * 9, y * 9, c.x));
+    x += dx / d * k;
+    y += dy / d * k;
+  }
+  return [x, y];
+}
+
+// Floor-coloured bites out of the walls next to the crater, and the knocked-out rubble lying about.
+function knockOutWalls(g, c, cell, ox, oy, p) {
+  const cx = ox + c.x * cell, cy = oy + c.y * cell;
+  const bites = decor.walls.flatMap(([x0, y0, x1, y1]) => {
+    const pts = [];
+    for (let t = 0.15; t < 1; t += 0.35) {
+      const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+      const d = Math.hypot(x - c.x, y - c.y);
+      if (d > 0.45 && d < 1.1 && wallNoise(x * 13, y * 13, c.y) > -0.2) pts.push({ x, y, d });
+    }
+    return pts;
+  });
+  g.fillStyle = p.floor;
+  for (const b of bites) {
+    const r = cell * (0.1 + 0.1 * (1.1 - b.d));
+    g.beginPath();
+    for (let k = 0; k <= 8; k++) {
+      const a = (k / 8) * Math.PI * 2, rr = r * (1 + 0.35 * wallNoise(b.x * 31 + k, b.y * 31, c.x));
+      g[k ? 'lineTo' : 'moveTo'](ox + b.x * cell + Math.cos(a) * rr, oy + b.y * cell + Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.fill();
+  }
+  for (let k = 0; k < 10; k++) {
+    const a = k * 0.63 + 0.4, d = cell * (0.85 + 0.6 * (0.5 + 0.5 * wallNoise(k, c.x, c.y)));
+    const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d, r = cell * (0.035 + 0.03 * (k % 3));
+    g.fillStyle = k % 3 ? p.wallBase : p.wallTop;
+    g.beginPath();
+    g.moveTo(x - r, y - r * 0.6);
+    g.lineTo(x + r * 0.9, y - r);
+    g.lineTo(x + r, y + r * 0.7);
+    g.lineTo(x - r * 0.7, y + r);
+    g.closePath();
+    g.fill();
+  }
 }
 
 // Cheap deterministic noise in [-1, 1] for a grid-unit point; shared by touching walls,
