@@ -2,6 +2,8 @@
 // difficulty curve. levels.js is curated by hand afterwards, so:
 //   node tools/gen-levels.mjs --force       regenerate the whole set (overwrites hand edits)
 //   node tools/gen-levels.mjs --only 4,26   regenerate just these levels, keep the rest as is
+// Levels listed in LOCKED were reworked by hand and are never regenerated: --only refuses them,
+// --force refuses to run at all while the lock holds.
 // To get a different maze for a level, bump its entry in VARIANTS and run --only for it.
 
 import fs from 'node:fs';
@@ -22,6 +24,8 @@ const BRAID_RATIO = 0.3;
 const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
+// Hand-made levels (night, storm, meteor): the generator must not touch them.
+const LOCKED = [11, 20, 23];
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
 // level → level whose difficulty it should get, keeping its own size; for levels that felt off in play.
@@ -286,6 +290,10 @@ if (only) {
       console.error(`--only: нет уровня ${number}, всего ${levels.length}`);
       process.exit(1);
     }
+    if (LOCKED.includes(number)) {
+      console.error(`уровень ${number} сделан руками и заперт (LOCKED в gen-levels.mjs), его не перегенерировать`);
+      process.exit(1);
+    }
     const prev = number > 1 ? describe(levels[number - 2], number - 1) : { spot: null, types: [] };
     const result = makeLevel(number, prev);
     // A night or a storm is a property of the level's place in the game, not of its maze.
@@ -295,6 +303,10 @@ if (only) {
 } else {
   if (fs.existsSync(OUT) && !args.includes('--force')) {
     console.error('levels.js уже есть и мог быть отредактирован руками. Перезаписать всё: --force, один уровень: --only N');
+    process.exit(1);
+  }
+  if (fs.existsSync(OUT) && LOCKED.length) {
+    console.error(`уровни ${LOCKED.join(', ')} сделаны руками и заперты (LOCKED в gen-levels.mjs); --force стёр бы их. Перегенерируй остальные через --only`);
     process.exit(1);
   }
   levels = [];

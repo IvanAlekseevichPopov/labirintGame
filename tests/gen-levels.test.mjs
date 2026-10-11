@@ -11,7 +11,7 @@ import { PLANET_KEYS } from '../js/planets.js';
 const ROOT = new URL('../', import.meta.url);
 
 // The generator writes next to itself, so run a copy in a temp dir to keep the real levels.js intact.
-let dir, script, out;
+let dir, script, locked, out;
 
 before(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'labirint-gen-'));
@@ -22,6 +22,10 @@ before(() => {
     filter: src => !/\/(\.git|\.idea|node_modules)(\/|$)/.test(src) && src !== path.join(root, 'levels.js'),
   });
   script = path.join(dir, 'tools', 'gen-levels.mjs');
+  // The real generator locks hand-made levels; the tests of generation itself run with the lock off.
+  locked = path.join(dir, 'tools', 'gen-levels-locked.mjs');
+  fs.copyFileSync(script, locked);
+  fs.writeFileSync(script, fs.readFileSync(script, 'utf8').replace(/const LOCKED = \[[^\]]*\];/, 'const LOCKED = [];'));
   out = path.join(dir, 'levels.js');
   execFileSync(process.execPath, [script], { stdio: 'pipe' });
 });
@@ -73,6 +77,19 @@ test('--only keeps dark and storm flags, on the regenerated level too', async ()
   assert.deepEqual(after[4].storm, { from: 0, to: 0.5 });
   assert.equal(after[0].dark, undefined);
   execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
+});
+
+test('hand-made levels are locked: --only refuses them and --force refuses to run', () => {
+  const before = fs.readFileSync(out, 'utf8');
+  const only = spawnSync(process.execPath, [locked, '--only', '20'], { encoding: 'utf8' });
+  assert.equal(only.status, 1);
+  assert.match(only.stderr, /заперт/);
+  const force = spawnSync(process.execPath, [locked, '--force'], { encoding: 'utf8' });
+  assert.equal(force.status, 1);
+  assert.match(force.stderr, /заперты/);
+  assert.equal(fs.readFileSync(out, 'utf8'), before);
+  const other = spawnSync(process.execPath, [locked, '--only', '3'], { encoding: 'utf8' });
+  assert.equal(other.status, 0, other.stderr);
 });
 
 test('generates 40 valid levels cycling planets in blocks of 3', async () => {
