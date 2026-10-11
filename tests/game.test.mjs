@@ -414,3 +414,13 @@ test('the meteor waits while the rover is on its cell, and a restart resets it',
   assert.equal(state.maze.cells[0][5].left, false, 'the crater is gone');
   assert.ok(!state.landmarks.some(l => l.type === 'impact'));
 });
+
+test('a meteor without a trigger goes off METEOR.startMs after the level starts', () => {
+  game.setLevels([{ ...LOOP, map: LOOP.map.replace('T', ' ') }, LOOP]);
+  game.startLevel(0, now);
+  const early = run(METEOR.startMs - FRAME_MS * 2);
+  assert.deepEqual(meteorEvents(early), []);
+  assert.deepEqual(meteorEvents(run(FRAME_MS * 4)), ['meteorWarn']);
+  assert.deepEqual(meteorEvents(run(METEOR.warnMs + FRAME_MS * 2)), ['meteorImpact']);
+  assert.equal(state.player.x, 0, 'the rover was still parked');
+});

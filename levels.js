@@ -3,7 +3,8 @@
 // # wall, S start, R rocket; landmarks: F flag, A antenna, C big crater.
 // `dark: true` makes it a night level: black except the rover's headlights.
 // `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
-// M and T: a meteor lands on M (walling the cell off) once the rover drives onto T.
+// M and T: a meteor lands on M (walling the cell off) once the rover drives onto T, or right after
+// the start when there is no T.
 export const LEVELS = [
   // 1
   { planet: 'moon', map: `
@@ -17,10 +18,10 @@ export const LEVELS = [
 #   #         #
 ###############
 ` },
-  // 2
+  // 2 — метеорит падает в правый верхний угол сразу после старта, дорога внизу слева
   { planet: 'moon', map: `
 ###############
-#S            #
+#S           M#
 # ########### #
 #           # #
 # ######### # #

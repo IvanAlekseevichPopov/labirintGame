@@ -3,7 +3,8 @@
 
 import { LANDMARK_BY_CHAR } from './js/landmarks.js';
 
-// M and T belong to a meteor event: it lands on M once the rover drives onto T (see js/game.js).
+// M and T belong to a meteor event: it lands on M once the rover drives onto T, or soon after the
+// level starts when there is no T (see js/game.js).
 const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', T: 'trigger', ...LANDMARK_BY_CHAR };
 // The rover must be at least this many steps from the impact when the meteor is set off.
 export const METEOR_MIN_DISTANCE = 3;
@@ -93,13 +94,14 @@ export function parseLevel(level, number, planets) {
   if (!toGoal) fail('до ракеты не доехать');
   let meteor = null;
   if (impacts.length || triggers.length) {
-    if (impacts.length !== 1 || triggers.length !== 1) fail(`метеорит: нужны ровно одна M и одна T, а тут M: ${impacts.length}, T: ${triggers.length}`);
-    const [cell] = impacts, [trigger] = triggers;
-    const fromTrigger = levelDistances(maze, trigger).get(`${cell.x},${cell.y}`);
-    if (!fromTrigger || fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от T`);
+    if (impacts.length !== 1 || triggers.length > 1) fail(`метеорит: нужна ровно одна M и не больше одной T, а тут M: ${impacts.length}, T: ${triggers.length}`);
+    const [cell] = impacts, trigger = triggers[0] ?? null;
+    const setOff = trigger ?? start;
+    const fromTrigger = levelDistances(maze, setOff).get(`${cell.x},${cell.y}`);
+    if (!fromTrigger || fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${trigger ? 'T' : 'старта'}`);
     const blocked = blockCell(maze, cell);
     for (const [name, from] of [['старта', start], ['T', trigger]]) {
-      if (!levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);
+      if (from && !levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);
     }
     meteor = { cell, trigger };
   }

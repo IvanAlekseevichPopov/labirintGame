@@ -24,8 +24,9 @@ export function startLevel(index, now, { restart = false } = {}) {
     planet,
     dark,
     storm,
-    // phase: waiting (for the rover to reach the trigger) → falling (hits at `at`) → fallen
-    meteor: meteor && { ...meteor, phase: 'waiting', at: null },
+    // phase: waiting (for the rover to reach the trigger, or for `at` when there is no trigger)
+    // → falling (hits at `at`) → fallen
+    meteor: meteor && { ...meteor, phase: 'waiting', at: meteor.trigger ? null : now + METEOR.startMs },
     maze,
     goal,
     landmarks,
@@ -80,6 +81,12 @@ function switchLightsAtStormEdge(now) {
   } else if (!want && have) {
     state.lightsOffAt = now + state.moveMs;
   }
+}
+
+function setMeteorOff(now) {
+  state.meteor.phase = 'falling';
+  state.meteor.at = now + METEOR.warnMs;
+  events.push({ type: 'meteorWarn' });
 }
 
 export function restartLevel(now) {
@@ -146,10 +153,8 @@ function move(dir, now, cellPx) {
   events.push({ type: 'move', dir });
   if (state.storm) switchLightsAtStormEdge(now);
   const { meteor } = state;
-  if (meteor?.phase === 'waiting' && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) {
-    meteor.phase = 'falling';
-    meteor.at = now + METEOR.warnMs;
-    events.push({ type: 'meteorWarn' });
+  if (meteor?.phase === 'waiting' && meteor.trigger && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) {
+    setMeteorOff(now);
   }
   const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
@@ -210,6 +215,7 @@ function step(now, dt, cellPx) {
     events.push({ type: 'lightsOn' });
   }
   const { meteor } = state;
+  if (meteor?.phase === 'waiting' && !meteor.trigger && now >= meteor.at) setMeteorOff(now);
   if (meteor?.phase === 'falling' && now >= meteor.at) {
     const onCell = c => c.x === meteor.cell.x && c.y === meteor.cell.y;
     if (onCell(state.player)) {

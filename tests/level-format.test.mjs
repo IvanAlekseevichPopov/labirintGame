@@ -113,7 +113,10 @@ test('a meteor needs one M and one T, far enough apart, with a way round', () =>
   const level = parseLevel({ planet: 'moon', map: LOOP }, 1, PLANET_KEYS);
   assert.deepEqual(level.meteor, { cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } });
   assert.equal(parse(SMALL).meteor, null);
-  failsWith(LOOP.replace('T', ' '), /ровно одна M и одна T/);
+  const atStart = parseLevel({ planet: 'moon', map: LOOP.replace('T', ' ') }, 1, PLANET_KEYS);
+  assert.deepEqual(atStart.meteor, { cell: { x: 5, y: 0 }, trigger: null }, 'no T: goes off at the start');
+  failsWith(LOOP.replace('M', ' '), /ровно одна M/);
+  failsWith(LOOP.replace('T', ' ').replace('S   ', 'S M ').replace('   M', '    '), /от старта/);
   failsWith(LOOP.replace('T     M', 'T M    '), /не ближе/);
   failsWith(LOOP.replace('#               #', '#       #       #'), /после падения метеорита/);
 });
