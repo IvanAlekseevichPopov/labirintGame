@@ -1,5 +1,7 @@
 // Sprites drawn straight onto the main canvas: rovers, landmarks, rocket, text.
 
+import { mulberry32 } from './random.js';
+
 const OUTLINE = '#1c1e26';
 let ctx;
 
@@ -197,7 +199,9 @@ export function drawBigCrater(g, x, y, r, p) {
 // A fresh impact crater filling its cell wall to wall: a deep dark bowl, a raised ragged rim
 // bulging over the neighbouring walls, cracks running into them, thrown-out dust and rocks,
 // and the meteorite still sitting in the middle. Into the maze layer, like drawBigCrater.
-export function drawImpactCrater(g, x, y, r, p) {
+// `seed` varies the rays, cracks and rocks between falls.
+export function drawImpactCrater(g, x, y, r, p, seed = 0) {
+  const rand = mulberry32(seed);
   const circle = (cx, cy, cr, fill) => {
     g.beginPath();
     g.arc(cx, cy, cr, 0, Math.PI * 2);
@@ -211,8 +215,8 @@ export function drawImpactCrater(g, x, y, r, p) {
   circle(x, y, r * 2.1, 'rgba(0, 0, 0, 0.12)');
   g.strokeStyle = p.craterRim;
   for (let k = 0; k < 11; k++) {
-    const a = k * 0.57 + 0.2, len = r * (1.9 + (k % 3) * 0.45);
-    g.lineWidth = r * (0.08 + 0.04 * (k % 2));
+    const a = k * 0.57 + rand() * 0.5, len = r * (1.7 + rand() * 1.1);
+    g.lineWidth = r * (0.07 + rand() * 0.06);
     g.beginPath();
     g.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
     g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
@@ -221,7 +225,7 @@ export function drawImpactCrater(g, x, y, r, p) {
   // Cracks into the ground and the walls around.
   g.strokeStyle = 'rgba(0, 0, 0, 0.45)';
   for (let k = 0; k < 6; k++) {
-    const a = k * 1.05 + 0.6;
+    const a = k * 1.05 + rand() * 0.9;
     g.lineWidth = r * 0.05;
     g.beginPath();
     g.moveTo(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15);
@@ -261,7 +265,8 @@ export function drawImpactCrater(g, x, y, r, p) {
   // The meteorite and a few rocks on the rim.
   blob(x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328', 4, 0.2);
   circle(x - r * 0.13, y - r * 0.03, r * 0.11, '#6b6050');
-  for (const [a, s] of [[0.4, 0.12], [2.3, 0.09], [4.1, 0.1], [5.4, 0.08]]) {
+  for (let k = 0; k < 4; k++) {
+    const a = k * 1.6 + rand(), s = 0.07 + rand() * 0.06;
     circle(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15, r * s, p.wallBase);
   }
   g.restore();

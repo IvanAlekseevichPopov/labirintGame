@@ -86,6 +86,8 @@ function switchLightsAtStormEdge(now) {
 function setMeteorOff(now) {
   state.meteor.phase = 'falling';
   state.meteor.at = now + METEOR.warnMs;
+  // Each fall comes in from its own direction and scatters its own rocks.
+  state.meteor.seed = Math.floor(now) % 100000;
   events.push({ type: 'meteorWarn' });
 }
 
@@ -226,7 +228,7 @@ function step(now, dt, cellPx) {
       meteor.phase = 'fallen';
       meteor.at = now;
       state.maze = blockCell(state.maze, meteor.cell);
-      state.landmarks.push({ type: 'impact', ...meteor.cell });
+      state.landmarks.push({ type: 'impact', ...meteor.cell, seed: meteor.seed });
       events.push({ type: 'meteorImpact' });
     }
   }

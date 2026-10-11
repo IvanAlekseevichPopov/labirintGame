@@ -155,14 +155,14 @@ function buildMazeLayer() {
     g.stroke();
   }
   const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
-  const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p);
+  const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed);
   for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
   g.restore();
 
   // Meteor impacts bend the walls around them outwards and knock pieces out of them; the walls
   // the crater adds to the maze are not drawn, the crater itself has to look impassable. The
   // outer frame is left alone, it is the edge of the world.
-  const impacts = floorMarks.filter(l => l.type === 'impact').map(l => ({ x: l.x + 0.5, y: l.y + 0.5 }));
+  const impacts = floorMarks.filter(l => l.type === 'impact').map(l => ({ x: l.x + 0.5, y: l.y + 0.5, seed: l.seed ?? 0 }));
   const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
     decor.walls.map(seg => {
       const frame = isFrame(seg, cols, rows);
@@ -182,7 +182,7 @@ function buildMazeLayer() {
   g.clip();
   for (const c of impacts) {
     knockOutWalls(g, c, cell, ox, oy, p, cols, rows);
-    drawMark({ type: 'impact', x: c.x - 0.5, y: c.y - 0.5 });
+    drawMark({ type: 'impact', x: c.x - 0.5, y: c.y - 0.5, seed: c.seed });
   }
   g.restore();
 }
@@ -221,7 +221,7 @@ function knockOutWalls(g, c, cell, ox, oy, p, cols, rows) {
     for (let t = 0.15; t < 1; t += 0.35) {
       const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
       const d = Math.hypot(x - c.x, y - c.y);
-      if (d > 0.45 && d < 1.1 && wallNoise(x * 13, y * 13, c.y) > -0.2) pts.push({ x, y, d });
+      if (d > 0.45 && d < 1.1 && wallNoise(x * 13, y * 13, c.y + c.seed) > -0.2) pts.push({ x, y, d });
     }
     return pts;
   });
@@ -240,7 +240,7 @@ function knockOutWalls(g, c, cell, ox, oy, p, cols, rows) {
     g.fill();
   }
   for (let k = 0; k < 10; k++) {
-    const a = k * 0.63 + 0.4, d = cell * (0.85 + 0.6 * (0.5 + 0.5 * wallNoise(k, c.x, c.y)));
+    const a = k * 0.63 + 0.4 + wallNoise(k, c.seed, 1), d = cell * (0.85 + 0.6 * (0.5 + 0.5 * wallNoise(k, c.x, c.y + c.seed)));
     const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d, r = cell * (0.035 + 0.03 * (k % 3));
     g.fillStyle = k % 3 ? p.wallBase : p.wallTop;
     g.beginPath();
