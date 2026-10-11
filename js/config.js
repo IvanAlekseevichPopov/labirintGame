@@ -5,8 +5,10 @@ export const MIN_STEP_MS = 150;
 export const MAX_STEP_MS = 220;
 export const TURN_BUFFER_MS = 500;
 export const INPUT_LOCK_MS = 400;
-// On a dark level the headlights come on this long after the level starts.
+// On a dark level the headlights come on this long after the level starts, then flicker for
+// LIGHTS_FLICKER_MS before they hold; the rover cannot move until they do.
 export const LIGHTS_ON_MS = 500;
+export const LIGHTS_FLICKER_MS = 300;
 export const BUMP_MS = 140;
 export const WALL_RATIO = 0.26;
 export const ROVER_RATIO = 0.78;

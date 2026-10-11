@@ -62,6 +62,19 @@ test('--only regenerates the listed levels and keeps hand edits elsewhere', asyn
   execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
 });
 
+test('--only keeps dark and storm flags, on the regenerated level too', async () => {
+  const { source } = await readLevels();
+  fs.writeFileSync(out, source
+    .replace("// 3\n  { planet: 'moon', map:", "// 3\n  { planet: 'moon', dark: true, map:")
+    .replace("// 5\n  { planet: 'mars', map:", "// 5\n  { planet: 'mars', storm: { from: 0, to: 0.5 }, map:"));
+  execFileSync(process.execPath, [script, '--only', '3'], { stdio: 'pipe' });
+  const after = (await readLevels()).levels;
+  assert.equal(after[2].dark, true);
+  assert.deepEqual(after[4].storm, { from: 0, to: 0.5 });
+  assert.equal(after[0].dark, undefined);
+  execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
+});
+
 test('generates 40 valid levels cycling planets in blocks of 3', async () => {
   const { levels } = await readLevels();
   assert.equal(levels.length, 40);

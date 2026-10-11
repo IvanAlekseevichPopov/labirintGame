@@ -4,7 +4,7 @@
 import { parseLevel } from '../level-format.js';
 import { PLANET_KEYS } from './planets.js';
 import {
-  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_ON_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -39,7 +39,7 @@ export function startLevel(index, now, { restart = false } = {}) {
     targetAngle: facing.angle,
     wonAt: null,
     phase: 'playing',
-    inputFrom: now + INPUT_LOCK_MS,
+    inputFrom: now + (dark ? LIGHTS_ON_MS + LIGHTS_FLICKER_MS : INPUT_LOCK_MS),
     lightsAt: now + LIGHTS_ON_MS,
     lightsOn: false,
     tracks: [],

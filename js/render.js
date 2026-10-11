@@ -16,7 +16,7 @@ useContext(ctx);
 // drawn once into offscreen layers instead of every frame.
 const mazeLayer = document.createElement('canvas');
 const trackLayer = document.createElement('canvas');
-const darkLayer = document.createElement('canvas');
+const veilLayer = document.createElement('canvas');
 let drawnTracks = 0;
 let decor = null;
 let drawWeather = null;
@@ -70,8 +70,17 @@ export function levelChanged(levelCount) {
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
   drawWeather = createWeather(state.planet, intensity);
   drawVeil = state.dark ? createNight() : state.storm ? createStorm(state.storm) : null;
+  sizeVeilLayer();
   buildMazeLayer();
   buildTrackLayer();
+}
+
+// The night/storm overlay needs a full-screen layer; plain levels do not pay for it.
+function sizeVeilLayer() {
+  const want = drawVeil ? canvas.width : 0;
+  if (veilLayer.width === want && veilLayer.height === (drawVeil ? canvas.height : 0)) return;
+  veilLayer.width = want;
+  veilLayer.height = drawVeil ? canvas.height : 0;
 }
 
 export function resize() {
@@ -81,8 +90,7 @@ export function resize() {
   canvas.style.width = `${innerWidth}px`;
   canvas.style.height = `${innerHeight}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  darkLayer.width = canvas.width;
-  darkLayer.height = canvas.height;
+  sizeVeilLayer();
   makeStars();
   if (decor) {
     buildMazeLayer();
@@ -227,8 +235,6 @@ function drawTrack(g, { a, b }, cell, ox, oy) {
   }
 }
 
-
-
 function buildTrackLayer() {
   trackLayer.width = canvas.width;
   trackLayer.height = canvas.height;
@@ -266,7 +272,6 @@ function drawSky(now, w, h) {
   }
   ctx.globalAlpha = 1;
 }
-
 
 export function render(now, { soundOff = false } = {}) {
   const planet = PLANETS[state.planet];
@@ -306,13 +311,13 @@ export function render(now, { soundOff = false } = {}) {
   }
 
   if (drawVeil) {
-    drawVeil(ctx, darkLayer, now, {
+    drawVeil(ctx, veilLayer, now, {
       w, h, cell, walls: wallsPx, rover, flame, trackLayer,
       area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cols: state.maze.cols },
       goal: { x: gx, y: padY - cell * 0.4 - lift },
       landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
       sinceLightsAt: now - state.lightsAt,
-      lights: drawWeather?.lights?.(cell) ?? [],
+      lights: drawWeather?.lights(cell) ?? [],
     });
   }
   drawText(`${planet.name} — уровень ${state.index + 1}`, ox, header / 2, header * 0.45, 'left', '#ffffff');

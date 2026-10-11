@@ -17,17 +17,21 @@ const LAMPS = { front: [[0.31, -0.16, -1], [0.31, 0.16, 1]], rear: [[-0.4, -0.2]
 
 // Switching on: dark, a couple of flickers, then steady. [ms since lightsAt, brightness].
 const SWITCH_ON = [[80, 1], [150, 0.1], [230, 1], [290, 0.25], [Infinity, 1]];
-function brightness(sinceLightsAt, now) {
+export function brightness(sinceLightsAt, now) {
   if (sinceLightsAt < 0) return 0;
   const level = SWITCH_ON.find(([until]) => sinceLightsAt < until)[1];
   return level * (0.97 + 0.03 * Math.sin(now / 90) * Math.sin(now / 37));
 }
 
+// Radius in cells, how much light, and its colour (null for none) on top of the hole.
 const LANDMARK_LIGHTS = {
-  antenna: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, tint: 'rgba(255, 70, 50, 0.22)' }),
-  flag: () => ({ r: 0.85, strength: 0.75, tint: 'rgba(255, 220, 150, 0.14)' }),
+  antenna: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, tint: '255,70,50' }),
+  flag: () => ({ r: 0.85, strength: 0.75, tint: '255,220,150' }),
   crater: () => ({ r: 0.7, strength: 0.35, tint: null }),
 };
+
+// Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
+const jitter = now => (Math.sin(now / 23) * 43758.5453) % 1;
 
 const DUST_PER_BEAM = 28;
 
@@ -113,9 +117,8 @@ export function createNight() {
     const g = layer.getContext('2d');
     const dpr = devicePixelRatio || 1;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.globalCompositeOperation = 'source-over';
+    g.globalCompositeOperation = 'copy';
     g.globalAlpha = 1;
-    g.clearRect(0, 0, w, h);
     g.fillStyle = NIGHT.dark;
     g.fillRect(0, 0, w, h);
 
@@ -135,13 +138,11 @@ export function createNight() {
     }
     if (rover && b > 0) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(g, x, y, cell * 0.14, 0.4 * b); }
 
-    for (const l of scene.landmarks) {
-      const light = LANDMARK_LIGHTS[l.type]?.(now);
-      if (light) radial(g, l.x, l.y, cell * light.r, light.strength);
-    }
+    const lit = scene.landmarks.map(l => ({ ...l, light: LANDMARK_LIGHTS[l.type]?.(now) })).filter(l => l.light);
+    for (const { x, y, light } of lit) radial(g, x, y, cell * light.r, light.strength);
     const pulse = 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
     radial(g, scene.goal.x, scene.goal.y, cell * NIGHT.beacon * pulse, 0.9);
-    if (scene.flame) radial(g, scene.goal.x, scene.goal.y, cell * 5, 0.95 + 0.05 * Math.random());
+    if (scene.flame) radial(g, scene.goal.x, scene.goal.y, cell * 5, 0.95 + 0.05 * jitter(now));
     for (const l of scene.lights) radial(g, l.x, l.y, l.r, l.strength);
 
     ctx.drawImage(layer, 0, 0, w, h);
@@ -154,12 +155,11 @@ export function createNight() {
       fillPolygon(ctx, beam.pts, tint);
     }
     if (rover && b > 0) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(ctx, x, y, cell * 0.16, 0.35 * b, '255,40,30'); }
-    for (const l of scene.landmarks) {
-      const light = LANDMARK_LIGHTS[l.type]?.(now);
-      if (light?.tint) { ctx.fillStyle = light.tint; radial(ctx, l.x, l.y, cell * light.r, light.strength * 0.3, light.tint.match(/\d+, \d+, \d+/)[0]); }
+    for (const { x, y, light } of lit) {
+      if (light.tint) radial(ctx, x, y, cell * light.r, light.strength * 0.3, light.tint);
     }
     for (const l of scene.lights) radial(ctx, l.x, l.y, l.r, 0.35 * l.strength, '255,190,120');
-    if (scene.flame) radial(ctx, scene.goal.x, scene.goal.y, cell * 5, 0.2 + 0.05 * Math.random(), '255,170,80');
+    if (scene.flame) radial(ctx, scene.goal.x, scene.goal.y, cell * 5, 0.2 + 0.05 * jitter(now), '255,170,80');
 
     // Dust drifting in the beams, clipped by the same shadows.
     beams.forEach((beam, i) => {

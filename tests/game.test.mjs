@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
-import { FIRST_REPEAT_MS, INPUT_LOCK_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, MAX_STEP_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -257,4 +257,26 @@ test('levels wrap around after the last one', () => {
   game.startLevel(2, now);
   assert.equal(state.index, 0);
   run(FRAME_MS);
+});
+
+test('a dark level switches the headlights on after a moment and only then takes input', () => {
+  game.setLevels([{ ...CORRIDOR, dark: true }, CORRIDOR]);
+  game.startLevel(0, now);
+  assert.equal(state.dark, true);
+  const early = run(LIGHTS_ON_MS - FRAME_MS);
+  assert.ok(!early.some(e => e.type === 'lightsOn'));
+  const [on] = run(FRAME_MS * 2).filter(e => e.type === 'lightsOn');
+  assert.ok(on);
+  tap('right');
+  run(FRAME_MS);
+  assert.equal(state.player.x, 0, 'still parked while the lights flicker');
+  run(LIGHTS_FLICKER_MS);
+  tap('right');
+  run(STEP_MS);
+  assert.equal(state.player.x, 1);
+});
+
+test('a plain level never reports lightsOn', () => {
+  const events = run(LIGHTS_ON_MS * 2);
+  assert.ok(!events.some(e => e.type === 'lightsOn'));
 });
