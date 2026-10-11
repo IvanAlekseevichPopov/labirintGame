@@ -2,6 +2,7 @@
 // Each cell is at an odd row/column; the characters between cells are walls.
 // # wall, S start, R rocket; landmarks: F flag, A antenna, C big crater.
 // `dark: true` makes it a night level: black except the rover's headlights.
+// `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
 export const LEVELS = [
   // 1
   { planet: 'moon', map: `
@@ -347,8 +348,8 @@ export const LEVELS = [
 #  R  #       #     #       #
 #############################
 ` },
-  // 23
-  { planet: 'mars', map: `
+  // 23 — пыльная буря на левой половине, ракета внутри
+  { planet: 'mars', storm: { from: 0, to: 0.58 }, map: `
 #############################
 #               #           #
 # # ########### # # ####### #

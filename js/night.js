@@ -58,7 +58,7 @@ export function beamPolygon(ox, oy, angle, reach, walls) {
   return pts;
 }
 
-function fillPolygon(g, pts, style) {
+export function fillPolygon(g, pts, style) {
   g.fillStyle = style;
   g.beginPath();
   pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y));
@@ -66,7 +66,7 @@ function fillPolygon(g, pts, style) {
   g.fill();
 }
 
-function radial(g, x, y, r, alpha, rgb = '0,0,0') {
+export function radial(g, x, y, r, alpha, rgb = '0,0,0') {
   const grad = g.createRadialGradient(x, y, 0, x, y, r);
   grad.addColorStop(0, `rgba(${rgb},${alpha})`);
   grad.addColorStop(0.5, `rgba(${rgb},${alpha * 0.6})`);

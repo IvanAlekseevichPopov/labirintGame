@@ -6,6 +6,7 @@ import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
+import { createStorm } from './storm.js';
 import { ROVERS, UPRIGHT_LANDMARKS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 
 const canvas = document.getElementById('game');
@@ -19,12 +20,13 @@ const darkLayer = document.createElement('canvas');
 let drawnTracks = 0;
 let decor = null;
 let drawWeather = null;
-let drawNight = null;
+let drawVeil = null;
 let wallsPx = [];
 let stars = [];
 
 // On a dark level the tracks are pale, so they can glow through the night.
 const NIGHT_TRACK = '#9fcbe8';
+const STORM_WEATHER = 1.7;
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -64,8 +66,10 @@ function makeDecor() {
 
 export function levelChanged(levelCount) {
   decor = makeDecor();
-  drawWeather = createWeather(state.planet, weatherIntensity(state.index + 1, levelCount));
-  drawNight = state.dark ? createNight() : null;
+  // A storm level gets the full weather and then some, whatever its number.
+  const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
+  drawWeather = createWeather(state.planet, intensity);
+  drawVeil = state.dark ? createNight() : state.storm ? createStorm(state.storm) : null;
   buildMazeLayer();
   buildTrackLayer();
 }
@@ -301,10 +305,11 @@ export function render(now, { soundOff = false } = {}) {
     ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
   }
 
-  if (drawNight) {
-    drawNight(ctx, darkLayer, now, {
+  if (drawVeil) {
+    drawVeil(ctx, darkLayer, now, {
       w, h, cell, walls: wallsPx, rover, flame, trackLayer,
-      goal: { x: gx, y: padY - cell * 0.4 },
+      area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cols: state.maze.cols },
+      goal: { x: gx, y: padY - cell * 0.4 - lift },
       landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
       sinceLightsAt: now - state.lightsAt,
       lights: drawWeather?.lights?.(cell) ?? [],

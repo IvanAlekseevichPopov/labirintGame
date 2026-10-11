@@ -174,6 +174,11 @@ const MARS_LEAD_B = [
   'E6/8 D6/8 C6/8 B5/8 A5/4 C6/4',
   'B5/8 C#6/8 D6/8 A5/8 G5/4 -/4',
 ].join(' | ');
+const MARS_LEAD = [MARS_LEAD_A, MARS_LEAD_B, MARS_LEAD_A].join(' | ');
+
+// Dust storm: the tune as a duet with its own echo, as on Europa.
+const MARS_STORM_ECHO = `-/8 ${MARS_LEAD.replace(/D5\/2$/, 'D5/4.')}`;
+const MARS_STORM_WIND_KICK = repeat('K/8 W/4. w/2 | w/1 | K/8 W/4. w/2 | W/2 w/2', 6);
 
 // Sparse drops on the ice; pulse2 repeats them an eighth later and quieter, as an echo.
 const EUROPA_LEAD = [
@@ -200,7 +205,7 @@ const EUROPA_WIND = [
 ].join(' | ');
 
 // Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 24 bars at 120 (48 s),
-// Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s).
+// Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s), the Mars storm 24 bars at 108 (~53 s).
 export const SONGS = {
   moon: {
     bpm: 84,
@@ -218,7 +223,7 @@ export const SONGS = {
     bpm: 120,
     channels: {
       pulse1: {
-        notes: [MARS_LEAD_A, MARS_LEAD_B, MARS_LEAD_A].join(' | '),
+        notes: MARS_LEAD,
         duty: 0.25, env: 'pluck', decay: 18, vol: 0.55, vibrato: { hz: 6, cents: 8, delay: 14 },
       },
       pulse2: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'riff'), duty: 0.125, env: 'pluck', decay: 6, vol: 0.4 },
@@ -244,6 +249,17 @@ export const SONGS = {
       pulse2: { notes: follow(MOON_CHORDS, MOON_NIGHT_PROGRESSION, 'arp'), duty: 0.25, env: 'pluck', decay: 30, vol: 0.3 },
       triangle: { notes: follow(MOON_CHORDS, MOON_NIGHT_PROGRESSION, 'pad'), env: 'soft', vol: 0.85 },
       noise: { notes: repeat('K/1', 16), vol: 0.12 },
+    },
+  },
+  // Dust storm: the whole tune as a duet with its own echo an eighth behind; the riff and the
+  // drums are gone, the bass still bounces, the wind thumps once a bar like a far-off engine.
+  marsStorm: {
+    bpm: 108,
+    channels: {
+      pulse1: { notes: MARS_LEAD, duty: 0.25, env: 'pluck', decay: 20, vol: 0.45, vibrato: { hz: 6, cents: 8, delay: 14 } },
+      pulse2: { notes: MARS_STORM_ECHO, duty: 0.125, env: 'pluck', decay: 14, vol: 0.25 },
+      triangle: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'bass'), env: 'hold', vol: 0.8 },
+      noise: { notes: MARS_STORM_WIND_KICK, vol: 0.45 },
     },
   },
 };

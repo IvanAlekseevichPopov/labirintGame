@@ -154,6 +154,9 @@ function onInput(action) {
   }
 }
 
+// Night and storm levels have their own tunes.
+const songFor = ({ planet, dark, storm }) => (dark ? 'moonNight' : storm ? 'marsStorm' : planet);
+
 // Game events drive the picture and the sound.
 function handle(event) {
   const planet = PLANETS[game.state.planet];
@@ -162,7 +165,7 @@ function handle(event) {
       renderer.levelChanged(levels.length);
       rememberLevelInUrl(event.index);
       audio.setEngine(null);
-      audio.playMusic(game.state.dark ? 'moonNight' : game.state.planet);
+      audio.playMusic(songFor(game.state));
       audio.sfx(event.restart ? 'restart' : 'levelStart');
       break;
     case 'lightsOn':

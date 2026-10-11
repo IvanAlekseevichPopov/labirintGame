@@ -17,12 +17,13 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, maze, start, goal, landmarks, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
     planet,
     dark,
+    storm,
     maze,
     goal,
     landmarks,
