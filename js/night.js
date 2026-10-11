@@ -18,8 +18,8 @@ export function brightness(sinceLightsAt, now) {
   return level * (0.97 + 0.03 * Math.sin(now / 90) * Math.sin(now / 37));
 }
 
-// Landmarks with a light of their own: radius in cells, how much light, and its colour on top
-// of the hole. The crater has none, it is just a hole in the ground.
+// Only man-made landmarks carry a light (same rule as the chime in audio.js): radius in cells,
+// how much light, and its colour on top of the hole. A crater or a polynya is just ground.
 const LANDMARK_LIGHTS = {
   antenna: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, tint: '255,70,50' }),
   flag: () => ({ r: 0.85, strength: 0.75, tint: '255,220,150' }),
