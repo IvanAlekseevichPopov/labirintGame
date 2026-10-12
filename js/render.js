@@ -10,6 +10,7 @@ import { createStorm } from './storm.js';
 import { ROVERS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
+import { drawLaunchSmoke } from './launch.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -365,9 +366,16 @@ export function render(now, { soundOff = false } = {}) {
 
   const flame = winT !== null && winT >= WIN.ignite;
   const shake = flame && winT < WIN.lift ? (Math.random() - 0.5) * cell * 0.04 : 0;
-  const liftT = winT === null ? 0 : clamp01((winT - WIN.lift) / WIN.liftMs);
-  const lift = liftT * liftT * (padY + cell * 2);
+  const liftShare = t => clamp01((t - WIN.lift) / WIN.liftMs);
+  const climb = padY + cell * 2;
+  const liftAt = t => liftShare(t) ** 2 * climb;
+  const liftT = winT === null ? 0 : liftShare(winT);
+  const lift = liftAt(winT ?? 0);
   drawRocket(gx + shake, padY - lift, cell * 0.95, flame, now);
+  drawLaunchSmoke(ctx, winT, {
+    x: gx, padY, cell, climb, palette: planet,
+    area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
+  });
 
   const shrink = winT === null ? 1 : 1 - clamp01((winT - WIN.shrinkStart) / WIN.shrinkMs);
   let rover = null;
@@ -402,7 +410,6 @@ export function render(now, { soundOff = false } = {}) {
     const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };
     drawWeather(ctx, now, { w, h }, area);
   }
-  if (winT !== null && winT >= WIN.lift) drawText('Ура!', w / 2, h / 2, h * 0.18, 'center', '#ffd60a');
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
 }
 
