@@ -2,7 +2,7 @@
 
 import { mulberry32 } from './random.js';
 
-const OUTLINE = '#1c1e26';
+export const OUTLINE = '#1c1e26';
 let ctx;
 
 export function useContext(context) {
@@ -453,79 +453,6 @@ export function drawPad(cx, cy, cell, now) {
 }
 
 // Rocket stands upright (side view) in unit space: base at y=0, nose at y=-1.
-export function drawRocket(cx, baseY, size, flame, now) {
-  ctx.save();
-  ctx.translate(cx, baseY);
-  ctx.scale(size, size);
-  ctx.lineJoin = 'round';
-
-  if (flame) {
-    const len = 0.45 + 0.08 * Math.sin(now / 30);
-    const g = ctx.createLinearGradient(0, 0, 0, len);
-    g.addColorStop(0, '#fff3b0');
-    g.addColorStop(0.4, '#ffb703');
-    g.addColorStop(1, 'rgba(230, 57, 70, 0)');
-    ctx.beginPath();
-    ctx.moveTo(-0.11, -0.02);
-    ctx.quadraticCurveTo(0, len * 1.1, 0.11, -0.02);
-    ctx.fillStyle = g;
-    ctx.fill();
-  }
-
-  // Thick outline: the white body has to stand out even on pale ice.
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 0.04;
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(side * 0.18, -0.38);
-    ctx.lineTo(side * 0.36, -0.02);
-    ctx.lineTo(side * 0.18, -0.1);
-    ctx.closePath();
-    ctx.fillStyle = '#e63946';
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(-0.1, -0.1);
-  ctx.lineTo(0.1, -0.1);
-  ctx.lineTo(0.13, 0);
-  ctx.lineTo(-0.13, 0);
-  ctx.closePath();
-  ctx.fillStyle = '#4a4d57';
-  ctx.fill();
-  ctx.stroke();
-
-  const body = new Path2D();
-  body.moveTo(-0.2, -0.1);
-  body.lineTo(-0.2, -0.6);
-  body.quadraticCurveTo(-0.2, -1, 0, -1);
-  body.quadraticCurveTo(0.2, -1, 0.2, -0.6);
-  body.lineTo(0.2, -0.1);
-  body.closePath();
-  const shade = ctx.createLinearGradient(-0.2, 0, 0.2, 0);
-  shade.addColorStop(0, '#c4c8d0');
-  shade.addColorStop(0.4, '#ffffff');
-  shade.addColorStop(1, '#a9aeb8');
-  ctx.fillStyle = shade;
-  ctx.fill(body);
-  ctx.save();
-  ctx.clip(body);
-  ctx.fillStyle = '#e63946';
-  ctx.fillRect(-0.25, -1.05, 0.5, 0.27);
-  ctx.restore();
-  ctx.stroke(body);
-
-  ctx.beginPath();
-  ctx.arc(0, -0.5, 0.09, 0, Math.PI * 2);
-  ctx.fillStyle = '#4cc9f0';
-  ctx.fill();
-  ctx.lineWidth = 0.035;
-  ctx.stroke();
-
-  ctx.restore();
-}
-
 export function drawText(text, x, y, size, align, color) {
   ctx.font = `bold ${size}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
   ctx.textAlign = align;

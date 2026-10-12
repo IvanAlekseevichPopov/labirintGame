@@ -7,7 +7,8 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { ROVERS, drawGlobe, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
+import { ROVERS, drawGlobe, drawPad, drawSoundOff, drawText, useContext } from './art.js';
+import { drawRocket } from './rockets.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
@@ -356,7 +357,7 @@ export function render(now, { soundOff = false } = {}) {
   const liftAt = t => liftShare(t) ** 2 * climb;
   const liftT = winT === null ? 0 : liftShare(winT);
   const lift = liftAt(winT ?? 0);
-  drawRocket(gx + shake, padY - lift, cell * 0.95, flame, now);
+  drawRocket(ctx, gx + shake, padY - lift, cell * 0.95, flame, now, planet);
   drawLaunchSmoke(ctx, winT, {
     x: gx, padY, cell, climb, palette: planet,
     area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
