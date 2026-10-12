@@ -10,8 +10,9 @@ const point = ([x0, y0, x1, y1], t) => [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
 function rock(g, segments, p, cell, ox, oy, half, rand, skip) {
   for (const seg of segments) {
     const [x0, y0, x1, y1] = seg, nx = y0 - y1, ny = x1 - x0;
-    // Angular boulders sitting on the ridge, poking out to either side.
-    for (let k = 0, n = rand() < 0.45 ? 0 : 1 + (rand() < 0.3); k < n; k++) {
+    // Now and then an angular boulder on the ridge, poking out to one side. Kept rare: walls
+    // crowded with them looked harsh.
+    for (let k = 0, n = rand() < 0.08 ? 1 : 0; k < n; k++) {
       const [x, y] = point(seg, 0.15 + rand() * 0.7), side = (rand() - 0.5) * half * 1.4;
       if (skip(x, y)) continue;
       const cx = ox + (x + nx * side) * cell, cy = oy + (y + ny * side) * cell, r = cell * half * (0.7 + rand() * 0.5);
