@@ -15,6 +15,7 @@ import { drawLaunchSmoke } from './launch.js';
 import { drawGround, makeGround } from './ground.js';
 import { drawWallDetails } from './walls.js';
 import { drawProps, placeProps } from './props.js';
+import { drawNeighbours } from './sky.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -316,7 +317,8 @@ function makeStars() {
   }));
 }
 
-function drawSky(now, w, h) {
+// `planet`, if given, brings its neighbour into the sky.
+function drawSky(now, w, h, planet) {
   ctx.fillStyle = '#070a1f';
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = '#ffffff';
@@ -327,6 +329,7 @@ function drawSky(now, w, h) {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+  if (planet) drawNeighbours(ctx, planet, w, h);
 }
 
 export function render(now, { soundOff = false } = {}) {
@@ -335,7 +338,7 @@ export function render(now, { soundOff = false } = {}) {
   const toPx = p => [ox + (p.x + 0.5) * cell, oy + (p.y + 0.5) * cell];
   const winT = state.wonAt === null ? null : now - state.wonAt;
 
-  drawSky(now, w, h);
+  drawSky(now, w, h, state.planet);
   const [shakeX, shakeY] = meteorShake(state.meteor, now, cell);
   ctx.save();
   ctx.translate(shakeX, shakeY);
@@ -472,7 +475,7 @@ export function renderFinale(now) {
 export function renderTitle(now, { planet, levelNumber }) {
   const w = innerWidth, h = innerHeight;
   const p = PLANETS[planet];
-  drawSky(now, w, h);
+  drawSky(now, w, h, planet);
 
   const cx = w / 2, cy = h * 0.57, r = Math.min(w, h) * 0.17;
   drawGlobe(cx, cy, r * 1.45, planet, p);
