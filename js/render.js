@@ -1,7 +1,7 @@
 // Everything drawn on the canvas: layout, cached maze and track layers, the frame itself.
 
 import { state, roverPos } from './game.js';
-import { PLANETS, PLANET_KEYS } from './planets.js';
+import { PLANETS } from './planets.js';
 import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
@@ -16,6 +16,7 @@ import { drawGround, makeGround } from './ground.js';
 import { drawWallDetails } from './walls.js';
 import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
+import { drawMuseum } from './finale.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -440,22 +441,18 @@ export function renderPause(now, { items, selected }) {
   });
 }
 
-// After the last level: all three rovers in a row, bobbing happily, and a button to play again.
+// After the last level: the three rovers on show in a museum, and a button to play again.
 export function renderFinale(now) {
   const w = innerWidth, h = innerHeight;
-  drawSky(now, w, h);
-  drawText('Все роверы', w / 2, h * 0.16, h * 0.08, 'center', '#ffd60a');
-  drawText('выполнили свои миссии!', w / 2, h * 0.27, h * 0.08, 'center', '#ffd60a');
+  drawMuseum(ctx, now, w, h);
+  drawText('Все роверы', w / 2, h * 0.085, h * 0.058, 'center', '#ffd60a');
+  drawText('выполнили свои миссии!', w / 2, h * 0.165, h * 0.058, 'center', '#ffd60a');
 
-  const size = Math.min(w * 0.18, h * 0.22);
-  PLANET_KEYS.forEach((planet, i) => {
-    const phase = now / 350 + i * 2;
-    const x = w / 2 + (i - 1) * size * 1.4;
-    const y = h * 0.53 + Math.sin(phase) * size * 0.06;
-    ROVERS[PLANETS[planet].rover](x, y, -Math.PI / 2 + Math.sin(phase * 0.7) * 0.15, size);
-  });
-
-  const bw = Math.min(w * 0.4, h * 0.75), bh = h * 0.11, by = h * 0.8;
+  const bw = Math.min(w * 0.4, h * 0.75), bh = h * 0.09, by = h * 0.93;
+  ctx.beginPath();
+  ctx.ellipse(w / 2, by + bh * 0.55, bw * 0.45, bh * 0.18, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.fill();
   ctx.save();
   ctx.shadowColor = '#ffd60a';
   ctx.shadowBlur = h * (0.02 + 0.015 * Math.sin(now / 300));
