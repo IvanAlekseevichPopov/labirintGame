@@ -169,31 +169,96 @@ export function drawAntenna(cx, baseY, size, now) {
   });
 }
 
-// Drawn into the cached maze layer, so it takes its context instead of using the shared one.
-export function drawBigCrater(g, x, y, r, p) {
-  const circle = (cx, cy, cr, fill) => {
+// Floor marks are drawn into the cached maze layer, so they take a context instead of using the shared one.
+function disc(g, cx, cy, cr, fill) {
+  g.beginPath();
+  g.arc(cx, cy, cr, 0, Math.PI * 2);
+  g.fillStyle = fill;
+  g.fill();
+}
+
+// A lumpy circle; `seed` shifts the lumps, `amp` is how far they stick out.
+function blob(g, cx, cy, cr, fill, seed, amp = 0.12) {
+  g.beginPath();
+  for (let k = 0; k <= 20; k++) {
+    const a = (k / 20) * Math.PI * 2;
+    const rr = cr * (1 + amp * Math.sin(k * 1.9 + seed) + amp * 0.6 * Math.sin(k * 4.3 + seed * 2));
+    g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.fillStyle = fill;
+  g.fill();
+}
+
+// An old crater the rover drives across, drawn like the meteor's but worn down: a low soft rim
+// in the floor's own light colour (not the walls', or it would read as blocked), a shallow bowl
+// shadowed on the side away from the light, a few rocks, faded rays, no meteorite.
+export function drawBigCrater(g, x, y, r, p, seed = 0) {
+  // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
+  if (p.polynya) {
+    disc(g, x, y, r * 1.15, p.wallBase);
+    disc(g, x, y, r * 1.05, p.craterRim);
+    disc(g, x, y, r * 0.9, p.polynya);
+    disc(g, x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
+    return;
+  }
+  const rand = mulberry32(seed);
+  const phase = rand() * 6;
+  // Worn smooth: gentle waves along the edge, not the impact's ragged teeth.
+  const outline = (cx, cy, cr) => {
     g.beginPath();
-    g.arc(cx, cy, cr, 0, Math.PI * 2);
+    for (let k = 0; k <= 48; k++) {
+      const a = (k / 48) * Math.PI * 2;
+      const rr = cr * (1 + 0.05 * Math.sin(a * 3 + phase) + 0.03 * Math.sin(a * 5 + phase * 2));
+      g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    g.closePath();
+  };
+  const fillOutline = (cx, cy, cr, fill) => {
+    outline(cx, cy, cr);
     g.fillStyle = fill;
     g.fill();
   };
-  // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
-  if (p.polynya) {
-    circle(x, y, r * 1.15, p.wallBase);
-    circle(x, y, r * 1.05, p.craterRim);
-    circle(x, y, r * 0.9, p.polynya);
-    circle(x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
-    return;
-  }
-  circle(x, y, r * 1.15, p.craterRim);
   g.save();
-  g.beginPath();
-  g.arc(x, y, r, 0, Math.PI * 2);
+  g.lineCap = 'round';
+  g.globalAlpha = 0.45;
+  g.strokeStyle = p.craterRim;
+  for (let k = 0; k < 7; k++) {
+    const a = k * 0.9 + rand() * 0.6, len = r * (1.45 + rand() * 0.4);
+    g.lineWidth = r * (0.06 + rand() * 0.05);
+    g.beginPath();
+    g.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
+    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  fillOutline(x + r * 0.06, y + r * 0.08, r * 1.12, 'rgba(0, 0, 0, 0.22)');
+  fillOutline(x, y, r * 1.12, p.craterRim);
+  fillOutline(x - r * 0.05, y - r * 0.06, r * 1.0, 'rgba(255, 255, 255, 0.18)');
+  // The bowl: dark underneath, the floor colour shifted towards the light leaves a shadowed crescent.
+  g.save();
+  outline(x, y, r * 0.84);
   g.clip();
-  circle(x, y, r, '#00000055');
-  circle(x + r * 0.22, y + r * 0.22, r, p.crater);
+  disc(g, x, y, r, 'rgba(0, 0, 0, 0.4)');
+  fillOutline(x + r * 0.2, y + r * 0.22, r * 0.84, p.crater);
+  for (let k = 0; k < 3; k++) {
+    const a = rand() * Math.PI * 2, d = r * (0.15 + rand() * 0.35), s = r * (0.07 + rand() * 0.05);
+    const cx = x + r * 0.1 + Math.cos(a) * d, cy = y + r * 0.1 + Math.sin(a) * d;
+    disc(g, cx + s * 0.4, cy + s * 0.5, s, 'rgba(0, 0, 0, 0.3)');
+    disc(g, cx, cy, s, p.craterRim);
+  }
   g.restore();
-  circle(x + r * 0.1, y + r * 0.1, r * 0.14, p.craterRim);
+  for (let k = 0; k < 2; k++) {
+    const a = k * 2.8 + rand(), d = r * 1.08, s = r * (0.13 + rand() * 0.05);
+    const cx = x + Math.cos(a) * d, cy = y + Math.sin(a) * d;
+    disc(g, cx, cy, s, 'rgba(0, 0, 0, 0.3)');
+    disc(g, cx + s * 0.25, cy + s * 0.3, s * 0.85, p.crater);
+  }
+  for (let k = 0; k < 3; k++) {
+    const a = k * 2.1 + 1 + rand(), d = r * (1.25 + rand() * 0.15);
+    disc(g, x + Math.cos(a) * d, y + Math.sin(a) * d, r * (0.05 + rand() * 0.04), p.craterRim);
+  }
+  g.restore();
 }
 
 // A fresh impact crater filling its cell wall to wall: a deep dark bowl, a raised ragged rim
@@ -202,17 +267,11 @@ export function drawBigCrater(g, x, y, r, p) {
 // `seed` varies the rays, cracks and rocks between falls.
 export function drawImpactCrater(g, x, y, r, p, seed = 0) {
   const rand = mulberry32(seed);
-  const circle = (cx, cy, cr, fill) => {
-    g.beginPath();
-    g.arc(cx, cy, cr, 0, Math.PI * 2);
-    g.fillStyle = fill;
-    g.fill();
-  };
   const rim = k => r * (1.18 + 0.1 * Math.sin(k * 2.7) + 0.05 * Math.sin(k * 7.1));
   g.save();
   g.lineCap = 'round';
   // Dust blanket and rays.
-  circle(x, y, r * 2.1, 'rgba(0, 0, 0, 0.12)');
+  disc(g, x, y, r * 2.1, 'rgba(0, 0, 0, 0.12)');
   g.strokeStyle = p.craterRim;
   for (let k = 0; k < 11; k++) {
     const a = k * 0.57 + rand() * 0.5, len = r * (1.7 + rand() * 1.1);
@@ -248,26 +307,15 @@ export function drawImpactCrater(g, x, y, r, p, seed = 0) {
   ring(0, 0, 1, p.wallBase);
   ring(-r * 0.03, -r * 0.05, 0.9, p.wallTop);
   // The bowl: ragged terraces, each a little off-centre, down to the shadowed bottom.
-  const blob = (cx, cy, cr, fill, seed, amp = 0.12) => {
-    g.beginPath();
-    for (let k = 0; k <= 20; k++) {
-      const a = (k / 20) * Math.PI * 2;
-      const rr = cr * (1 + amp * Math.sin(k * 1.9 + seed) + amp * 0.6 * Math.sin(k * 4.3 + seed * 2));
-      g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
-    }
-    g.closePath();
-    g.fillStyle = fill;
-    g.fill();
-  };
-  blob(x, y, r * 0.86, p.wallBase, 1);
-  blob(x + r * 0.1, y + r * 0.12, r * 0.74, p.crater, 2);
-  blob(x + r * 0.18, y + r * 0.2, r * 0.5, 'rgba(0, 0, 0, 0.35)', 3, 0.18);
+  blob(g, x, y, r * 0.86, p.wallBase, 1);
+  blob(g, x + r * 0.1, y + r * 0.12, r * 0.74, p.crater, 2);
+  blob(g, x + r * 0.18, y + r * 0.2, r * 0.5, 'rgba(0, 0, 0, 0.35)', 3, 0.18);
   // The meteorite and a few rocks on the rim.
-  blob(x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328', 4, 0.2);
-  circle(x - r * 0.13, y - r * 0.03, r * 0.11, '#6b6050');
+  blob(g, x - r * 0.05, y + r * 0.05, r * 0.3, '#3a3328', 4, 0.2);
+  disc(g, x - r * 0.13, y - r * 0.03, r * 0.11, '#6b6050');
   for (let k = 0; k < 4; k++) {
     const a = k * 1.6 + rand(), s = 0.07 + rand() * 0.06;
-    circle(x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15, r * s, p.wallBase);
+    disc(g, x + Math.cos(a) * r * 1.15, y + Math.sin(a) * r * 1.15, r * s, p.wallBase);
   }
   g.restore();
 }

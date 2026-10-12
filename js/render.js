@@ -155,7 +155,7 @@ function buildMazeLayer() {
     g.stroke();
   }
   const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
-  const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed);
+  const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed ?? l.x * 31 + l.y * 17);
   for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
   g.restore();
 
