@@ -14,6 +14,7 @@ import { drawMeteor, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
 import { drawGround, makeGround } from './ground.js';
 import { drawWallDetails } from './walls.js';
+import { drawProps, placeProps } from './props.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -58,6 +59,7 @@ function makeDecor() {
   return {
     ground: makeGround(state.planet, rand, cols, rows),
     walls: wallSegments(state.maze),
+    props: placeProps(state, state.index + 2000),
   };
 }
 
@@ -345,6 +347,7 @@ export function render(now, { soundOff = false } = {}) {
     const [lx, ly] = toPx(l);
     LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
+  drawProps(ctx, decor.props, toPx, cell, now, planet);
 
   const [gx, gy] = toPx(state.goal);
   const padY = gy + cell * 0.32;
