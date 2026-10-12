@@ -3,7 +3,7 @@
 // beacon on the rocket, meteor impacts. Drawn by render.js after the rover.
 
 import { createHeadlights, headlightPreset, radial } from './headlights.js';
-import { createClock, cutCommon, layerContext, paintCommon } from './veil.js';
+import { clipToMaze, createClock, cutCommon, layerContext, paintCommon } from './veil.js';
 
 export const NIGHT = {
   glow: 0.95,       // faint light around the rover itself, cells
@@ -39,13 +39,19 @@ export function createNight(planet) {
 
     g.globalCompositeOperation = 'destination-out';
     const lit = cutCommon(g, scene, now, { tracks: 0.55, beacon: { r: NIGHT.beacon, strength: 0.9 }, flame: NIGHT.flame });
+    g.save();
+    clipToMaze(g, scene);
     if (rover) radial(g, rover.x, rover.y, cell * NIGHT.glow, 0.3 + 0.7 * b);
     headlights.cut(g, scene, b);
+    g.restore();
     for (const l of scene.lights) radial(g, l.x, l.y, l.r, l.strength);
 
     ctx.drawImage(layer, 0, 0, w, h);
 
+    ctx.save();
+    clipToMaze(ctx, scene);
     headlights.paint(ctx, scene, b, dt);
+    ctx.restore();
     paintCommon(ctx, scene, now, lit, { flame: NIGHT.flame });
     for (const l of scene.lights) radial(ctx, l.x, l.y, l.r, 0.35 * l.strength, '255,190,120');
   };

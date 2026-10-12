@@ -241,22 +241,29 @@ const EMBLEMS = {
   },
 };
 
+// The tripod's legs meet in a joint right under the tilted dish, so the dish rests on the
+// tripod itself. The feed mast starts at the rim, so nothing crosses an outline.
 export function drawAntenna(cx, baseY, size, now) {
   withUprightSpace(cx, baseY, size, () => {
-    outlinedLine([[-0.25, 0], [0, -0.45], [0.25, 0]], '#9aa1ad', 0.05);
-    outlinedLine([[0, 0], [0, -0.55]], '#9aa1ad', 0.05);
-    ctx.translate(0, -0.6);
-    ctx.rotate(-0.5);
+    const tilt = -0.4, depth = 0.18, joint = -0.46;
+    outlinedLine([[0, -0.06], [0, joint]], '#6f7682', 0.06);
+    outlinedLine([[-0.3, 0], [0, joint], [0.3, 0]], '#9aa1ad', 0.06);
+    ctx.save();
+    ctx.translate(depth * Math.sin(tilt), joint - depth * Math.cos(tilt));
+    ctx.rotate(tilt);
     ctx.beginPath();
-    ctx.ellipse(0, 0, 0.42, 0.18, 0, 0, Math.PI);
+    ctx.ellipse(0, 0, 0.42, depth, 0, 0, Math.PI);
     ctx.closePath();
     ctx.fillStyle = '#f1f3f6';
     ctx.fill();
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
     ctx.stroke();
-    line([[0, 0.1], [0, -0.3]], OUTLINE, 0.03);
+    line([[0, 0], [0, -0.28]], OUTLINE, 0.03);
     dot(0, -0.32, 0.06, Math.floor(now / 600) % 2 ? '#ff3b30' : '#7a1d18');
+    ctx.restore();
+    dot(0, joint, 0.085, OUTLINE);
+    dot(0, joint, 0.055, '#9aa1ad');
   });
 }
 

@@ -2,6 +2,7 @@
 // are the same under any veil (tracks showing through, landmarks with a lamp, the rocket's
 // beacon and its flame). Each veil adds its own cover and its own lights around these.
 
+import { WALL_RATIO } from './config.js';
 import { radial } from './headlights.js';
 import { LANDMARKS } from './landmarks.js';
 
@@ -27,6 +28,15 @@ export function layerContext(layer) {
 // Deterministic flicker in [0, 1): on pause the clock stops and so does the flame.
 export const jitter = now => { const v = Math.sin(now / 23) * 43758.5453; return v - Math.floor(v); };
 
+// Lights near the outer wall must not spill past it onto the sky (the neighbour planet there
+// would light up as if it were ground). Margin: the outer half of the rim wall stays lit.
+export function clipToMaze(g, { area, cell }) {
+  const m = cell * WALL_RATIO * 0.6;
+  g.beginPath();
+  g.rect(area.x - m, area.y - m, area.w + 2 * m, area.h + 2 * m);
+  g.clip();
+}
+
 const beaconPulse = now => 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
 
 // Cuts the shared lights out of the veil (g must be in destination-out). `dim` scales the
@@ -34,6 +44,8 @@ const beaconPulse = now => 0.6 + 0.4 * Math.max(0, Math.sin(now / 350));
 // Returns the landmarks that have a light, for paintCommon.
 export function cutCommon(g, scene, now, { tracks, dim = 1, beacon, flame }) {
   const { w, h, cell } = scene;
+  g.save();
+  clipToMaze(g, scene);
   // Old tracks stay faintly visible: a trail of where the rover has already been.
   g.globalAlpha = tracks;
   g.drawImage(scene.trackLayer, 0, 0, w, h);
@@ -42,6 +54,8 @@ export function cutCommon(g, scene, now, { tracks, dim = 1, beacon, flame }) {
   const lit = scene.landmarks.map(l => ({ ...l, light: LANDMARKS[l.type].light?.(now) })).filter(l => l.light);
   for (const { x, y, light } of lit) radial(g, x, y, cell * light.r * dim, light.strength * dim);
   radial(g, scene.goal.x, scene.goal.y, cell * beacon.r * beaconPulse(now), beacon.strength);
+  g.restore();
+  // The blast lights the rocket all the way up, out of the maze.
   if (scene.flame) radial(g, scene.goal.x, scene.goal.y, cell * flame, 0.95 + 0.05 * jitter(now));
   return lit;
 }

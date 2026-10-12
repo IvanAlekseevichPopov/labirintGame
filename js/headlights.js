@@ -12,9 +12,11 @@ const DEFAULT = {
   color: '255,236,170',
   tint: 0.16,        // how strongly the beam is coloured
   tail: { color: '255,40,30', r: 0.16, strength: 0.35 },
-  // What floats through the light: motes drift slowly along the beam, sand is blown across it
-  // (screen-space wind towards +x, cells per second).
-  dust: { kind: 'motes', count: 28, color: '255,246,220' },
+  // What floats through the light. Motes hang over the whole maze (`perCell` per cell), each
+  // drifting its own way at `speed` cells per second and wandering off course by up to `turn`
+  // radians per second; only those in the `near` share of a beam show. Sand is blown across the
+  // beam (`count` per beam, screen-space wind towards +x, cells per second).
+  dust: { kind: 'motes', perCell: 4, speed: 0.06, turn: 0.8, near: 0.7, color: '255,246,220' },
 };
 
 // Nested settings (dust, tail) are merged field by field; `dust: null` switches the dust off,
@@ -34,8 +36,8 @@ export const HEADLIGHTS = {
   night: {
     default: {},
     moon: {},
-    mars: { color: '255,220,160', dust: { count: 36, color: '255,200,150' } },
-    europa: { color: '220,240,255', tint: 0.12, dust: { count: 40, color: '240,250,255' } },
+    mars: { color: '255,220,160', dust: { perCell: 4.5, color: '255,200,150' } },
+    europa: { color: '220,240,255', tint: 0.12, dust: { perCell: 5, color: '240,250,255' } },
   },
   storm: {
     default: { reach: 3.2, strength: 0.9, color: '255,230,120', tint: 0.4, dust: { kind: 'sand', count: 56, wind: 7, color: '255,241,214' } },
@@ -107,28 +109,82 @@ const clipTo = (ctx, pts) => {
   ctx.clip();
 };
 
-// Motes live in beam space: `d` along the beam (0..1), `a` across it (-1..1).
-function motes({ count, color }, preset) {
-  const list = Array.from({ length: count }, () => ({
-    d: Math.random(), a: Math.random() * 2 - 1, speed: 0.04 + Math.random() * 0.08, r: 0.6 + Math.random(),
-  }));
-  return (ctx, beam, reach, cell, b, dt) => {
+function inside(pts, x, y) {
+  let hit = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+// Dust specks of a few kinds, drawn around 0,0 with size 1 (about a sixtieth of a cell).
+const SPECKS = [
+  // round grain
+  () => (ctx, r) => { ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); },
+  // ragged flake
+  () => {
+    const pts = Array.from({ length: 5 }, (_, k) => [k * Math.PI * 0.4, 0.6 + Math.random() * 0.9]);
+    return (ctx, r) => {
+      ctx.beginPath();
+      pts.forEach(([a, d], k) => ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a) * d * r * 1.1, Math.sin(a) * d * r * 1.1));
+      ctx.closePath();
+      ctx.fill();
+    };
+  },
+  // two grains stuck together
+  () => (ctx, r) => {
+    ctx.beginPath();
+    ctx.arc(-r * 0.5, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.arc(r * 0.7, r * 0.2, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+  },
+];
+
+// Motes live in maze space (`u`, `v` 0..1 across the maze) and the beams only light them up:
+// moving with the beam, away from the lamps, they looked shot out of the rover.
+function motes({ perCell, speed, turn, near, color }) {
+  let list = null;
+  return (ctx, beams, reach, { cell, area }, b, dt) => {
+    list ??= Array.from({ length: Math.round((area.w * area.h) / cell ** 2 * perCell) }, () => ({
+      u: Math.random(), v: Math.random(), heading: Math.random() * Math.PI * 2, r: 0.5 + Math.random() * 0.7,
+      draw: SPECKS[Math.floor(Math.random() * SPECKS.length)](), angle: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 1.2,
+    }));
     ctx.fillStyle = `rgb(${color})`;
     for (const m of list) {
-      m.d += m.speed * dt;
-      if (m.d > 1) { m.d -= 1; m.a = Math.random() * 2 - 1; }
-      const a = beam.angle + m.a * preset.halfAngle * 0.9;
-      const dist = m.d * reach;
-      ctx.globalAlpha = (1 - m.d) * 0.7 * b * Math.min(1, m.d * 6);
-      ctx.beginPath();
-      ctx.arc(beam.x + Math.cos(a) * dist, beam.y + Math.sin(a) * dist, m.r * cell / 60, 0, Math.PI * 2);
-      ctx.fill();
+      m.heading += (Math.random() - 0.5) * 2 * turn * dt;
+      m.angle += m.spin * dt;
+      m.u = (m.u + (Math.cos(m.heading) * speed * dt * cell) / area.w + 1) % 1;
+      m.v = (m.v + (Math.sin(m.heading) * speed * dt * cell) / area.h + 1) % 1;
+      const x = area.x + m.u * area.w, y = area.y + m.v * area.h;
+      for (const beam of beams) {
+        const share = Math.hypot(x - beam.x, y - beam.y) / reach;
+        if (share >= near || !inside(beam.pts, x, y)) continue;
+        ctx.globalAlpha = 0.7 * b * Math.min(1, (near - share) / 0.2);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(m.angle);
+        m.draw(ctx, m.r * cell / 60);
+        ctx.restore();
+        break;
+      }
     }
   };
 }
 
-// Sand lives in screen space around the lamp, `ox`/`oy` in units of reach, and blows to +x.
-function sand({ count, color, wind }) {
+// Sand lives in screen space around each lamp, `ox`/`oy` in units of reach, and blows to +x.
+function sand(opts) {
+  const blowers = LAMPS.front.map(() => blower(opts));
+  return (ctx, beams, reach, { cell }, b, dt) => beams.forEach((beam, i) => {
+    ctx.save();
+    clipTo(ctx, beam.pts);
+    blowers[i](ctx, beam, reach, cell, b, dt);
+    ctx.restore();
+  });
+}
+
+function blower({ count, color, wind }) {
   const list = Array.from({ length: count }, () => ({
     ox: Math.random() * 2 - 1, oy: (Math.random() * 2 - 1) * 0.7, speed: 0.7 + Math.random() * 0.5, len: 0.6 + Math.random(),
   }));
@@ -151,7 +207,7 @@ function sand({ count, color, wind }) {
 // `cut` punches the lights out of the veil (the layer must be in destination-out), `paint`
 // colours them on the finished frame and moves the dust. `b` is brightness 0..1.
 export function createHeadlights(preset) {
-  const dust = preset.dust && LAMPS.front.map(() => (preset.dust.kind === 'sand' ? sand : motes)(preset.dust, preset));
+  const dust = preset.dust && (preset.dust.kind === 'sand' ? sand : motes)(preset.dust);
   let beams = [], lamp = null, reach = 0;
 
   return {
@@ -177,7 +233,8 @@ export function createHeadlights(preset) {
       if (beams.length) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(g, x, y, cell * preset.tail.r * 0.9, preset.tail.strength * 1.1 * b); }
     },
 
-    paint(ctx, { cell }, b, dt) {
+    paint(ctx, scene, b, dt) {
+      const { cell } = scene;
       const { color, tint, tail } = preset;
       for (const beam of beams) {
         const glow = ctx.createRadialGradient(beam.x, beam.y, 0, beam.x, beam.y, reach);
@@ -187,14 +244,7 @@ export function createHeadlights(preset) {
         fillPolygon(ctx, beam.pts, glow);
       }
       if (beams.length) for (const l of LAMPS.rear) { const [x, y] = lamp(l); radial(ctx, x, y, cell * tail.r, tail.strength * b, tail.color); }
-      if (dust) {
-        beams.forEach((beam, i) => {
-          ctx.save();
-          clipTo(ctx, beam.pts);
-          dust[i](ctx, beam, reach, cell, b, dt);
-          ctx.restore();
-        });
-      }
+      if (dust) dust(ctx, beams, reach, scene, b, dt);
       ctx.globalAlpha = 1;
     },
   };
