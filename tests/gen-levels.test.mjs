@@ -88,7 +88,7 @@ test('hand-made levels are locked: --only refuses them and --force refuses to ru
   assert.equal(force.status, 1);
   assert.match(force.stderr, /заперты/);
   assert.equal(fs.readFileSync(out, 'utf8'), before);
-  const other = spawnSync(process.execPath, [locked, '--only', '3'], { encoding: 'utf8' });
+  const other = spawnSync(process.execPath, [locked, '--only', '4'], { encoding: 'utf8' });
   assert.equal(other.status, 0, other.stderr);
 });
 

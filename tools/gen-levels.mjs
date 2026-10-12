@@ -25,11 +25,14 @@ const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // Hand-made levels (night, storm, meteor): the generator must not touch them.
-const LOCKED = [2, 11, 20, 23, 29, 31, 33];
+const LOCKED = [2, 3, 10, 11, 20, 23, 29, 31, 33];
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
-// level → level whose difficulty it should get, keeping its own size; for levels that felt off in play.
-const DIFFICULTY_AS = { 5: 8 };
+// level → level whose difficulty it should get, keeping its own size; for levels that felt off in play
+// (3 is a night level, its rocket was too close).
+const DIFFICULTY_AS = { 3: 8, 5: 8 };
+// level → its own size instead of the one from levelSize(); 3 is a night level, roomier to explore.
+const SIZE = { 3: { cols: 8, rows: 5 } };
 
 const OUT = new URL('../levels.js', import.meta.url);
 const OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
@@ -54,6 +57,7 @@ const maxNaiveRatio = level => 1.1 + 1.9 * curve(level);
 const MAX_DETOUR = 3;
 
 function levelSize(level) {
+  if (SIZE[level]) return SIZE[level];
   // Only the first three levels are the smallest size; then it grows every five levels.
   const rows = level <= 3 ? 4 : Math.min(4 + Math.max(1, Math.floor((level - 1) / 5)), MAX_ROWS);
   const cols = Math.min(Math.round(rows * 16 / 9), MAX_COLS);
