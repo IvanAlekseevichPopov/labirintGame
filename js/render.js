@@ -7,7 +7,7 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { ROVERS, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
+import { ROVERS, drawGlobe, drawPad, drawRocket, drawSoundOff, drawText, useContext } from './art.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
@@ -486,13 +486,7 @@ export function renderTitle(now, { planet, levelNumber }) {
   drawSky(now, w, h);
 
   const cx = w / 2, cy = h * 0.57, r = Math.min(w, h) * 0.17;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
-  ctx.fillStyle = p.floor;
-  ctx.fill();
-  ctx.lineWidth = r * 0.12;
-  ctx.strokeStyle = p.wallBase;
-  ctx.stroke();
+  drawGlobe(cx, cy, r * 1.45, planet, p);
   const a = now / 1600;
   ROVERS[p.rover](cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2, Math.min(w, h) * 0.13);
 
