@@ -192,7 +192,7 @@ function blob(g, cx, cy, cr, fill, seed, amp = 0.12) {
 
 // Like blob, but with long gentle waves along the edge: worn, soft shapes instead of ragged ones.
 // Without `fill` it only leaves the path, to clip by.
-function softBlob(g, cx, cy, cr, fill, seed, amp = 0.08) {
+export function softBlob(g, cx, cy, cr, fill, seed, amp = 0.08) {
   g.beginPath();
   for (let k = 0; k <= 48; k++) {
     const a = (k / 48) * Math.PI * 2;
@@ -389,7 +389,7 @@ const GLOBES = {
 
 // A crack through the given points: each segment is split again and again, the middle pushed
 // sideways at random, so the line breaks at odd angles instead of bending smoothly.
-function crack(points, rand, depth) {
+export function crack(points, rand, depth) {
   if (!depth) return points;
   const out = [points[0]];
   for (let k = 1; k < points.length; k++) {

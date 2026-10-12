@@ -11,6 +11,7 @@ import { ROVERS, drawGlobe, drawPad, drawRocket, drawSoundOff, drawText, useCont
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
+import { drawGround, makeGround } from './ground.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -33,14 +34,6 @@ const STORM_WEATHER = 1.7;
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
-function scatter(rand, count, cols, rows, minR, maxR) {
-  return Array.from({ length: Math.round(count) }, () => ({
-    x: rand() * cols,
-    y: rand() * rows,
-    r: minR + rand() * (maxR - minR),
-  }));
-}
-
 // Wall edges in grid units, [x0, y0, x1, y1] between cell corners.
 function wallSegments({ cols, rows, cells }) {
   const segments = [];
@@ -61,8 +54,7 @@ function makeDecor() {
   const { cols, rows } = state.maze;
   const rand = mulberry32(state.index + 1);
   return {
-    craters: scatter(rand, cols * rows * 0.5, cols, rows, 0.05, 0.15),
-    specks: scatter(rand, cols * rows * 6, cols, rows, 0.01, 0.035),
+    ground: makeGround(state.planet, rand, cols, rows),
     walls: wallSegments(state.maze),
   };
 }
@@ -137,24 +129,7 @@ function buildMazeLayer() {
   g.fillStyle = p.floor;
   g.fill();
   g.clip();
-  g.fillStyle = p.speck;
-  for (const s of decor.specks) {
-    g.beginPath();
-    g.arc(ox + s.x * cell, oy + s.y * cell, s.r * cell, 0, Math.PI * 2);
-    g.fill();
-  }
-  for (const c of decor.craters) {
-    const x = ox + c.x * cell, y = oy + c.y * cell, r = c.r * cell;
-    g.fillStyle = p.crater;
-    g.beginPath();
-    g.arc(x, y, r, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = p.craterRim;
-    g.lineWidth = r * 0.25;
-    g.beginPath();
-    g.arc(x, y, r, Math.PI * 0.1, Math.PI * 0.9);
-    g.stroke();
-  }
+  drawGround(g, decor.ground, p, cell, ox, oy, innerWidth, innerHeight);
   const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
   const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed ?? l.x * 31 + l.y * 17);
   for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
