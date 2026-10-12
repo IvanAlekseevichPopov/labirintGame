@@ -50,8 +50,9 @@ export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, nigh
   g.fillRect(box.x, box.y, box.w, box.h);
   ctx.drawImage(shade, box.x, box.y, box.w, box.h);
 
+  // A rover not in LIGHTS yet still drives dimmed, only without lamps.
   const lights = LIGHTS[p.rover];
-
+  if (!lights) return;
   const at = ([x, y]) => [cx + x * size, groundY + y * size];
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';

@@ -14,7 +14,8 @@ const DEFAULT = {
   tail: { color: '255,40,30', r: 0.16, strength: 0.35 },
   // What floats through the light. Motes hang over the whole maze (`perCell` per cell), each
   // drifting its own way at `speed` cells per second, its course wandering at random by about
-  // `wander` radians over a second (more over longer); only those in the `near` share of a beam show. Sand is blown across the
+  // `wander` radians over a second (more over longer); only those in the `near` share of a beam
+  // show. Sand is blown across the
   // beam (`count` per beam, screen-space wind towards +x, cells per second).
   dust: { kind: 'motes', perCell: 4, speed: 0.06, wander: 0.06, near: 0.7, color: '255,246,220' },
 };

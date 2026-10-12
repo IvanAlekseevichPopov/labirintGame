@@ -252,6 +252,7 @@ try {
   // Typing a new #level=N in the address bar does not reload the page.
   addEventListener('hashchange', () => {
     titleIndex = levelIndexFromUrl();
+    if (scene === 'title') audio.playMusic(songFor(levels[titleIndex]));
     if (scene === 'playing') game.startLevel(titleIndex, gameTime(performance.now()));
   });
 } catch (error) {

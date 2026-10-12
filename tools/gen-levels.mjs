@@ -263,10 +263,10 @@ const args = process.argv.slice(2);
 const onlyArg = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const only = onlyArg && new Set(onlyArg.split(',').map(Number));
 
-// The levels with the note after each one's number comment ("// 20 — ночь: …"), in order.
+// The levels with the note after each one's number comment ("// 20 — ночь: …").
 async function readExisting() {
-  const notes = [...fs.readFileSync(OUT, 'utf8').matchAll(/^ {2}\/\/ \d+(.*)$/gm)].map(m => m[1]);
-  return (await import(OUT.href)).LEVELS.map((level, i) => ({ ...level, note: notes[i] ?? '' }));
+  const notes = new Map([...fs.readFileSync(OUT, 'utf8').matchAll(/^ {2}\/\/ (\d+)(.*)$/gm)].map(m => [Number(m[1]), m[2]]));
+  return (await import(OUT.href)).LEVELS.map((level, i) => ({ ...level, note: notes.get(i + 1) ?? '' }));
 }
 
 // Hand-set flags that must survive regeneration.
