@@ -38,9 +38,12 @@ function snowstorm(intensity) {
   let flakes = [];
   const gust = { strength: 0, target: 0, nextAt: 0 };
 
-  const spawn = (screen, anywhere) => ({
-    x: rnd(-screen.w * 0.2, screen.w),
-    y: anywhere ? rnd(0, screen.h) : rnd(-40, -5),
+  // A flake comes back in where the wind brings it from: over the top, or, once it has blown out
+  // to the right, in from the left at any height. Respawning only at the top would leave the
+  // snow piled in the top right on a tall screen, where the wind carries it off before it falls.
+  const spawn = (screen, from) => ({
+    x: from === 'left' ? rnd(-20, -5) : rnd(0, screen.w),
+    y: from === 'top' ? rnd(-40, -5) : rnd(0, screen.h),
     r: rnd(1.8, 4.5),
     fall: rnd(35, 85),
     drift: rnd(0.7, 1.3),
@@ -51,7 +54,7 @@ function snowstorm(intensity) {
   return {
     update(dt, now, screen) {
       const want = Math.round(260 * intensity * density(screen));
-      if (flakes.length !== want) flakes = Array.from({ length: want }, () => spawn(screen, true));
+      if (flakes.length !== want) flakes = Array.from({ length: want }, () => spawn(screen, 'anywhere'));
       // Every so often a gust drives the snow sideways, harder and faster.
       if (now >= gust.nextAt) {
         gust.target = gust.target ? 0 : rnd(0.6, 1) * intensity;
@@ -63,7 +66,8 @@ function snowstorm(intensity) {
         f.phase += dt * 2;
         f.x += (wind * f.drift + Math.sin(f.phase) * 12) * dt;
         f.y += f.fall * (1 + gust.strength) * dt;
-        if (f.y > screen.h + 10 || f.x > screen.w + 20) Object.assign(f, spawn(screen, false));
+        if (f.y > screen.h + 10) Object.assign(f, spawn(screen, 'top'));
+        else if (f.x > screen.w + 20) Object.assign(f, spawn(screen, 'left'));
       }
     },
     draw(ctx) {
