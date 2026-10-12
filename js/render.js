@@ -343,7 +343,7 @@ export function render(now, { soundOff = false } = {}) {
 
   for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {
     const [lx, ly] = toPx(l);
-    LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now);
+    LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
 
   const [gx, gy] = toPx(state.goal);

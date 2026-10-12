@@ -3,7 +3,7 @@
 // The rule behind the values: only things people left there feel like a checkpoint, so only
 // those chime and glow; a crater or a polynya is just ground.
 //
-// upright: drawn on the main canvas each frame in side view, draw(cx, baseY, size, now).
+// upright: drawn on the main canvas each frame in side view, draw(cx, baseY, size, now, palette).
 // Otherwise it is part of the ground, drawn once into the maze layer, draw(g, x, y, r, palette).
 // light(now): { r (cells), strength 0..1, color 'r,g,b' } or null.
 

@@ -131,24 +131,115 @@ function outlinedLine(points, color, width) {
   line(points, color, width);
 }
 
-export function drawFlag(cx, baseY, size, now) {
+// Each planet plants its own flag, `p.flag` in its palette: cloth colour, emblem, and whether it
+// waves. On the Moon there is no air, so its flag hangs stiff from a crossbar, like Apollo's. On
+// Mars red dust has settled on the cloth; on Europa the pole stands in a snowdrift. A pale pole
+// with a ball on top, stuck in a little heap of the planet's ground.
+export function drawFlag(cx, baseY, size, now, p) {
+  const { cloth, shade, emblem, still, dusty, drift } = p.flag;
   withUprightSpace(cx, baseY, size, () => {
-    const wave = Math.sin(now / 250) * 0.04;
-    outlinedLine([[0, 0], [0, -1]], '#e8eaef', 0.05);
+    const wave = still ? 0 : Math.sin(now / 250) * 0.04;
+    const ripple = still ? 0.025 : 0;
     ctx.beginPath();
-    ctx.moveTo(0.03, -0.98);
-    ctx.quadraticCurveTo(0.3, -0.98 + wave, 0.6, -0.96);
-    ctx.lineTo(0.6, -0.62);
-    ctx.quadraticCurveTo(0.3, -0.64 + wave, 0.03, -0.62);
-    ctx.closePath();
-    ctx.fillStyle = '#ff8c42';
+    ctx.ellipse(0.02, 0.01, drift ? 0.24 : 0.16, 0.05, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.fill();
+    // The pole ends inside the heap, so its round cap never pokes out below.
+    outlinedLine([[0, -0.05], [0, -1]], '#e8eaef', 0.05);
+    if (dusty) line([[0, -0.05], [0, -0.3]], p.dust, 0.05);
+    if (still) outlinedLine([[0, -0.98], [0.62, -0.98]], '#e8eaef', 0.03);
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.025;
+    dot(0, -1.03, 0.045, '#e8eaef');
+    ctx.stroke();
+    // The heap the pole is stuck in, drawn over its foot: a little dome lit from the top left,
+    // so the pole reads as going into the ground. On Europa it is a bigger snowdrift.
+    const [rx, h] = drift ? [0.22, 0.12] : [0.14, 0.09];
+    const heap = new Path2D();
+    heap.moveTo(-rx, 0);
+    heap.bezierCurveTo(-rx * 0.85, -h * 0.8, -rx * 0.35, -h, 0, -h);
+    heap.bezierCurveTo(rx * 0.45, -h, rx * 0.9, -h * 0.6, rx, 0);
+    heap.ellipse(0, 0, rx, 0.04, 0, 0, Math.PI);
+    const lit = ctx.createLinearGradient(-rx, -h, rx * 0.6, 0.03);
+    lit.addColorStop(0, drift ? '#ffffff' : p.craterRim);
+    lit.addColorStop(1, drift ? '#bcd3e2' : p.crater);
+    ctx.fillStyle = lit;
+    ctx.fill(heap);
+    ctx.stroke(heap);
+    const fabric = new Path2D();
+    fabric.moveTo(0.03, -0.98);
+    fabric.bezierCurveTo(0.2, -0.98 + wave - ripple, 0.4, -0.98 + wave + ripple, 0.6, -0.96);
+    fabric.lineTo(0.6, -0.62);
+    fabric.bezierCurveTo(0.4, -0.64 + wave + ripple, 0.2, -0.64 + wave - ripple, 0.03, -0.62);
+    fabric.closePath();
+    ctx.save();
+    ctx.clip(fabric);
+    ctx.fillStyle = cloth;
+    ctx.fill(fabric);
+    // A fold of shade across the cloth, and a seam along the pole.
+    ctx.fillStyle = shade;
+    ctx.beginPath();
+    ctx.ellipse(0.42, -0.8 + wave / 2, 0.06, 0.25, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(0.03, -1, 0.05, 0.4);
+    EMBLEMS[emblem](0.31, -0.8 + wave / 2);
+    if (dusty) {
+      const dust = ctx.createLinearGradient(0, -0.6, 0, -0.95);
+      dust.addColorStop(0, p.dust);
+      dust.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = dust;
+      ctx.fillRect(0, -1, 0.65, 0.4);
+      ctx.globalAlpha = 1;
+      for (const [x, y, r] of [[0.12, -0.7, 0.018], [0.5, -0.68, 0.015], [0.4, -0.9, 0.012], [0.2, -0.88, 0.01], [0.55, -0.82, 0.013]]) {
+        dot(x, y + wave / 2, r, p.dust);
+      }
+    }
+    ctx.restore();
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
-    ctx.stroke();
-    dot(0.3, -0.8 + wave / 2, 0.08, '#ffffff');
+    ctx.stroke(fabric);
   });
 }
+
+const EMBLEMS = {
+  // A crescent: a white disc with a bite out of it, open to the upper right.
+  crescent(x, y) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 0.1, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.rect(x - 0.2, y - 0.2, 0.4, 0.4);
+    ctx.arc(x + 0.06, y - 0.04, 0.085, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill('evenodd');
+    ctx.restore();
+  },
+  // The red planet with a ring of white around it.
+  planet(x, y) {
+    dot(x, y, 0.11, '#ffffff');
+    dot(x, y, 0.08, '#d1462a');
+    dot(x - 0.025, y - 0.025, 0.025, '#f08a5d');
+  },
+  // Six arms, each with a little V near its tip.
+  snowflake(x, y) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 0.022;
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2, ux = Math.cos(a), uy = Math.sin(a);
+      const tx = x + ux * 0.065, ty = y + uy * 0.065;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + ux * 0.11, y + uy * 0.11);
+      for (const turn of [-0.7, 0.7]) {
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx + Math.cos(a + turn) * 0.04, ty + Math.sin(a + turn) * 0.04);
+      }
+      ctx.stroke();
+    }
+  },
+};
 
 export function drawAntenna(cx, baseY, size, now) {
   withUprightSpace(cx, baseY, size, () => {
