@@ -4,6 +4,7 @@
 // Lit from the top left, like everything else.
 
 import { softBlob } from './art.js';
+import { drawSprite } from './sprite.js';
 
 // Centre and radius in screen heights; x counts from the right edge.
 const NEIGHBOURS = {
@@ -14,15 +15,21 @@ const NEIGHBOURS = {
 
 let c;
 
+// Half the sprite's side, in radii: room for the glow and for squashed Phobos.
+const REACH = 1.6;
+
+// A sprite per body, redrawn only when the screen size changes.
 export function drawNeighbours(context, planet, w, h) {
-  c = context;
-  for (const n of NEIGHBOURS[planet] ?? []) {
-    c.save();
-    c.translate(w - n.x * h, n.y * h);
-    c.scale(n.r * h, n.r * h);
-    n.body();
-    c.restore();
+  for (const [i, n] of (NEIGHBOURS[planet] ?? []).entries()) {
+    const r = n.r * h, side = 2 * REACH * r;
+    drawSprite(context, `neighbour|${planet}|${i}`, w - n.x * h - side / 2, n.y * h - side / 2, side, side, g => {
+      c = g;
+      c.translate(side / 2, side / 2);
+      c.scale(r, r);
+      n.body();
+    });
   }
+  c = null;
 }
 
 function disc(r, fill) {

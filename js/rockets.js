@@ -6,23 +6,37 @@
 // Unit space: the nozzle at the origin, the nose at y = -1.
 
 import { OUTLINE } from './art.js';
+import { drawSprite } from './sprite.js';
 
 let c;
 
+// The sprite's box in unit space, wide enough for the Mars legs and the Europa boosters.
+const BOX = { left: -0.5, top: -1.1, w: 1, h: 1.2 };
+
 // `planet` is its palette: `rocket` picks the drawing, `dust` (a colour) or `snow` what lies on it.
+// Only the flame is drawn live; the rocket is a sprite.
 export function drawRocket(context, cx, baseY, size, flame, now, planet) {
-  c = context;
-  c.save();
-  c.translate(cx, baseY);
-  c.scale(size, size);
-  c.lineJoin = 'round';
-  c.lineCap = 'round';
-  if (flame) drawFlame(now);
-  // Thick outline: the body has to stand out even on pale ice.
-  c.strokeStyle = OUTLINE;
-  c.lineWidth = 0.04;
-  ROCKETS[planet.rocket ?? 'classic'](planet);
-  c.restore();
+  if (flame) {
+    c = context;
+    c.save();
+    c.translate(cx, baseY);
+    c.scale(size, size);
+    drawFlame(now);
+    c.restore();
+  }
+  const key = `rocket|${planet.rocket}|${planet.dust ?? ''}|${planet.snow ? 'snow' : ''}`;
+  drawSprite(context, key, cx + BOX.left * size, baseY + BOX.top * size, BOX.w * size, BOX.h * size, g => {
+    c = g;
+    c.scale(size, size);
+    c.translate(-BOX.left, -BOX.top);
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    // Thick outline: the body has to stand out even on pale ice.
+    c.strokeStyle = OUTLINE;
+    c.lineWidth = 0.04;
+    ROCKETS[planet.rocket ?? 'classic'](planet);
+  });
+  c = null;
 }
 
 function drawFlame(now) {
