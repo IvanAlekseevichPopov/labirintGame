@@ -26,7 +26,7 @@ jobs:
       - name: Assemble the site
         run: |
           mkdir -p site/tools
-          cp -r index.html .nojekyll level-format.js levels.js js site/
+          cp -r index.html .nojekyll level-format.js levels.js js fonts site/
           cp tools/*.html site/tools/
           node tools/stamp-version.mjs site "${GITHUB_SHA::8}"
       - uses: actions/upload-pages-artifact@v3

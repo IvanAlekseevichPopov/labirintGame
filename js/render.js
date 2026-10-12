@@ -7,7 +7,7 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { ROVERS, drawGlobe, drawPad, drawSoundOff, drawText, useContext } from './art.js';
+import { FONT, ROVERS, drawGlobe, drawPad, drawSoundOff, drawText, useContext } from './art.js';
 import { drawRocket } from './rockets.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
@@ -429,7 +429,7 @@ export function renderPause(now, { items, selected }) {
       ctx.stroke();
     }
     ctx.restore();
-    ctx.font = `bold ${h * 0.05}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+    ctx.font = `${h * 0.05}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = lit ? '#070a1f' : '#ffffff';
@@ -461,7 +461,7 @@ export function renderFinale(now) {
   ctx.fillStyle = '#ffd60a';
   ctx.fill();
   ctx.restore();
-  ctx.font = `bold ${h * 0.05}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.font = `${h * 0.05}px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#070a1f';

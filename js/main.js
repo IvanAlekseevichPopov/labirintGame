@@ -8,6 +8,7 @@ import * as game from './game.js';
 import * as renderer from './render.js';
 import { installInput, pollGamepads } from './input.js';
 import { createAudio } from './audio.js';
+import { FONT } from './art.js';
 
 let scene = 'loading';
 let fatalError = null;
@@ -256,5 +257,9 @@ try {
 } catch (error) {
   fail(error);
 }
+// Canvas text does not wait for a web font: load it first, or the title shows in the system font
+// for a moment. It is bundled, so this is quick; on a slow start, go on after a second anyway.
+await Promise.race([document.fonts.load(`40px ${FONT}`, 'Космический лабиринт'), new Promise(resolve => setTimeout(resolve, 1000))])
+  .catch(() => {});
 lastFrameAt = performance.now();
 requestAnimationFrame(frame);

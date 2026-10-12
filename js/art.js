@@ -543,9 +543,12 @@ export function drawPad(cx, cy, cell, now) {
   ctx.stroke();
 }
 
-// Rocket stands upright (side view) in unit space: base at y=0, nose at y=-1.
+// Everything the player reads: Russo One, bundled in fonts/ (index.html), round and bold enough
+// to read from the sofa. It has a single weight, so no "bold" here, which would fake a heavier one.
+export const FONT = '"Russo One", system-ui, sans-serif';
+
 export function drawText(text, x, y, size, align, color) {
-  ctx.font = `bold ${size}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.font = `${size}px ${FONT}`;
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';

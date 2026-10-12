@@ -23,6 +23,7 @@
 
 ## Файлы
 - `index.html` — только canvas и загрузка `js/main.js`. Если модуль не загрузился, показывает ошибку на экране.
+- `fonts/` — шрифт Russo One (woff2, кириллица и латиница, лицензия OFL), подключён в `index.html`, имя в `FONT` (`art.js`). Лежит в репо, чтобы не зависеть от Google Fonts. `main.js` ждёт его загрузки (до секунды) перед первым кадром, иначе canvas нарисует системным. Экран ошибки нарочно системным шрифтом.
 - `js/main.js` — запуск: загрузка и проверка уровней, сцены (title → playing ⇄ paused → finale, error), игровое время (на паузе стоит), маршрутизация ввода в текущую сцену, события игры → картинка и звук, `#level`.
 - `js/game.js` — правила игры без DOM: состояние, ввод (press/release), движение, фазы победы. Время и размер клетки получает параметрами. `update()` возвращает события: `levelStart`, `move`, `bump`, `landmark`, `stop`, `lightsOn`, `lightsOff`, `meteorWarn`, `meteorImpact`, `arrive`, `ignite`, `liftoff`, `finished`.
 - `js/input.js` — клавиатура, мышь и геймпад превращаются в действия (`dir`, `confirm`, `pause`, `select`, `gesture`, `blur`).
