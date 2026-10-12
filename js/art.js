@@ -260,7 +260,7 @@ export function drawAntenna(cx, baseY, size, now) {
   });
 }
 
-// Floor marks are drawn into the cached maze layer, so they take a context instead of using the shared one.
+// Shape helpers take their context: floor marks draw into the cached maze layer, not the shared one.
 function disc(g, cx, cy, cr, fill) {
   g.beginPath();
   g.arc(cx, cy, cr, 0, Math.PI * 2);
@@ -296,9 +296,10 @@ export function softBlob(g, cx, cy, cr, fill, seed, amp = 0.08) {
   g.fill();
 }
 
-// An old crater the rover drives across, drawn like the meteor's but worn down: a low soft rim
-// in the floor's own light colour (not the walls', or it would read as blocked), a shallow bowl
-// shadowed on the side away from the light, a few rocks, faded rays, no meteorite.
+// An old crater the rover drives across: small, flat and worn — a soft low rim in the floor's own
+// light colour and a shallow, faintly shadowed bowl, with floor showing all round it. Nothing
+// like the meteor's deep crater with rays and rocks, which blocks the way: the rover has to drive
+// through this one.
 export function drawBigCrater(g, x, y, r, p, seed = 0) {
   // On ice the big landmark is a dark hole of open water: a crater would be too pale to spot.
   if (p.polynya) {
@@ -308,48 +309,16 @@ export function drawBigCrater(g, x, y, r, p, seed = 0) {
     disc(g, x - r * 0.3, y - r * 0.3, r * 0.22, '#ffffff40');
     return;
   }
-  const rand = mulberry32(seed);
-  const phase = rand() * 6;
+  const phase = mulberry32(seed)() * 6;
+  const k = r * 0.75;
   const fillOutline = (cx, cy, cr, fill) => softBlob(g, cx, cy, cr, fill, phase, 0.05);
   g.save();
-  g.lineCap = 'round';
-  g.globalAlpha = 0.45;
-  g.strokeStyle = p.craterRim;
-  for (let k = 0; k < 7; k++) {
-    const a = k * 0.9 + rand() * 0.6, len = r * (1.45 + rand() * 0.4);
-    g.lineWidth = r * (0.06 + rand() * 0.05);
-    g.beginPath();
-    g.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
-    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
-    g.stroke();
-  }
-  g.globalAlpha = 1;
-  fillOutline(x + r * 0.06, y + r * 0.08, r * 1.12, 'rgba(0, 0, 0, 0.22)');
-  fillOutline(x, y, r * 1.12, p.craterRim);
-  fillOutline(x - r * 0.05, y - r * 0.06, r * 1.0, 'rgba(255, 255, 255, 0.18)');
-  // The bowl: dark underneath, the floor colour shifted towards the light leaves a shadowed crescent.
-  g.save();
-  fillOutline(x, y, r * 0.84, null);
+  fillOutline(x, y, k * 1.12, p.craterRim);
+  fillOutline(x - k * 0.05, y - k * 0.06, k, 'rgba(255, 255, 255, 0.15)');
+  fillOutline(x, y, k * 0.84, null);
   g.clip();
-  disc(g, x, y, r, 'rgba(0, 0, 0, 0.4)');
-  fillOutline(x + r * 0.2, y + r * 0.22, r * 0.84, p.crater);
-  for (let k = 0; k < 3; k++) {
-    const a = rand() * Math.PI * 2, d = r * (0.15 + rand() * 0.35), s = r * (0.07 + rand() * 0.05);
-    const cx = x + r * 0.1 + Math.cos(a) * d, cy = y + r * 0.1 + Math.sin(a) * d;
-    disc(g, cx + s * 0.4, cy + s * 0.5, s, 'rgba(0, 0, 0, 0.3)');
-    disc(g, cx, cy, s, p.craterRim);
-  }
-  g.restore();
-  for (let k = 0; k < 2; k++) {
-    const a = k * 2.8 + rand(), d = r * 1.08, s = r * (0.13 + rand() * 0.05);
-    const cx = x + Math.cos(a) * d, cy = y + Math.sin(a) * d;
-    disc(g, cx, cy, s, 'rgba(0, 0, 0, 0.3)');
-    disc(g, cx + s * 0.25, cy + s * 0.3, s * 0.85, p.crater);
-  }
-  for (let k = 0; k < 3; k++) {
-    const a = k * 2.1 + 1 + rand(), d = r * (1.25 + rand() * 0.15);
-    disc(g, x + Math.cos(a) * d, y + Math.sin(a) * d, r * (0.05 + rand() * 0.04), p.craterRim);
-  }
+  disc(g, x, y, k, 'rgba(0, 0, 0, 0.18)');
+  fillOutline(x + k * 0.15, y + k * 0.17, k * 0.84, p.crater);
   g.restore();
 }
 
@@ -566,6 +535,11 @@ export function drawSoundOff(cx, cy, size) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(size, size);
+  // A dark plate under it, so it stays readable over a neighbour planet in the sky.
+  ctx.beginPath();
+  ctx.roundRect(-0.65, -0.6, 1.3, 1.2, 0.3);
+  ctx.fillStyle = 'rgba(7, 10, 31, 0.75)';
+  ctx.fill();
   ctx.globalAlpha = 0.8;
   ctx.beginPath();
   ctx.moveTo(-0.45, -0.15);

@@ -48,7 +48,7 @@ export function makeGround(planet, rand, cols, rows) {
         const [bx, by] = main[1 + Math.floor(rand() * (main.length - 2))], b = rand() * Math.PI * 2, l = 0.3 + rand() * 0.5;
         return crack([[bx, by], [bx + Math.cos(b) * l, by + Math.sin(b) * l]], rand, 3);
       });
-      return [main, ...spurs];
+      return [{ pts: main, main: true }, ...spurs.map(pts => ({ pts, main: false }))];
     });
   }
   return ground;
@@ -118,8 +118,7 @@ export function drawGround(g, ground, p, cell, ox, oy, w, h) {
   // A crack is a groove in the ice: a dark line, its far side catching the light.
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  for (const pts of (ground.cracks ?? []).flat()) {
-    const main = pts.length > 9;
+  for (const { pts, main } of (ground.cracks ?? []).flat()) {
     polyline(g, pts, ox, oy, cell, cell * 0.018, cell * 0.022);
     g.lineWidth = cell * (main ? 0.022 : 0.015);
     g.strokeStyle = '#ffffff';

@@ -11,19 +11,21 @@ function rock(g, segments, p, cell, ox, oy, half, rand, skip) {
   for (const seg of segments) {
     const [x0, y0, x1, y1] = seg, nx = y0 - y1, ny = x1 - x0;
     // Now and then an angular boulder on the ridge, poking out to one side. Kept rare: walls
-    // crowded with them looked harsh.
-    for (let k = 0, n = rand() < 0.08 ? 1 : 0; k < n; k++) {
+    // crowded with them looked harsh. Every random number is drawn before `skip` is asked, so a
+    // meteor leaving one boulder out does not reshuffle the rest of the map.
+    if (rand() < 0.08) {
       const [x, y] = point(seg, 0.15 + rand() * 0.7), side = (rand() - 0.5) * half * 1.4;
-      if (skip(x, y)) continue;
       const cx = ox + (x + nx * side) * cell, cy = oy + (y + ny * side) * cell, r = cell * half * (0.7 + rand() * 0.5);
       const sides = 5 + Math.floor(rand() * 3);
       const corners = Array.from({ length: sides }, (_, i) => {
         const a = ((i + rand() * 0.6) / sides) * Math.PI * 2;
         return [Math.cos(a) * (0.75 + rand() * 0.35), Math.sin(a) * (0.75 + rand() * 0.35)];
       });
-      stone(g, corners, cx + r * 0.15, cy + r * 0.2, r * 1.05, 'rgba(0, 0, 0, 0.3)');
-      stone(g, corners, cx, cy, r, p.wallBase);
-      stone(g, corners, cx - r * 0.12, cy - r * 0.16, r * 0.68, p.wallTop);
+      if (!skip(x, y)) {
+        stone(g, corners, cx + r * 0.15, cy + r * 0.2, r * 1.05, 'rgba(0, 0, 0, 0.3)');
+        stone(g, corners, cx, cy, r, p.wallBase);
+        stone(g, corners, cx - r * 0.12, cy - r * 0.16, r * 0.68, p.wallTop);
+      }
     }
     // Cracks across the ridge's lit top.
     g.strokeStyle = p.wallBase;
@@ -77,12 +79,11 @@ function drifts(g, segments, cell, ox, oy, half, rand, skip, wind) {
     if (rand() < 0.35) continue;
     const [x0, y0, x1, y1] = seg, along = Math.atan2(y1 - y0, x1 - x0);
     // Leeward side of this wall: the side the wind blows towards.
-    const side = x0 === x1 ? Math.sign(wind[0]) : Math.sign(wind[1]);
-    const nx = (y0 - y1) * side, ny = (x1 - x0) * side;
+    const [nx, ny] = x0 === x1 ? [Math.sign(wind[0]), 0] : [0, Math.sign(wind[1])];
     for (let k = 0, n = 1 + Math.floor(rand() * 2); k < n; k++) {
       const [x, y] = point(seg, 0.2 + rand() * 0.6);
-      if (skip(x, y)) continue;
       const len = 0.18 + rand() * 0.2, depth = 0.07 + rand() * 0.06, out = half * 0.8 + depth * 0.5;
+      if (skip(x, y)) continue;
       const cx = ox + (x + nx * out) * cell, cy = oy + (y + ny * out) * cell;
       for (const [dx, dy, fill] of [[nx * 0.025, ny * 0.025, 'rgba(46, 85, 112, 0.22)'], [0, 0, '#f7fbfd']]) {
         g.save();

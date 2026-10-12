@@ -8,9 +8,10 @@ import { OUTLINE } from './art.js';
 import { levelDistances } from '../level-format.js';
 import { mulberry32 } from './random.js';
 
-// One prop per this many cells, and never more than one of each kind: none on the first small
-// mazes, one of each on the big ones.
+// One prop per this many cells, never more than one of each kind and never more than MAX_PROPS:
+// they are made by people, and too many of them would read as places you are meant to drive to.
 const CELLS_PER_PROP = 30;
+const MAX_PROPS = 2;
 // No boulders and no base dome: tried, the boulders read as something in the way and the dome
 // as the place to drive to.
 const KINDS = {
@@ -24,7 +25,7 @@ const DEAD_END_ONLY = new Set(['wreck']);
 
 export function placeProps({ planet, maze, player, goal, landmarks, meteor }, seed) {
   const kinds = KINDS[planet];
-  const count = Math.min(kinds.length, Math.floor((maze.cols * maze.rows) / CELLS_PER_PROP));
+  const count = Math.min(MAX_PROPS, kinds.length, Math.floor((maze.cols * maze.rows) / CELLS_PER_PROP));
   if (!count) return [];
   const rand = mulberry32(seed);
   const fromStart = levelDistances(maze, player), fromGoal = levelDistances(maze, goal);
@@ -103,90 +104,68 @@ function bar(x0, y0, x1, y1, color, width) {
 }
 
 const DRAW = {
-  // An old probe that landed long ago: gold-foil body on splayed legs, a dish knocked askew.
+  // An old probe that landed long ago: a faded foil body on splayed legs, a small instrument box
+  // on top. No dish: with one it looked like the antenna landmark, which chimes.
   probe(p) {
     shadow(0.3);
     c.rotate(-0.08);
-    bar(-0.12, -0.2, -0.28, 0, '#9aa1ad', 0.035);
-    bar(0.12, -0.2, 0.26, -0.02, '#9aa1ad', 0.035);
-    bar(0, -0.2, 0.04, 0.02, '#9aa1ad', 0.035);
-    poly([[-0.2, -0.2], [0.2, -0.2], [0.18, -0.46], [-0.18, -0.46]], '#d9a62e');
-    c.fillStyle = 'rgba(120, 70, 10, 0.35)';
+    bar(-0.12, -0.2, -0.28, 0, '#8d939e', 0.035);
+    bar(0.12, -0.2, 0.26, -0.02, '#8d939e', 0.035);
+    bar(0, -0.2, 0.04, 0.02, '#8d939e', 0.035);
+    poly([[-0.2, -0.2], [0.2, -0.2], [0.18, -0.46], [-0.18, -0.46]], '#a89470');
+    c.fillStyle = 'rgba(70, 50, 30, 0.3)';
     c.fillRect(-0.06, -0.44, 0.12, 0.22);
     c.fillStyle = p.dust ?? p.craterRim;
     c.globalAlpha = 0.5;
     c.fillRect(-0.19, -0.27, 0.38, 0.06);
     c.globalAlpha = 1;
-    bar(0.08, -0.46, 0.18, -0.62, '#9aa1ad', 0.03);
-    c.save();
-    c.translate(0.2, -0.64);
-    c.rotate(0.6);
-    c.beginPath();
-    c.ellipse(0, 0, 0.16, 0.07, 0, 0, Math.PI);
-    c.closePath();
-    c.fillStyle = '#eef0f4';
-    c.fill();
-    c.stroke();
-    c.restore();
+    poly([[-0.08, -0.46], [0.06, -0.46], [0.06, -0.56], [-0.08, -0.56]], '#8d939e');
   },
-  // An old rover sunk on its belly with its wheels gone: bare hubs, a cracked solar deck, a
-  // camera mast bent over, one wheel lying beside it. Faded and dusty.
+
+  // An old rover tipped over on its side, rusted dark, wheels gone: bare hubs facing us, its
+  // dead solar deck standing up, the camera mast lying on the ground, one wheel beside it.
+  // Kept dark and brown on purpose: grey and blue would read as the player's own rover.
   wreck(p) {
-    shadow(0.4);
+    shadow(0.42);
+    bar(0.08, -0.03, 0.38, -0.01, '#6b5a4e', 0.03);
+    poly([[0.36, -0.05], [0.46, -0.05], [0.46, 0.02], [0.36, 0.02]], '#6b5a4e');
     c.save();
-    c.translate(0.3, -0.08);
-    c.rotate(0.35);
+    c.translate(-0.05, -0.17);
+    c.rotate(-1.35);
     c.beginPath();
-    c.ellipse(0, 0, 0.08, 0.095, 0, 0, Math.PI * 2);
-    c.fillStyle = '#4a4d57';
-    c.fill();
-    c.stroke();
-    c.beginPath();
-    c.arc(0, 0, 0.035, 0, Math.PI * 2);
-    c.fillStyle = '#9aa1ad';
-    c.fill();
-    c.stroke();
-    c.restore();
-    c.rotate(-0.07);
-    c.beginPath();
-    c.roundRect(-0.34, -0.28, 0.54, 0.25, 0.04);
-    c.fillStyle = '#d3d6dc';
+    c.roundRect(-0.16, -0.27, 0.32, 0.5, 0.04);
+    c.fillStyle = '#7a4a32';
     c.fill();
     c.save();
     c.clip();
-    c.fillStyle = '#a9aeb8';
-    c.fillRect(-0.34, -0.16, 0.54, 0.03);
+    c.fillStyle = 'rgba(30, 15, 10, 0.35)';
+    c.fillRect(0.02, -0.27, 0.14, 0.5);
     c.fillStyle = p.dust ?? p.craterRim;
-    c.globalAlpha = 0.6;
-    c.fillRect(-0.34, -0.1, 0.54, 0.08);
+    c.globalAlpha = 0.5;
+    c.fillRect(-0.16, -0.27, 0.32, 0.1);
     c.globalAlpha = 1;
     c.restore();
     c.stroke();
-    for (const x of [-0.25, 0.1]) {
+    poly([[-0.24, -0.25], [-0.16, -0.25], [-0.16, 0.21], [-0.24, 0.21]], '#4b3f3a');
+    for (const y of [-0.15, 0.12]) {
       c.beginPath();
-      c.arc(x, -0.04, 0.035, 0, Math.PI * 2);
-      c.fillStyle = '#4a4d57';
+      c.arc(0.16, y, 0.04, 0, Math.PI * 2);
+      c.fillStyle = '#3a302c';
       c.fill();
       c.stroke();
     }
-    poly([[-0.38, -0.28], [0.24, -0.28], [0.21, -0.35], [-0.35, -0.36]], '#2a4d8f');
-    c.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    c.lineWidth = 0.014;
-    c.beginPath();
-    c.moveTo(-0.1, -0.355);
-    c.lineTo(-0.05, -0.32);
-    c.lineTo(-0.08, -0.28);
-    c.stroke();
-    c.strokeStyle = OUTLINE;
-    c.lineWidth = 0.03;
-    bar(0.12, -0.36, 0.14, -0.55, '#9aa1ad', 0.03);
+    c.restore();
     c.save();
-    c.translate(0.15, -0.56);
-    c.rotate(0.7);
-    poly([[-0.05, -0.04], [0.09, -0.04], [0.09, 0.04], [-0.05, 0.04]], '#d3d6dc');
+    c.translate(-0.4, -0.07);
+    c.rotate(0.3);
     c.beginPath();
-    c.arc(0.06, 0, 0.022, 0, Math.PI * 2);
-    c.fillStyle = OUTLINE;
+    c.ellipse(0, 0, 0.07, 0.085, 0, 0, Math.PI * 2);
+    c.fillStyle = '#3a302c';
+    c.fill();
+    c.stroke();
+    c.beginPath();
+    c.arc(0, 0, 0.03, 0, Math.PI * 2);
+    c.fillStyle = '#6b5a4e';
     c.fill();
     c.restore();
   },
@@ -198,8 +177,10 @@ const DRAW = {
     c.save();
     c.translate(0, -0.45);
     c.rotate(-0.25);
-    poly([[-0.32, -0.12], [0.32, -0.12], [0.36, 0.1], [-0.36, 0.1]], '#2a4d8f');
-    c.strokeStyle = 'rgba(160, 200, 255, 0.7)';
+    // Graphite cells in a faded gold frame: blue would read as the lunokhod's own panel.
+    poly([[-0.32, -0.12], [0.32, -0.12], [0.36, 0.1], [-0.36, 0.1]], '#a89470');
+    poly([[-0.29, -0.1], [0.29, -0.1], [0.32, 0.08], [-0.32, 0.08]], '#33363e');
+    c.strokeStyle = 'rgba(200, 185, 150, 0.45)';
     c.lineWidth = 0.012;
     for (const t of [-0.12, 0.12]) {
       c.beginPath();

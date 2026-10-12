@@ -3,10 +3,10 @@
 // Each puff is fixed by its index, so a frame is a pure function of the time since the win.
 // Cartoon look: overlapping puffs share one outline, like the rest of the art.
 
+import { OUTLINE } from './art.js';
 import { WIN } from './config.js';
 import { mulberry32 } from './random.js';
 
-const OUTLINE = '#1c1e26';
 const GROUND = { from: WIN.ignite, to: WIN.lift + 500, every: 45, life: 1300 };
 // Trail puffs are laid by distance, not time, or they string out into beads as the rocket speeds up.
 const TRAIL = { spacing: 0.12, life: 900 };
