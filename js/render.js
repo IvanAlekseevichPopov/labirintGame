@@ -7,7 +7,7 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { FONT, ROVERS, drawGlobe, drawPad, drawSoundOff, drawText, useContext } from './art.js';
+import { FONT, ROVERS, drawPad, drawSoundOff, drawText, useContext } from './art.js';
 import { drawRocket } from './rockets.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
@@ -16,6 +16,7 @@ import { drawGround, makeGround } from './ground.js';
 import { drawWallDetails } from './walls.js';
 import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
+import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
 
 const canvas = document.getElementById('game');
@@ -468,16 +469,14 @@ export function renderFinale(now) {
   ctx.fillText('Начать сначала', w / 2, by);
 }
 
-// Start screen: the rover of the level about to be played circles on a patch of its planet.
-export function renderTitle(now, { planet, levelNumber }) {
+// Start screen: the rover of the level about to be played drives round its planet.
+export function renderTitle(now, { planet, levelNumber, dark = false }) {
   const w = innerWidth, h = innerHeight;
   const p = PLANETS[planet];
   drawSky(now, w, h, planet);
 
-  const cx = w / 2, cy = h * 0.57, r = Math.min(w, h) * 0.17;
-  drawGlobe(cx, cy, r * 1.45, planet, p);
-  const a = now / 1600;
-  ROVERS[p.rover](cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2, Math.min(w, h) * 0.13);
+  const radius = Math.min(w, h) * 0.18;
+  drawTitleScene(ctx, now, { cx: w / 2, cy: h * 0.66, radius, size: radius * 0.7, planet, p, night: dark });
 
   drawText('Космический лабиринт', w / 2, h * 0.15, h * 0.09, 'center', '#ffd60a');
   drawText(`${p.name} — уровень ${levelNumber}`, w / 2, h * 0.26, h * 0.045, 'center', '#ffffff');

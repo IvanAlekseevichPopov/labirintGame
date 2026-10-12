@@ -215,7 +215,7 @@ function frame(now) {
   try {
     pollGamepads(onInput);
     if (scene === 'title') {
-      renderer.renderTitle(now, { planet: levels[titleIndex].planet, levelNumber: titleIndex + 1 });
+      renderer.renderTitle(now, { planet: levels[titleIndex].planet, levelNumber: titleIndex + 1, dark: Boolean(levels[titleIndex].dark) });
     } else if (scene === 'playing') {
       for (const event of game.update(gameTime(now), now - lastFrameAt, renderer.cellSize())) handle(event);
       renderer.render(gameTime(now), { soundOff: !gestureSeen || !soundOn });

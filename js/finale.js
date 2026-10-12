@@ -4,6 +4,7 @@
 // light and a medal glints now and then.
 
 import { FONT, OUTLINE, drawGlobe } from './art.js';
+import { drawProfile } from './profiles.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 
 let c;
@@ -29,19 +30,11 @@ export function drawMuseum(context, now, w, h) {
     c.textBaseline = 'middle';
     c.fillStyle = '#4a3208';
     c.fillText(PLANETS[planet].name, x, top + h * 0.077);
-    c.save();
-    c.translate(x, top);
-    c.scale(size, size);
-    c.lineJoin = 'round';
-    c.lineCap = 'round';
-    c.strokeStyle = OUTLINE;
-    c.lineWidth = 0.025;
     c.beginPath();
-    c.ellipse(0, 0, 0.45, 0.025, 0, 0, Math.PI * 2);
+    c.ellipse(x, top, size * 0.45, size * 0.025, 0, 0, Math.PI * 2);
     c.fillStyle = 'rgba(0, 0, 0, 0.25)';
     c.fill();
-    EXHIBITS[PLANETS[planet].rover]();
-    c.restore();
+    drawProfile(c, PLANETS[planet].rover, x, top, size);
   });
   rope(w, h, spacing);
 }
@@ -244,161 +237,3 @@ function rope(w, h, spacing) {
     c.stroke();
   }
 }
-
-function box(x, y, w, h, r, fill) {
-  c.beginPath();
-  c.roundRect(x, y, w, h, r);
-  c.fillStyle = fill;
-  c.fill();
-  c.stroke();
-}
-
-function wheel(x, y, r, tyre, hub) {
-  c.beginPath();
-  c.arc(x, y, r, 0, Math.PI * 2);
-  c.fillStyle = tyre;
-  c.fill();
-  c.stroke();
-  c.beginPath();
-  c.arc(x, y, r * 0.45, 0, Math.PI * 2);
-  c.fillStyle = hub;
-  c.fill();
-  c.stroke();
-}
-
-function spokedWheel(x, y, r, tyre, hub) {
-  wheel(x, y, r, tyre, hub);
-  c.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  c.lineWidth = r * 0.12;
-  for (let k = 0; k < 3; k++) {
-    const a = (k / 3) * Math.PI;
-    c.beginPath();
-    c.moveTo(x - Math.cos(a) * r * 0.8, y - Math.sin(a) * r * 0.8);
-    c.lineTo(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8);
-    c.stroke();
-  }
-  c.strokeStyle = OUTLINE;
-  c.lineWidth = 0.025;
-}
-
-function dot(x, y, r, fill) {
-  c.beginPath();
-  c.arc(x, y, r, 0, Math.PI * 2);
-  c.fillStyle = fill;
-  c.fill();
-  c.stroke();
-}
-
-// A thin panel line.
-function seam(x0, y0, x1, y1, color = 'rgba(0, 0, 0, 0.25)') {
-  c.save();
-  c.beginPath();
-  c.moveTo(x0, y0);
-  c.lineTo(x1, y1);
-  c.strokeStyle = color;
-  c.lineWidth = 0.012;
-  c.stroke();
-  c.restore();
-}
-
-function bar(x0, y0, x1, y1, color, width) {
-  c.beginPath();
-  c.moveTo(x0, y0);
-  c.lineTo(x1, y1);
-  c.lineWidth = width + 0.03;
-  c.strokeStyle = OUTLINE;
-  c.stroke();
-  c.lineWidth = width;
-  c.strokeStyle = color;
-  c.stroke();
-  c.lineWidth = 0.025;
-  c.strokeStyle = OUTLINE;
-}
-
-// The same three rovers as in play, now from the side; unit space, wheels on y = 0, facing right.
-const EXHIBITS = {
-  // A silver tub on eight wheels (four seen), its blue solar lid swung open, headlights and
-  // camera eyes at the front, a whip antenna.
-  lunokhod() {
-    for (const x of [-0.33, -0.11, 0.11, 0.33]) spokedWheel(x, -0.09, 0.09, '#2b2d33', '#8d939e');
-    box(-0.44, -0.42, 0.88, 0.26, 0.1, '#d5d9e0');
-    c.fillStyle = '#aeb3bd';
-    c.fillRect(-0.42, -0.24, 0.84, 0.05);
-    seam(-0.4, -0.33, 0.4, -0.33);
-    c.save();
-    c.translate(-0.38, -0.42);
-    c.rotate(-0.55);
-    box(0, -0.035, 0.62, 0.07, 0.02, '#2f6fd6');
-    for (const t of [0.15, 0.3, 0.45]) seam(t, -0.03, t, 0.03, 'rgba(160, 200, 255, 0.8)');
-    c.restore();
-    for (const y of [-0.34, -0.26]) dot(0.4, y, 0.032, '#ffd60a');
-    for (const x of [0.22, 0.3]) dot(x, -0.37, 0.02, '#1d3557');
-    bar(0.24, -0.42, 0.28, -0.66, '#9aa1ad', 0.012);
-    dot(0.28, -0.67, 0.02, '#9aa1ad');
-  },
-  // A cream box on rocker legs and six wheels (three seen), a camera mast up front, a dish, the
-  // finned power unit at the back and an arm folded under the nose.
-  marsRover() {
-    bar(-0.34, -0.1, -0.05, -0.32, '#7a7670', 0.035);
-    bar(0.34, -0.1, 0.05, -0.32, '#7a7670', 0.035);
-    bar(0, -0.1, 0, -0.32, '#7a7670', 0.035);
-    for (const x of [-0.34, 0, 0.34]) spokedWheel(x, -0.1, 0.1, '#33302c', '#9a958c');
-    c.save();
-    c.translate(-0.38, -0.5);
-    c.rotate(-0.5);
-    box(-0.05, -0.08, 0.12, 0.2, 0.03, '#6f6a62');
-    for (const t of [-0.04, 0.02, 0.08]) seam(-0.08, t, 0.1, t, '#4a463f');
-    c.restore();
-    box(-0.32, -0.5, 0.6, 0.2, 0.04, '#ece6da');
-    c.fillStyle = '#c9bfae';
-    c.fillRect(-0.28, -0.43, 0.3, 0.08);
-    seam(0.06, -0.48, 0.06, -0.32);
-    bar(0.28, -0.34, 0.4, -0.26, '#7a7670', 0.02);
-    bar(0.4, -0.26, 0.36, -0.18, '#7a7670', 0.02);
-    bar(0.2, -0.5, 0.2, -0.82, '#7a7670', 0.03);
-    box(0.12, -0.92, 0.2, 0.1, 0.02, '#fafafa');
-    for (const x of [0.25, 0.3]) dot(x, -0.87, 0.018, '#1d4ed8');
-    c.beginPath();
-    c.ellipse(-0.18, -0.56, 0.09, 0.035, -0.4, 0, Math.PI * 2);
-    c.fillStyle = '#d8d3c8';
-    c.fill();
-    c.stroke();
-  },
-  // An orange cab on long tracks, the ice drill out in front, lights on the roof.
-  icebreaker() {
-    box(-0.44, -0.2, 0.82, 0.2, 0.1, '#2b2d33');
-    c.strokeStyle = '#5b5f6b';
-    c.lineWidth = 0.015;
-    for (let x = -0.38; x <= 0.32; x += 0.07) {
-      c.beginPath();
-      c.moveTo(x, -0.2);
-      c.lineTo(x, -0.17);
-      c.moveTo(x, -0.03);
-      c.lineTo(x, 0);
-      c.stroke();
-    }
-    c.strokeStyle = OUTLINE;
-    c.lineWidth = 0.025;
-    for (const x of [-0.32, -0.12, 0.08, 0.26]) spokedWheel(x, -0.1, 0.06, '#5b5f6b', '#2b2d33');
-    c.beginPath();
-    c.moveTo(0.3, -0.38);
-    c.lineTo(0.62, -0.3);
-    c.lineTo(0.3, -0.22);
-    c.closePath();
-    c.fillStyle = '#c3c8d1';
-    c.fill();
-    c.stroke();
-    for (const x of [0.38, 0.46, 0.54]) bar(x, -0.36 + (x - 0.38) * 0.2, x + 0.03, -0.24 - (x - 0.38) * 0.2, '#8d939e', 0.006);
-    box(-0.36, -0.52, 0.68, 0.32, 0.06, '#ff7a1a');
-    c.fillStyle = '#e0600c';
-    c.fillRect(-0.34, -0.3, 0.64, 0.05);
-    box(0.08, -0.48, 0.18, 0.13, 0.03, '#1d3557');
-    seam(0.12, -0.46, 0.16, -0.38, 'rgba(160, 200, 255, 0.8)');
-    dot(0.27, -0.27, 0.03, '#ffd60a');
-    box(-0.2, -0.57, 0.3, 0.05, 0.02, '#4a4d57');
-    for (const x of [-0.14, -0.05, 0.04]) dot(x, -0.545, 0.016, '#ffd60a');
-    bar(-0.3, -0.52, -0.3, -0.64, '#4a4d57', 0.03);
-    c.fillStyle = '#7a3a10';
-    c.fillRect(-0.3, -0.46, 0.06, 0.12);
-  },
-};

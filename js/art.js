@@ -467,18 +467,38 @@ export function crack(points, rand, depth) {
   return crack(out, rand, depth - 1);
 }
 
+// Where a crater's floor shifts from its rim, away from the light; set by drawGlobe so the shadow
+// stays on the lit side while the globe turns.
+let floorShift = [0.25, 0.25];
+
+// Lumpy, and squashed towards the limb the way a crater on a ball is seen from the side.
 function globeCrater(x, y, r, p) {
-  disc(ctx, x, y, r * 1.2, p.craterRim);
+  const d = Math.hypot(x, y), toward = Math.atan2(y, x), seed = x * 17 + y * 31;
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.translate(x, y);
+  ctx.rotate(toward);
+  ctx.scale(Math.sqrt(Math.max(0.3, 1 - d * d)), 1);
+  ctx.rotate(-toward);
+  softBlob(ctx, 0, 0, r * 1.2, p.craterRim, seed, 0.12);
+  softBlob(ctx, 0, 0, r, null, seed, 0.12);
   ctx.clip();
-  disc(ctx, x, y, r, 'rgba(0, 0, 0, 0.4)');
-  disc(ctx, x + r * 0.25, y + r * 0.25, r, p.crater);
+  disc(ctx, 0, 0, r * 1.3, 'rgba(0, 0, 0, 0.4)');
+  softBlob(ctx, r * floorShift[0], r * floorShift[1], r, p.crater, seed, 0.12);
   ctx.restore();
 }
 
-export function drawGlobe(cx, cy, radius, planet, p) {
+// Light from the top left, or with `night` from below, leaving the top in the dark. With `shadow`
+// the far side falls into shadow past a terminator (always so at night); without it the day globe
+// is only gently shaded. `turn` spins the surface (radians), the light stays put.
+const LIGHT = {
+  day: { dir: [-Math.SQRT1_2, -Math.SQRT1_2], depth: 0.6 },
+  night: { dir: [-0.45, 0.89], depth: 0.88 },
+};
+
+export function drawGlobe(cx, cy, radius, planet, p, { turn = 0, night = false, shadow = night } = {}) {
+  const { dir: [lx, ly], depth } = LIGHT[night ? 'night' : 'day'];
+  const cos = Math.cos(-turn), sin = Math.sin(-turn);
+  floorShift = [-(lx * cos - ly * sin) * 0.35, -(lx * sin + ly * cos) * 0.35];
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(radius, radius);
@@ -493,20 +513,40 @@ export function drawGlobe(cx, cy, radius, planet, p) {
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.clip();
   disc(ctx, 0, 0, 1, p.floor);
+  ctx.save();
+  ctx.rotate(turn);
   GLOBES[planet](p);
+  ctx.restore();
+  if (!shadow) disc(ctx, 0, 0, 1, daylight());
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.lineWidth = 0.025;
+  ctx.strokeStyle = p.wallBase;
+  ctx.stroke();
+  // Over the outline too, or the rim would stay lit all round.
+  if (shadow) disc(ctx, 0, 0, 1.02, terminator(lx, ly, depth));
+  ctx.restore();
+}
+
+function daylight() {
   const light = ctx.createRadialGradient(-0.4, -0.45, 0.1, -0.15, -0.15, 1.25);
   light.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
   light.addColorStop(0.45, 'rgba(255, 255, 255, 0)');
   light.addColorStop(0.8, 'rgba(0, 0, 0, 0.18)');
   light.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
-  disc(ctx, 0, 0, 1, light);
-  ctx.restore();
-  ctx.beginPath();
-  ctx.arc(0, 0, 1, 0, Math.PI * 2);
-  ctx.lineWidth = 0.08;
-  ctx.strokeStyle = p.wallBase;
-  ctx.stroke();
-  ctx.restore();
+  return light;
+}
+
+// Lit from the side of (lx, ly): a soft terminator, the far side as dark as `depth`, never black.
+function terminator(lx, ly, depth) {
+  const light = ctx.createRadialGradient(lx, ly, 0, lx, ly, 2.6);
+  light.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+  light.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
+  light.addColorStop(0.5, 'rgba(4, 6, 20, 0.1)');
+  light.addColorStop(0.6, `rgba(4, 6, 20, ${depth * 0.89})`);
+  light.addColorStop(1, `rgba(4, 6, 20, ${depth})`);
+  return light;
 }
 
 export function drawPad(cx, cy, cell, now) {
