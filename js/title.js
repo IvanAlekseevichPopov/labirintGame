@@ -11,6 +11,8 @@ const TURN_MS = 1600;
 // Lamps in profile space (wheels on y = 0, facing right, 1 = rover length).
 const LIGHTS = {
   lunokhod: { front: [[0.42, -0.34], [0.42, -0.26]], rear: [[-0.44, -0.3]] },
+  marsRover: { front: [[0.29, -0.44], [0.29, -0.36]], rear: [[-0.33, -0.36]] },
+  icebreaker: { front: [[0.3, -0.27]], rear: [[-0.37, -0.36]] },
 };
 
 const BEAM = { length: 1.3, spread: 0.13, dip: 0.12, color: '255,236,170' };
@@ -22,8 +24,7 @@ export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, nigh
   drawGlobe(cx, cy, radius, planet, p, { turn, night, shadow: true });
   const groundY = cy - radius;
   const rolled = (now / TURN_MS) * radius / size;
-  const lights = night && LIGHTS[p.rover];
-  if (!lights) {
+  if (!night) {
     drawProfile(ctx, p.rover, cx, groundY, size, { rolled, spokes: 1, ground: radius });
     return;
   }
@@ -31,15 +32,25 @@ export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, nigh
   // Lit only by the stars: drawn apart and dimmed, so the globe under it stays as it is.
   const dpr = devicePixelRatio || 1;
   const box = { x: cx - size, y: groundY - size, w: size * 2, h: size * 1.2 };
-  shade.width = Math.ceil(box.w * dpr);
-  shade.height = Math.ceil(box.h * dpr);
+  const pw = Math.ceil(box.w * dpr), ph = Math.ceil(box.h * dpr);
+  // A zero-sized canvas makes drawImage throw, which would put up the error screen.
+  if (!pw || !ph) return;
+  if (shade.width !== pw || shade.height !== ph) {
+    shade.width = pw;
+    shade.height = ph;
+  }
   const g = shade.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, pw, ph);
   g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
   drawProfile(g, p.rover, cx, groundY, size, { rolled, spokes: 1, ground: radius });
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(4, 6, 20, 0.5)';
   g.fillRect(box.x, box.y, box.w, box.h);
   ctx.drawImage(shade, box.x, box.y, box.w, box.h);
+
+  const lights = LIGHTS[p.rover];
 
   const at = ([x, y]) => [cx + x * size, groundY + y * size];
   ctx.save();

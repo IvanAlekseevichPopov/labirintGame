@@ -13,10 +13,10 @@ const DEFAULT = {
   tint: 0.16,        // how strongly the beam is coloured
   tail: { color: '255,40,30', r: 0.16, strength: 0.35 },
   // What floats through the light. Motes hang over the whole maze (`perCell` per cell), each
-  // drifting its own way at `speed` cells per second and wandering off course by up to `turn`
-  // radians per second; only those in the `near` share of a beam show. Sand is blown across the
+  // drifting its own way at `speed` cells per second, its course wandering at random by about
+  // `wander` radians over a second (more over longer); only those in the `near` share of a beam show. Sand is blown across the
   // beam (`count` per beam, screen-space wind towards +x, cells per second).
-  dust: { kind: 'motes', perCell: 4, speed: 0.06, turn: 0.8, near: 0.7, color: '255,246,220' },
+  dust: { kind: 'motes', perCell: 4, speed: 0.06, wander: 0.06, near: 0.7, color: '255,246,220' },
 };
 
 // Nested settings (dust, tail) are merged field by field; `dust: null` switches the dust off,
@@ -143,7 +143,7 @@ const SPECKS = [
 
 // Motes live in maze space (`u`, `v` 0..1 across the maze) and the beams only light them up:
 // moving with the beam, away from the lamps, they looked shot out of the rover.
-function motes({ perCell, speed, turn, near, color }) {
+function motes({ perCell, speed, wander, near, color }) {
   let list = null;
   return (ctx, beams, reach, { cell, area }, b, dt) => {
     list ??= Array.from({ length: Math.round((area.w * area.h) / cell ** 2 * perCell) }, () => ({
@@ -153,7 +153,8 @@ function motes({ perCell, speed, turn, near, color }) {
     }));
     ctx.fillStyle = `rgb(${color})`;
     for (const m of list) {
-      m.heading += (Math.random() - 0.5) * 2 * turn * dt;
+      // A random walk scaled by √dt, so it wanders the same at 30 and 60 frames a second.
+      m.heading += (Math.random() * 2 - 1) * Math.sqrt(3 * dt) * wander;
       m.angle += m.spin * dt;
       m.u = (m.u + (Math.cos(m.heading) * speed * dt * cell) / area.w + 1) % 1;
       m.v = (m.v + (Math.sin(m.heading) * speed * dt * cell) / area.h + 1) % 1;

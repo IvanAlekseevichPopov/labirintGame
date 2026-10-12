@@ -388,8 +388,8 @@ export function drawImpactCrater(g, x, y, r, p, seed = 0) {
   g.restore();
 }
 
-// The planet as seen from space on the start screen, in unit space (radius 1): its own surface
-// features, hand-placed so the globe is always the same, then light from the top left and an outline.
+// The planet as seen from space, in unit space (radius 1): its own surface features, hand-placed
+// so the globe is always the same. drawGlobe adds the light and the outline.
 const GLOBES = {
   moon: p => {
     for (const [x, y, r, k] of [[-0.35, -0.3, 0.36, 1], [0.25, -0.42, 0.24, 2], [0.12, 0.2, 0.3, 3], [-0.45, 0.45, 0.2, 4]]) {

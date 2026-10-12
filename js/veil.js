@@ -29,11 +29,12 @@ export function layerContext(layer) {
 export const jitter = now => { const v = Math.sin(now / 23) * 43758.5453; return v - Math.floor(v); };
 
 // Lights near the outer wall must not spill past it onto the sky (the neighbour planet there
-// would light up as if it were ground). Margin: the outer half of the rim wall stays lit.
+// would light up as if it were ground). The clip follows the maze's rounded frame (render.js),
+// a little wider so the rim wall's bumps stay lit.
 export function clipToMaze(g, { area, cell }) {
-  const m = cell * WALL_RATIO * 0.6;
+  const wall = cell * WALL_RATIO, m = wall / 2 + cell * 0.04;
   g.beginPath();
-  g.rect(area.x - m, area.y - m, area.w + 2 * m, area.h + 2 * m);
+  g.roundRect(area.x - m, area.y - m, area.w + 2 * m, area.h + 2 * m, wall);
   g.clip();
 }
 

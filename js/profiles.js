@@ -6,15 +6,15 @@ import { OUTLINE } from './art.js';
 let c;
 let travel = 0;
 let spokes = 3;
-let groundR = Infinity;
-// How far the ground has dropped below the rover's middle at x, on a ball of radius groundR: wheels
-// on their own suspension follow it, so none hangs in the air.
-const sag = x => groundR - Math.sqrt(groundR * groundR - x * x);
+let groundR = 0;
+// How far the ground has dropped below the rover's middle at x, on a ball of radius groundR (0 is
+// flat ground): wheels on their own suspension follow it, so none hangs in the air.
+const sag = x => (groundR ? groundR - Math.sqrt(groundR * groundR - x * x) : 0);
 
 // Wheels touch the ground at (x, groundY); `size` is the rover's length. `rolled` is how far it
 // has driven, in its own lengths, to turn the wheels; small rovers read better with fewer `spokes`.
-// `ground` is the radius of the ball it stands on, if any.
-export function drawProfile(context, type, x, groundY, size, { rolled = 0, spokes: count = 3, ground = Infinity } = {}) {
+// `ground` is the radius of the ball it stands on, 0 for flat ground.
+export function drawProfile(context, type, x, groundY, size, { rolled = 0, spokes: count = 3, ground = 0 } = {}) {
   c = context;
   travel = rolled;
   spokes = count;

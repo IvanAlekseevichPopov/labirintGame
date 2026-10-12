@@ -247,8 +247,8 @@ try {
   game.setLevels(levels);
   titleIndex = levelIndexFromUrl();
   scene = 'title';
-  // Starts once a key press unlocks sound: the title plays the tune of the planet ahead.
-  audio.playMusic(levels[titleIndex].planet);
+  // Starts once a key press unlocks sound: the title plays the tune of the level ahead.
+  audio.playMusic(songFor(levels[titleIndex]));
   // Typing a new #level=N in the address bar does not reload the page.
   addEventListener('hashchange', () => {
     titleIndex = levelIndexFromUrl();

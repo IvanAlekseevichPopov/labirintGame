@@ -66,6 +66,16 @@ test('--only regenerates the listed levels and keeps hand edits elsewhere', asyn
   execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
 });
 
+test('--only keeps the notes of the other levels and drops the regenerated one\'s', async () => {
+  const { source } = await readLevels();
+  fs.writeFileSync(out, source.replace('  // 3\n', '  // 3 — old maze\n').replace('  // 7\n', '  // 7 — hand-made\n'));
+  execFileSync(process.execPath, [script, '--only', '3'], { stdio: 'pipe' });
+  const after = fs.readFileSync(out, 'utf8');
+  assert.match(after, /^ {2}\/\/ 7 — hand-made$/m);
+  assert.match(after, /^ {2}\/\/ 3$/m);
+  execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
+});
+
 test('--only keeps dark and storm flags, on the regenerated level too', async () => {
   const { source } = await readLevels();
   fs.writeFileSync(out, source
@@ -99,6 +109,8 @@ test('generates 40 valid levels cycling planets in blocks of 3', async () => {
     parseLevel(level, i + 1, PLANET_KEYS);
     assert.equal(level.planet, PLANET_KEYS[Math.floor(i / 3) % PLANET_KEYS.length], `level ${i + 1}`);
   });
+  const { maze } = parseLevel(levels[2], 3, PLANET_KEYS);
+  assert.deepEqual([maze.cols, maze.rows], [8, 5], 'level 3 has its own size (SIZE)');
 });
 
 test('routes get longer from the first levels to the last', async () => {
