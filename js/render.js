@@ -12,6 +12,7 @@ import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
 import { drawGround, makeGround } from './ground.js';
+import { drawWallDetails } from './walls.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -148,9 +149,18 @@ function buildMazeLayer() {
     });
   const half = WALL_RATIO / 2;
   wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
-  fillShapes(g, ragged(half, 0.03, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
-  fillShapes(g, ragged(half, 0.03), p.wallBase);
-  fillShapes(g, ragged(half * 0.45, 0.015, -0.008, -0.016), p.wallTop);
+  const rough = p.wallRough ?? 1;
+  const details = { cell, ox, oy, half, seed: state.index + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
+  fillShapes(g, ragged(half, 0.03 * rough, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
+  g.save();
+  g.beginPath();
+  g.rect(ox, oy, cell * cols, cell * rows);
+  g.clip();
+  drawWallDetails(g, decor.walls, p, { ...details, under: true });
+  g.restore();
+  fillShapes(g, ragged(half, 0.03 * rough), p.wallBase);
+  fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), p.wallTop);
+  drawWallDetails(g, decor.walls, p, details);
   // Rays and rubble stay on the ground, never on the sky.
   g.save();
   g.beginPath();
