@@ -7,7 +7,7 @@
 //   { type: 'blur' }                      the window lost focus, key-ups will not arrive
 
 import {
-  CONFIRM_KEYS, KEY_TO_DIR, PAD_PRESS, PAD_RELEASE, PAD_SELECT_BUTTON, PAD_STANDARD_DPAD, PAD_START_BUTTON,
+  CONFIRM_KEYS, KEY_TO_DIR, PAD_DPAD_AXES, PAD_PRESS, PAD_RELEASE, PAD_SELECT_BUTTON, PAD_STANDARD_DPAD, PAD_START_BUTTON,
   PAUSE_KEYS,
 } from './config.js';
 
@@ -40,11 +40,13 @@ function readPadDirs(gp) {
   const dirs = new Set();
   // Hysteresis keeps a jittery axis near the threshold from re-pressing every frame.
   const on = (dir, v) => v >= (pad.dirs.has(dir) ? PAD_RELEASE : PAD_PRESS);
-  const [x = 0, y = 0] = gp.axes;
-  if (on('left', -x)) dirs.add('left');
-  if (on('right', x)) dirs.add('right');
-  if (on('up', -y)) dirs.add('up');
-  if (on('down', y)) dirs.add('down');
+  for (const [ix, iy] of PAD_DPAD_AXES) {
+    const x = gp.axes[ix] ?? 0, y = gp.axes[iy] ?? 0;
+    if (on('left', -x)) dirs.add('left');
+    if (on('right', x)) dirs.add('right');
+    if (on('up', -y)) dirs.add('up');
+    if (on('down', y)) dirs.add('down');
+  }
   if (gp.mapping === 'standard') {
     for (const [i, dir] of Object.entries(PAD_STANDARD_DPAD)) if (gp.buttons[i]?.pressed) dirs.add(dir);
   }

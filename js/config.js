@@ -32,7 +32,9 @@ export const DIRS = {
 export const KEY_TO_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 export const CONFIRM_KEYS = ['Enter', ' '];
 export const PAUSE_KEYS = ['Escape'];
-// Cheap pads (mapping "") report the d-pad as axes 0/1; standard-mapped pads as buttons 12–15.
+// Cheap pads (mapping "") report the d-pad as an axis pair: 0/1 in Chrome, 3/4 in Firefox
+// (Twin USB Joystick on macOS). Standard-mapped pads report it as buttons 12–15.
+export const PAD_DPAD_AXES = [[0, 1], [3, 4]];
 export const PAD_PRESS = 0.5;
 export const PAD_RELEASE = 0.3;
 export const PAD_STANDARD_DPAD = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
