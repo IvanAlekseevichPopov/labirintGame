@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DRILL_MS } from '../js/config.js';
-import { createChips, drawIceWall, iceSegment } from '../js/ice.js';
+import { createChips, drawIceRemains, drawIceWall, iceSegment } from '../js/ice.js';
 
 const CELL = 60;
 const VIEW = { cell: CELL, ox: 10, oy: 20 };
@@ -89,4 +89,19 @@ test('a broken wall bursts into a few shards, all off the far side from the rove
   chips.burst(1500, wall(true, 1, 'b'));
   chips.reset();
   assert.equal(chipsDrawn(chips, 1500), 0);
+});
+
+test('the remains of a broken wall draw the same every time, with a stub only where a wall meets it', () => {
+  const broken = wall(true, 1, 'a');
+  const draw = walls => {
+    const { ctx, calls, numbers } = recorder();
+    drawIceRemains(ctx, broken, { ...VIEW, walls });
+    assert.ok(numbers().every(Number.isFinite));
+    return calls;
+  };
+  // The ice is the edge x = 3 from y = 3 to 4; one maze wall goes on up from its top end.
+  const withWall = draw([[3, 2, 3, 3]]);
+  assert.deepEqual(draw([[3, 2, 3, 3]]), withWall);
+  const strokes = calls => calls.filter(c => c.name === 'stroke').length;
+  assert.equal(strokes(withWall) - strokes(draw([])), 1);
 });

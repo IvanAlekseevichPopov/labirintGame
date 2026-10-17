@@ -38,6 +38,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.
     drilling: null,
+    // Ice walls drilled through: their remains stay on the ground.
+    brokenIce: [],
     // A scene the player only watches (level-format.js INTROS), with `endedAt` once over: the black
     // bars slide out from then. A drill intro also has `dir` to drill and `through` once driving on.
     intro: intro && { ...intro, dir: Object.keys(DIRS).find(k => DIRS[k].wall === intro.dir), startedAt: now, through: false, endedAt: null },
@@ -211,6 +213,7 @@ function drill(now, dt) {
   if (wall.drilled < DRILL_MS) return true;
   state.drilling = null;
   state.ice = state.ice.filter(w => w !== wall);
+  state.brokenIce.push(wall);
   state.maze = openWall(state.maze, wall);
   state.nextMoveAt = now;
   events.push({ type: 'iceBroken', wall });

@@ -277,6 +277,60 @@ export function drawIceWall(g, wall, { cell, ox, oy, now, drilling = false }) {
   g.restore();
 }
 
+// What is left of a drilled-through wall, for good: a broken stub frozen to each pillar a maze
+// wall meets, and flat bits of ice on the floor, mostly off the far side where the shards flew.
+// Low and small, so the way through reads as open. `walls` are the maze's [x0, y0, x1, y1].
+export function drawIceRemains(g, wall, { cell, ox, oy, walls }) {
+  const f = frame(wall), rand = mulberry32(seedOf(wall) + 1);
+  const hl = BLOCK.halfLength, ht = BLOCK.halfThick, away = -fromB(wall);
+  const [x0, y0, x1, y1] = iceSegment(wall);
+  const meets = (x, y) => walls.some(([a0, b0, a1, b1]) => (a0 === x && b0 === y) || (a1 === x && b1 === y));
+  g.save();
+  g.translate(ox + f.cx * cell, oy + f.cy * cell);
+  if (f.upright) g.transform(0, 1, 1, 0, 0, 0);
+  g.scale(cell, cell);
+  g.lineJoin = 'round';
+
+  for (const [end, x, y] of [[-1, x0, y0], [1, x1, y1]]) {
+    if (!meets(x, y)) continue;
+    const length = 0.11 + rand() * 0.06;
+    const jagged = [0, 1, 2, 3, 4].map(k => [end * (hl - length + (rand() - 0.5) * 0.06), ht * 0.85 - (k / 4) * ht * 1.7]);
+    const stub = [[end * hl, -ht * 0.8], [end * hl, ht * 0.8], ...jagged.reverse()];
+    path(g, stub, 0.03, 0.03);
+    g.fillStyle = COLORS.shadow;
+    g.fill();
+    const body = g.createLinearGradient(0, -ht, 0, ht);
+    body.addColorStop(0, COLORS.light);
+    body.addColorStop(1, COLORS.body);
+    path(g, stub);
+    g.fillStyle = body;
+    g.fill();
+    g.strokeStyle = COLORS.edge;
+    g.lineWidth = 0.025;
+    g.stroke();
+  }
+
+  for (let i = 0; i < 6; i++) {
+    const u = (rand() - 0.5) * hl * 1.8, v = away * (ht * 0.6 + rand() * 0.35) * (i < 4 ? 1 : -0.5);
+    const size = 0.025 + rand() * 0.03, turn = rand() * Math.PI * 2;
+    const corners = 4 + Math.floor(rand() * 3);
+    const chunk = Array.from({ length: corners }, (_, k) => {
+      const a = turn + (k / corners) * Math.PI * 2, r = size * (0.6 + rand() * 0.5);
+      return [u + Math.cos(a) * r * 1.4, v + Math.sin(a) * r];
+    });
+    path(g, chunk, 0.012, 0.012);
+    g.fillStyle = COLORS.shadow;
+    g.fill();
+    path(g, chunk);
+    g.fillStyle = CHIP_COLORS[i % CHIP_COLORS.length];
+    g.fill();
+    g.strokeStyle = COLORS.edge;
+    g.lineWidth = 0.014;
+    g.stroke();
+  }
+  g.restore();
+}
+
 // Where the drill touches the wall and which way is back to the rover, in cells.
 function contact(wall) {
   const f = frame(wall), s = fromB(wall);

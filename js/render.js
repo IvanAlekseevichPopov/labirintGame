@@ -22,7 +22,7 @@ import { drawMuseum } from './finale.js';
 import { drawProfile } from './profiles.js';
 import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
-import { createChips, drawIceWall, iceSegment } from './ice.js';
+import { createChips, drawIceRemains, drawIceWall, iceSegment } from './ice.js';
 import { createSilt } from './silt.js';
 import { createCaustics, crustCracks, drawFrost, drawGrowths, drawIceCrust, drawPebbles, drawProbe, drawProbeLight, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
@@ -240,6 +240,7 @@ function buildMazeLayer() {
   }
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
+  for (const w of state.brokenIce) drawIceRemains(g, w, { cell, ox, oy, walls: decor.walls });
   // Rays and rubble stay on the ground, never on the sky.
   g.save();
   g.beginPath();
