@@ -3,7 +3,7 @@
 // # wall, I ice wall the rover drills through, S start, R rocket; landmarks: F flag, A antenna, C big crater; under water Z science station.
 // `dark: true` makes it a night level: black except the rover's headlights.
 // `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
-// `intro: true`: the rover first drills the ice wall next to the start by itself, to show how.
+// `intro: 'drill'`: the rover first drills the ice wall next to the start by itself, to show how.
 // M and T: a meteor lands on M (walling the cell off) once the rover drives onto T, or right after
 // the start when there is no T.
 // W and B: a white and a black smoker on the floor of the cell (oceans seen from the side).
@@ -77,7 +77,7 @@ export const LEVELS = [
 ###################
 ` },
   // 6 — ледяные стены I: старт в тупике, выход только через лёд (его бурит показ); вторая — срезка в конце верхнего коридора
-  { planet: 'europa', intro: true, map: `
+  { planet: 'europa', intro: 'drill', map: `
 ###################
 #       I         #
 # # ### # # # # # #

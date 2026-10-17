@@ -494,7 +494,7 @@ test('letting go keeps the drilling done so far, and restart brings the ice back
 });
 
 test('the intro drills the ice next to the start by itself, then hands over', () => {
-  game.setLevels([{ planet: 'europa', intro: true, map: `
+  game.setLevels([{ planet: 'europa', intro: 'drill', map: `
 #########
 #SI     #
 ####### #

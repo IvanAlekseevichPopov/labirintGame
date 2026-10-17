@@ -189,7 +189,10 @@ test('ice walls stand between two cells on Europa and do not count as blocking t
 });
 
 test('the drill intro needs exactly one ice wall at the start and faces it', () => {
-  assert.equal(parseLevel({ planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS).intro, 'right');
+  const level = parseLevel({ planet: 'europa', intro: 'drill', map: ICY }, 7, PLANET_KEYS);
+  assert.deepEqual(level.intro, { kind: 'drill', dir: 'right' });
+  assert.equal(level.startDir, 'right');
   assert.equal(parse(ICY, 'europa').intro, null);
-  assert.throws(() => parseLevel({ planet: 'europa', intro: true, map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
+  assert.throws(() => parseLevel({ planet: 'europa', intro: 'drill', map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
+  assert.throws(() => parseLevel({ planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS), /intro может быть только: 'drill'/);
 });

@@ -38,9 +38,9 @@ export function startLevel(index, now, { restart = false } = {}) {
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.
     drilling: null,
-    // A scene the player only watches: `dir` to drill, `through` once driving on, `endedAt` once
-    // over (the black bars slide out from then).
-    intro: intro && { dir: Object.keys(DIRS).find(k => DIRS[k].wall === intro), startedAt: now, through: false, endedAt: null },
+    // A scene the player only watches (level-format.js INTROS), with `endedAt` once over: the black
+    // bars slide out from then. A drill intro also has `dir` to drill and `through` once driving on.
+    intro: intro && { ...intro, dir: Object.keys(DIRS).find(k => DIRS[k].wall === intro.dir), startedAt: now, through: false, endedAt: null },
     player: { ...start },
     from: { ...start },
     moveStart: -Infinity,
@@ -200,7 +200,7 @@ function iceAhead(dir) {
 // once through, the held direction drives on at once.
 function drill(now, dt) {
   const { wall, dir } = state.drilling;
-  if (!input.held.includes(dir) && state.intro?.endedAt !== null) {
+  if (!input.held.includes(dir) && !introPlaying()) {
     state.drilling = null;
     events.push({ type: 'drillStop' });
     return false;
@@ -217,9 +217,21 @@ function drill(now, dt) {
   return false;
 }
 
-// The rover drills the ice next to the start by itself and drives through, then hands over.
-// Returns true while it plays.
-function playIntro(now, dt, cellPx) {
+const introPlaying = () => state.intro?.endedAt === null;
+
+// How each intro plays; returns true while it does.
+const PLAY_INTRO = {
+  // The rover drills the ice next to the start by itself and drives through, then hands over.
+  drill: playDrillIntro,
+};
+
+function endIntro(now) {
+  state.intro.endedAt = now;
+  state.inputFrom = now;
+  events.push({ type: 'introEnd' });
+}
+
+function playDrillIntro(now, dt, cellPx) {
   const intro = state.intro;
   if (now < intro.startedAt + INTRO.leadMs) return true;
   if (!intro.through) {
@@ -235,9 +247,7 @@ function playIntro(now, dt, cellPx) {
     return true;
   }
   if (now < state.moveStart + state.moveMs + INTRO.holdMs) return true;
-  intro.endedAt = now;
-  state.inputFrom = now;
-  events.push({ type: 'introEnd' });
+  endIntro(now);
   return false;
 }
 
@@ -316,7 +326,7 @@ function step(now, dt, cellPx) {
     }
     return;
   }
-  if (state.intro?.endedAt === null && playIntro(now, dt, cellPx)) { resetInput(); return; }
+  if (introPlaying() && PLAY_INTRO[state.intro.kind](now, dt, cellPx)) { resetInput(); return; }
   if (now < state.inputFrom) { resetInput(); return; }
 
   if (state.drilling && drill(now, dt)) return;

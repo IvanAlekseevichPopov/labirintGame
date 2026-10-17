@@ -18,7 +18,7 @@ export const METEOR = { warnMs: 900, shakeMs: 350, retryMs: 150, startMs: 1200 }
 export const BUMP_MS = 140;
 // Holding the way into an ice wall this long drills through it; letting go keeps the progress.
 export const DRILL_MS = 1500;
-// The drill intro (`intro: true`): the black bars slide in over barsMs, the rover waits leadMs from
+// The drill intro (`intro: 'drill'`): the black bars slide in over barsMs, the rover waits leadMs from
 // the level start, drills, drives one cell and holdMs later the player takes over.
 export const INTRO = { barsMs: 450, leadMs: 900, holdMs: 350 };
 export const WALL_RATIO = 0.26;
