@@ -145,23 +145,6 @@ function drawCutaway(ctx, now, { cx, cy, radius, p }) {
     ctx.fillStyle = fill;
     ctx.fill();
   };
-  // Geysers spraying out of the south pole, Enceladus' own mark.
-  for (const [a, len] of [[-0.35, 0.26], [0, 0.34], [0.32, 0.24]]) {
-    const dir = Math.PI / 2 + a, x0 = cx + Math.cos(dir) * radius * 0.95, y0 = cy + Math.sin(dir) * radius * 0.95;
-    const flicker = 1 + 0.06 * Math.sin(now / 180 + a * 9);
-    const x1 = x0 + Math.cos(dir) * radius * len * flicker, y1 = y0 + Math.sin(dir) * radius * len * flicker;
-    const jet = ctx.createLinearGradient(x0, y0, x1, y1);
-    jet.addColorStop(0, 'rgba(240, 250, 255, 0.75)');
-    jet.addColorStop(1, 'rgba(240, 250, 255, 0)');
-    ctx.fillStyle = jet;
-    ctx.beginPath();
-    ctx.moveTo(x0 - Math.sin(dir) * radius * 0.02, y0 + Math.cos(dir) * radius * 0.02);
-    ctx.lineTo(x1 - Math.sin(dir) * radius * 0.12, y1 + Math.cos(dir) * radius * 0.12);
-    ctx.lineTo(x1 + Math.sin(dir) * radius * 0.12, y1 - Math.cos(dir) * radius * 0.12);
-    ctx.lineTo(x0 + Math.sin(dir) * radius * 0.02, y0 - Math.cos(dir) * radius * 0.02);
-    ctx.fill();
-  }
-
   const shell = () => {
     ctx.beginPath();
     for (const [a, r] of SURFACE) ctx.lineTo(...at(a, r));
@@ -207,8 +190,6 @@ function drawCutaway(ctx, now, { cx, cy, radius, p }) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
     ctx.fill();
   }
-  // Hot vents glowing on the core, the way the black smokers do on the sea floor.
-  for (const a of [-2.2, -0.6, 1.1, 2.6]) glow(ctx, ...at(a, CUT.core), radius * 0.025, '255,150,60');
 
   // The drone keeps to the top, swimming on the spot while the planet turns under it.
   const size = radius * CUT.drone;

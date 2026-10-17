@@ -1,6 +1,6 @@
 // The ocean under Enceladus' ice, seen from the side, drawn once into the maze layer: the rock the
 // maze is cut into, water darkening with depth, light falling through cracks in the ice crust over
-// the top, black smokers on the sea floor. All of it outside the corridors or see-through, so
+// the top, smokers on the sea floor. All of it outside the corridors or see-through, so
 // nothing reads as something in the way.
 
 import { crack } from './art.js';
@@ -139,44 +139,68 @@ export function fillWater(g, p, { x, y, w, h, cell, surface, cracks }) {
   }
 }
 
-// On the sea floor: a few pebbles and two black smokers. `line` is the bottom wall's middle in px
-// and `half` its half-width, so the floor's top is `line - half`. A smoker is the floor itself
-// swelling into a mound that narrows into a sooty chimney, low enough to stay below the drone.
-// Returns the smokers' mouths, for drawSmoke().
-export function drawSeabed(g, p, { x, w, line, half, cell, seed }) {
+// Where the smokers stand, in cells along the bottom row: in the middle of the two longest
+// stretches of floor no wall comes down to (on a tie, the one farther from the start), so they
+// never crowd a wall. The one nearer the start is a white smoker, the cool kind that builds a
+// chalk-white chimney; the other is black.
+export function smokerSpots(row, startX) {
+  const stretches = [];
+  row.forEach((c, i) => (i && !c.left ? stretches[stretches.length - 1].push(i) : stretches.push([i])));
+  const spots = stretches
+    .filter(s => s.length >= 2)
+    .map(s => ({ at: (s[0] + s[s.length - 1] + 1) / 2, length: s.length }))
+    .sort((a, b) => b.length - a.length || Math.abs(b.at - startX) - Math.abs(a.at - startX))
+    .slice(0, 2)
+    .sort((a, b) => Math.abs(a.at - startX) - Math.abs(b.at - startX));
+  return spots.map((s, i) => ({ at: s.at, white: i === 0 }));
+}
+
+// On the sea floor: a few pebbles and the smokers, `spots` from smokerSpots(). `line` is the bottom
+// wall's middle in px and `half` its half-width, so the floor's top is `line - half`; the bottom row
+// starts at `x`. A smoker is the floor itself swelling into a mound that narrows into its chimney,
+// low enough to stay below the drone. Returns the smokers' mouths, for drawSmoke().
+export function drawSeabed(g, p, { x, w, line, half, cell, seed, spots: at }) {
   const rand = mulberry32(seed + 3300);
   const floor = line - half;
-  const smokers = [0.15 + rand() * 0.25, 0.6 + rand() * 0.25].map(t => x + t * w);
+  const spots = at.map(s => ({ ...s, x: x + s.at * cell }));
+  const smokers = spots.map(s => s.x);
   const bell = (d, reach) => (Math.abs(d) < reach ? (1 + Math.cos(Math.PI * d / reach)) / 2 : 0);
   const SPAN = cell * 0.55, MOUND = cell * 0.12, CHIMNEY = cell * 0.1;
   const rise = d => MOUND * bell(d, SPAN) + CHIMNEY * bell(d, cell * 0.14);
-  for (const sx of smokers) {
+  for (const { x: sx, white } of spots) {
     const profile = dy => Array.from({ length: 25 }, (_, k) => {
       const px = sx - SPAN + (k / 24) * SPAN * 2;
       return [px, dy - rise(px - sx)];
     });
-    path(g, [...profile(floor), [sx + SPAN, line], [sx - SPAN, line]]);
+    const mound = [...profile(floor), [sx + SPAN, line], [sx - SPAN, line]];
+    path(g, mound);
     g.fillStyle = p.wallBase;
     g.fill();
-    // The wall's lit top runs on up over the mound, so the floor and the smoker are one piece.
-    path(g, profile(line - cell * 0.016), false);
-    g.strokeStyle = p.wallTop;
-    g.lineWidth = half * 0.9;
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    g.stroke();
-    const top = floor - MOUND - CHIMNEY;
-    const soot = g.createLinearGradient(0, floor - MOUND * 0.6, 0, top);
-    soot.addColorStop(0, 'rgba(22, 25, 31, 0)');
-    soot.addColorStop(1, 'rgba(22, 25, 31, 1)');
-    path(g, [...profile(floor), [sx + SPAN, line], [sx - SPAN, line]]);
-    g.fillStyle = soot;
+    // The wall's lit top swells up into the mound, so the floor and the smoker are one piece.
+    const band = line - cell * 0.016, lit = half * 0.45;
+    path(g, [...profile(band - lit), [sx + SPAN, band + lit], [sx - SPAN, band + lit]]);
+    g.fillStyle = p.wallTop;
     g.fill();
-    const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.1);
-    mouth.addColorStop(0, 'rgba(255, 190, 100, 0.9)');
-    mouth.addColorStop(1, 'rgba(255, 120, 40, 0)');
-    g.fillStyle = mouth;
-    g.fillRect(sx - cell * 0.1, top - cell * 0.1, cell * 0.2, cell * 0.2);
+    const top = floor - MOUND - CHIMNEY;
+    const [r, gr, b] = white ? [236, 242, 245] : [22, 25, 31];
+    const chimney = g.createLinearGradient(0, floor - MOUND * 0.5, 0, top);
+    chimney.addColorStop(0, `rgba(${r}, ${gr}, ${b}, 0)`);
+    chimney.addColorStop(1, `rgba(${r}, ${gr}, ${b}, 1)`);
+    path(g, mound);
+    g.fillStyle = chimney;
+    g.fill();
+    if (white) {
+      g.beginPath();
+      g.ellipse(sx, top + cell * 0.01, cell * 0.035, cell * 0.015, 0, 0, Math.PI * 2);
+      g.fillStyle = '#9fb3bf';
+      g.fill();
+    } else {
+      const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.1);
+      mouth.addColorStop(0, 'rgba(255, 190, 100, 0.9)');
+      mouth.addColorStop(1, 'rgba(255, 120, 40, 0)');
+      g.fillStyle = mouth;
+      g.fillRect(sx - cell * 0.1, top - cell * 0.1, cell * 0.2, cell * 0.2);
+    }
   }
   for (let k = 0; k < 4; k++) {
     const px = x + w * (0.05 + rand() * 0.9), r = cell * (0.05 + rand() * 0.03);
@@ -190,34 +214,78 @@ export function drawSeabed(g, p, { x, w, line, half, cell, seed }) {
     g.fillStyle = p.wallTop;
     g.fill();
   }
-  return smokers.map(sx => ({ x: sx, y: floor - MOUND - CHIMNEY }));
+  return spots.map(s => ({ x: s.x, y: floor - MOUND - CHIMNEY, white: s.white }));
 }
 
-// Smoke rolling up from the smokers, every frame: a stream of overlapping puffs drawn as one
-// cloud, like the rocket's, swelling as they rise and shrinking away at the top. Half see-through,
-// so the drone plainly swims through it.
-const SMOKE = { everyMs: 160, lifeMs: 2200, rise: 0.85, alpha: 0.7 };
+// Smoke rolling up from the smokers, every frame, white or black like its chimney. Low down it is
+// a column of overlapping puffs drawn as one cloud, like the rocket's; higher up the column fades out while the same puffs, now
+// soft blobs, keep growing, drift off to one side or the other and fade into the water. Half
+// see-through throughout, so the drone plainly swims through it.
+const SMOKE = { everyMs: 160, lifeMs: 2800, rise: 1.1, alpha: 0.7, handOver: [0.18, 0.55] };
+
+const SMOKE_TINT = {
+  white: { shade: '#cfdbe3', light: '#f2f6f8', haze: '225, 235, 241' },
+  black: { shade: '#2c3039', light: '#454a55', haze: '44, 48, 57' },
+};
+
+const ease = (t, from, to) => Math.max(0, Math.min(1, (t - from) / (to - from)));
+// The column is drawn apart and faded out towards its top before it goes on screen: one cloud
+// cannot fade puff by puff, and a cut-off cloud would leave a hard edge against the haze.
+const columnLayer = document.createElement('canvas');
 
 export function drawSmoke(ctx, mouths, now, cell) {
-  const puffs = [];
+  const [soft, solid] = SMOKE.handOver;
+  ctx.save();
+  ctx.globalAlpha = SMOKE.alpha;
   for (const [i, m] of mouths.entries()) {
+    const column = [], haze = [];
     const first = Math.floor((now - SMOKE.lifeMs) / SMOKE.everyMs) + 1;
     for (let n = first; n * SMOKE.everyMs <= now; n++) {
       const t = (now - n * SMOKE.everyMs) / SMOKE.lifeMs;
       const rand = mulberry32(n * 31 + i * 7);
-      const sway = (rand() - 0.5) * cell * 0.12 + Math.sin(t * 4 + n) * cell * 0.03;
-      const swell = t < 0.15 ? t / 0.15 : t > 0.6 ? (1 - t) / 0.4 : 1;
-      puffs.push({
-        x: m.x + sway * t + t * cell * 0.12,
-        y: m.y - t * SMOKE.rise * cell,
-        r: cell * (0.045 + 0.1 * t) * (0.8 + rand() * 0.4) * swell,
-      });
+      const size = 0.8 + rand() * 0.4, side = rand() * 2 - 1;
+      const x = m.x + t * cell * 0.08 + side * cell * 0.8 * ease(t, soft, 1) ** 1.5 + Math.sin(t * 4 + n) * cell * 0.02;
+      const y = m.y - t * SMOKE.rise * cell;
+      if (t < solid) column.push({ x, y, r: cell * (0.045 + 0.06 * t + 0.32 * t * t) * size * ease(t, 0, 0.12) });
+      if (t > soft) haze.push({ x, y, r: cell * (0.09 + 0.4 * (t - soft)) * size, a: ease(t, soft, solid) * (1 - ease(t, solid, 1)) });
     }
+    for (const h of haze) {
+      const blob = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r);
+      const tint = SMOKE_TINT[m.white ? 'white' : 'black'].haze;
+      blob.addColorStop(0, `rgba(${tint}, ${0.9 * h.a})`);
+      blob.addColorStop(0.6, `rgba(${tint}, ${0.5 * h.a})`);
+      blob.addColorStop(1, `rgba(${tint}, 0)`);
+      ctx.fillStyle = blob;
+      ctx.fillRect(h.x - h.r, h.y - h.r, h.r * 2, h.r * 2);
+    }
+    drawColumn(ctx, column, m, cell, soft, solid);
   }
-  ctx.save();
-  ctx.globalAlpha = SMOKE.alpha;
-  drawCloud(ctx, puffs, cell * 0.02, '#2c3039', '#454a55');
   ctx.restore();
+}
+
+function drawColumn(ctx, column, m, cell, soft, solid) {
+  const dpr = devicePixelRatio || 1;
+  const box = { x: m.x - cell * 0.6, y: m.y - cell * (SMOKE.rise * solid + 0.3), w: cell * 1.2, h: cell * (SMOKE.rise * solid + 0.45) };
+  const pw = Math.ceil(box.w * dpr), ph = Math.ceil(box.h * dpr);
+  if (!pw || !ph) return;
+  if (columnLayer.width < pw || columnLayer.height < ph) {
+    columnLayer.width = Math.max(columnLayer.width, pw);
+    columnLayer.height = Math.max(columnLayer.height, ph);
+  }
+  const g = columnLayer.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, pw, ph);
+  g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
+  const { shade, light } = SMOKE_TINT[m.white ? 'white' : 'black'];
+  drawCloud(g, column, cell * 0.02, shade, light);
+  const fade = g.createLinearGradient(0, m.y - SMOKE.rise * cell * soft, 0, m.y - SMOKE.rise * cell * solid);
+  fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+  fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  g.globalCompositeOperation = 'destination-in';
+  g.fillStyle = fade;
+  g.fillRect(box.x, box.y, box.w, box.h);
+  ctx.drawImage(columnLayer, 0, 0, pw, ph, box.x, box.y, box.w, box.h);
 }
 
 // The crust from `top` (its snowy surface) down to `bottom`, where its knobbly underside hangs

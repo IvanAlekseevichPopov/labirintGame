@@ -19,7 +19,7 @@ import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
 import { drawFront, drawProfile } from './profiles.js';
-import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawRockMass, drawSeabed, drawSmoke, fillWater, wallPaint } from './ocean.js';
+import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawRockMass, drawSeabed, drawSmoke, fillWater, smokerSpots, wallPaint } from './ocean.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -76,6 +76,8 @@ function makeDecor() {
     ground: makeGround(state.planet, rand, cols, rows),
     walls: wallSegments(state.maze),
     props: placeProps(state, state.index + 2000),
+    // Worked out at the start, while the player still stands on S.
+    smokers: PLANETS[state.planet].side ? smokerSpots(state.maze.cells[rows - 1], state.player.x) : [],
   };
 }
 
@@ -208,7 +210,7 @@ function buildMazeLayer() {
   g.restore();
   if (p.side) {
     drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: state.index });
-    smokers = drawSeabed(g, p, { x: ox, w: cell * cols, line: oy + cell * rows, half: wall / 2, cell, seed: state.index });
+    smokers = drawSeabed(g, p, { x: ox, w: cell * cols, line: oy + cell * rows, half: wall / 2, cell, seed: state.index, spots: decor.smokers });
     drawIceCrust(g, p, { ...crustBox, cell, seed: state.index, cracks, hole: ox + (state.goal.x + 0.5) * cell });
   }
 }
