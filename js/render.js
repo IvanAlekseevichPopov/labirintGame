@@ -19,6 +19,7 @@ import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
 import { drawFront, drawProfile } from './profiles.js';
+import { createBubbles } from './bubbles.js';
 import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawRockMass, drawSeabed, drawSmoke, fillWater, smokerSpots, wallPaint } from './ocean.js';
 
 const canvas = document.getElementById('game');
@@ -84,6 +85,7 @@ function makeDecor() {
 export function levelChanged(levelCount) {
   decor = makeDecor();
   drone.last = null;
+  bubbles.reset();
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
   drawWeather = createWeather(state.planet, intensity);
@@ -423,13 +425,18 @@ export function render(now, { soundOff = false } = {}) {
 
   const shrink = winT === null ? 1 : 1 - clamp01((winT - WIN.shrinkStart) / WIN.shrinkMs);
   let rover = null;
+  const d = planet.side ? followDrone(now, roverPos(now)) : null;
+  if (d) {
+    const size = cell * DRONE_RATIO;
+    bubbles.update(now, { ...screwOf(d, now, size, cell), swimming: Math.hypot(d.vx, d.vy) > 0.3, active: shrink >= 1 });
+    bubbles.draw(ctx, now, { cell, ox, oy });
+  }
   if (shrink > 0) {
     const [rx, ry] = toPx(roverPos(now));
     const bumpT = state.bump ? (now - state.bump.at) / BUMP_MS : 1;
     const nudge = bumpT < 1 ? Math.sin(Math.PI * bumpT) * cell * 0.1 : 0;
     const { dx, dy } = state.bump ? DIRS[state.bump.dir] : DIRS.right;
-    if (planet.side) {
-      const d = followDrone(now, roverPos(now));
+    if (d) {
       rover = { x: ox + (d.x + 0.5) * cell + dx * nudge, y: oy + (d.y + 0.5) * cell + dy * nudge, angle: state.angle, size: cell * DRONE_RATIO * shrink };
       rover.draw = () => drawDrone(rover, d, now);
     } else {
@@ -467,6 +474,7 @@ export function render(now, { soundOff = false } = {}) {
 // a touch past the cell and settles back; it pitches with the climb,
 // turns round to face the way it goes, and bobs in place. Drawing only — the rules stay on the grid.
 const drone = { x: 0, y: 0, vx: 0, vy: 0, pitch: 0, facing: 1, turn: 1, prop: 0, last: null };
+const bubbles = createBubbles();
 // At full speed it trails ~0.2 cell behind, and on stopping glides ~0.07 cell past and back.
 const SPRING = { k: 700, c: 24 };
 
@@ -503,17 +511,32 @@ const BEAM = { length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
 // Turning round it narrows a little, then shows itself head-on for a moment and comes out facing
 // the other way; squeezed any thinner it would turn into a flat cut-out.
 const HEAD_ON = 0.35;
+// The propeller in the drone's own space (see PROFILES.drone).
+const SCREW = { x: -0.47, y: -0.27 };
+
+const headOn = d => Math.abs(d.turn) < HEAD_ON;
+const sideways = d => Math.sign(d.turn) * (0.7 + 0.3 * (Math.abs(d.turn) - HEAD_ON) / (1 - HEAD_ON));
+const bob = (now, size) => Math.sin(now / 700) * size * 0.03;
+
+// Where the propeller is, in cells, and which way it blows: the drawing's turn, pitch and bob
+// applied to SCREW. Head-on the screw is hidden behind the hull, so bubbles come from its middle.
+function screwOf(d, now, size, cell) {
+  const [lx, ly] = headOn(d) ? [0, 0.03 * size] : [(SCREW.x + 0.06) * size, (SCREW.y + 0.3) * size];
+  const k = headOn(d) ? 1 : sideways(d), c = Math.cos(d.pitch), s = Math.sin(d.pitch);
+  const wx = k * (lx * c - ly * s), wy = lx * s + ly * c + bob(now, size);
+  return { screw: { x: d.x + 0.5 + wx / cell, y: d.y + 0.5 + wy / cell }, back: -Math.sign(d.turn) || -1 };
+}
 
 function drawDrone({ x, y, size }, d, now) {
   if (size <= 0) return;
   ctx.save();
-  ctx.translate(x, y + Math.sin(now / 700) * size * 0.03);
-  if (Math.abs(d.turn) < HEAD_ON) {
+  ctx.translate(x, y + bob(now, size));
+  if (headOn(d)) {
     drawFront(ctx, 'drone', 0, size * 0.3, size);
     ctx.restore();
     return;
   }
-  ctx.scale(Math.sign(d.turn) * (0.7 + 0.3 * (Math.abs(d.turn) - HEAD_ON) / (1 - HEAD_ON)), 1);
+  ctx.scale(sideways(d), 1);
   ctx.rotate(d.pitch);
   ctx.translate(size * 0.06, size * 0.3);
   drawBeam(LAMP.x * size, LAMP.y * size, size);
