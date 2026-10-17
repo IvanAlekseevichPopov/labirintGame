@@ -21,6 +21,17 @@ export const PLANETS = {
     wallBase: '#2e5570', wallTop: '#9ec7dd', polynya: '#2f5f80', crack: '#5d8aa6', patch: 'rgba(80, 130, 165, 0.1)',
     walls: 'ice', wallRough: 0.5,
   },
+  // The ocean under the ice, seen from the side: `side` turns the maze into a cross-section with
+  // the ice crust over the top row. `water` runs from just under the ice to the bottom; `floor`
+  // stays for what is drawn in water colour (bites out of walls), `globe` is the icy ball from space.
+  enceladus: {
+    name: 'Энцелад', rover: 'drone', rocket: 'heavy', snow: true, side: true,
+    water: ['#38b4d8', '#0f5f93', '#0a3560'], floor: '#0f5f93', globe: '#e9f4f8',
+    ice: '#e4f3fa', iceShade: '#a9d4e8', iceDeep: '#6fb3d3',
+    iceWall: '#3d7ea8', iceWallTop: '#c4e6f4',
+    speck: '#f4fafc', crater: '#c9dfe9', craterRim: '#f6fbfd', track: '#7fc4e0',
+    wallBase: '#26313d', wallTop: '#55687a', patch: 'rgba(0, 20, 40, 0.15)', wallRough: 1.3,
+  },
 };
 
 export const PLANET_KEYS = Object.keys(PLANETS);

@@ -14,7 +14,16 @@ const sag = x => (groundR ? groundR - Math.sqrt(groundR * groundR - x * x) : 0);
 // Wheels touch the ground at (x, groundY); `size` is the rover's length. `rolled` is how far it
 // has driven, in its own lengths, to turn the wheels; small rovers read better with fewer `spokes`.
 // `ground` is the radius of the ball it stands on, 0 for flat ground.
-export function drawProfile(context, type, x, groundY, size, { rolled = 0, spokes: count = 3, ground = 0 } = {}) {
+export function drawProfile(context, type, x, groundY, size, options) {
+  drawIn(context, PROFILES[type], x, groundY, size, options);
+}
+
+// Head-on, for the moment a machine turns round between facing left and right; same space.
+export function drawFront(context, type, x, groundY, size) {
+  drawIn(context, FRONTS[type], x, groundY, size);
+}
+
+function drawIn(context, draw, x, groundY, size, { rolled = 0, spokes: count = 3, ground = 0 } = {}) {
   c = context;
   travel = rolled;
   spokes = count;
@@ -26,7 +35,7 @@ export function drawProfile(context, type, x, groundY, size, { rolled = 0, spoke
   c.lineCap = 'round';
   c.strokeStyle = OUTLINE;
   c.lineWidth = 0.025;
-  PROFILES[type]();
+  draw();
   c.restore();
 }
 
@@ -185,5 +194,69 @@ const PROFILES = {
     bar(-0.3, -0.52, -0.3, -0.64, '#4a4d57', 0.03);
     c.fillStyle = '#7a3a10';
     c.fillRect(-0.3, -0.46, 0.06, 0.12);
+  },
+  // A short yellow submarine: a round-ended hull on a little skid, a big glass porthole with a
+  // camera eye at the bow, a conning tower with a periscope, a ducted propeller turned by `rolled`.
+  // Short on purpose: it has to fit a vertical shaft, where it swims sideways on.
+  drone() {
+    for (const x of [-0.1, 0.1]) bar(x, -0.1, x, -0.035, '#5b6573', 0.025);
+    bar(-0.16, -0.03, 0.16, -0.03, '#5b6573', 0.03);
+    const blade = 0.12 * Math.cos(travel * 9);
+    bar(-0.47, -0.27 - blade, -0.47, -0.27 + blade, '#c3c8d1', 0.03);
+    c.beginPath();
+    c.moveTo(-0.44, -0.35);
+    c.lineTo(-0.3, -0.39);
+    c.lineTo(-0.3, -0.15);
+    c.lineTo(-0.44, -0.19);
+    c.closePath();
+    c.fillStyle = '#4a5563';
+    c.fill();
+    c.stroke();
+    bar(0.08, -0.56, 0.08, -0.68, '#5b6573', 0.025);
+    bar(0.08, -0.68, 0.15, -0.68, '#5b6573', 0.025);
+    box(-0.12, -0.6, 0.26, 0.18, 0.06, '#ffb81c');
+    dot(-0.05, -0.63, 0.025, '#ff5a4e');
+    box(-0.34, -0.46, 0.7, 0.38, 0.19, '#ffc83d');
+    c.save();
+    c.beginPath();
+    c.roundRect(-0.34, -0.46, 0.7, 0.38, 0.19);
+    c.clip();
+    c.fillStyle = '#e39a12';
+    c.fillRect(-0.34, -0.17, 0.7, 0.09);
+    c.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    c.fillRect(-0.22, -0.43, 0.34, 0.035);
+    c.restore();
+    dot(-0.15, -0.28, 0.065, '#8fe3ff');
+    dot(0.16, -0.28, 0.13, '#8fe3ff');
+    dot(0.2, -0.28, 0.045, '#1d3557');
+    seam(0.09, -0.35, 0.15, -0.38, 'rgba(255, 255, 255, 0.85)');
+    dot(0.3, -0.15, 0.03, '#fff3b0');
+  },
+};
+
+const FRONTS = {
+  // The submarine end-on: the round hull with the big porthole looking straight out, the tower on
+  // top and the skid below.
+  drone() {
+    for (const x of [-0.08, 0.08]) bar(x, -0.1, x * 1.3, -0.035, '#5b6573', 0.025);
+    bar(-0.15, -0.03, 0.15, -0.03, '#5b6573', 0.03);
+    bar(0.04, -0.56, 0.04, -0.68, '#5b6573', 0.025);
+    dot(0.04, -0.69, 0.025, '#5b6573');
+    box(-0.08, -0.6, 0.16, 0.18, 0.05, '#ffb81c');
+    dot(-0.03, -0.63, 0.025, '#ff5a4e');
+    c.beginPath();
+    c.arc(0, -0.27, 0.19, 0, Math.PI * 2);
+    c.fillStyle = '#ffc83d';
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = '#e39a12';
+    c.fillRect(-0.2, -0.17, 0.4, 0.1);
+    c.restore();
+    c.stroke();
+    dot(0, -0.29, 0.12, '#8fe3ff');
+    dot(0, -0.29, 0.045, '#1d3557');
+    seam(-0.07, -0.35, -0.03, -0.38, 'rgba(255, 255, 255, 0.85)');
+    dot(0, -0.13, 0.025, '#fff3b0');
   },
 };

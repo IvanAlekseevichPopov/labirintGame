@@ -15,11 +15,11 @@ const FLOOR = 0.76;
 export function drawMuseum(context, now, w, h) {
   c = context;
   hall(w, h);
-  const spacing = Math.min(w * 0.3, h * 0.6);
+  const spacing = Math.min(w * 0.9 / PLANET_KEYS.length, h * 0.6);
   const size = Math.min(spacing * 0.72, h * 0.24);
   const top = h * 0.63;
   PLANET_KEYS.forEach((planet, i) => {
-    const x = w / 2 + (i - 1) * spacing;
+    const x = w / 2 + (i - (PLANET_KEYS.length - 1) / 2) * spacing;
     // The picture hangs clear of the exhibit: even the Mars rover's mast stays below its frame.
     painting(x, h * 0.31, size * 0.95, h * 0.13, planet, h, now, i);
     spotlight(x, top, size, h, now, i);
@@ -209,7 +209,8 @@ function pedestal(x, top, size, h) {
 
 // A velvet rope on brass posts across the front, sagging between them.
 function rope(w, h, spacing) {
-  const y = h * 0.8, posts = [-1.5, -0.5, 0.5, 1.5].map(k => w / 2 + k * spacing);
+  const y = h * 0.8, n = PLANET_KEYS.length;
+  const posts = Array.from({ length: n + 1 }, (_, k) => w / 2 + (k - n / 2) * spacing);
   c.lineCap = 'round';
   c.strokeStyle = '#8f1d2c';
   c.lineWidth = h * 0.012;

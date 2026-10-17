@@ -2,7 +2,7 @@
 // Time (`now`, ms) and the on-screen cell size are passed in, so this runs under node tests too.
 
 import { blockCell, parseLevel } from '../level-format.js';
-import { PLANET_KEYS } from './planets.js';
+import { PLANETS, PLANET_KEYS } from './planets.js';
 import {
   DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
@@ -22,6 +22,9 @@ export function startLevel(index, now, { restart = false } = {}) {
   Object.assign(state, {
     index,
     planet,
+    // Under water the first step from rest takes the whole hold delay, so a held direction goes on
+    // without the rover's pause after the first cell: the drone eases off instead of stopping.
+    swims: Boolean(PLANETS[planet].side),
     dark,
     storm,
     // phase: waiting (for the rover to reach the trigger, or for `at` when there is no trigger)
@@ -141,14 +144,14 @@ const stepMs = cellPx => Math.max(MIN_STEP_MS, Math.min(MAX_STEP_MS, 120 + cellP
 
 const isOpen = dir => !state.maze.cells[state.player.y][state.player.x][DIRS[dir].wall];
 
-function move(dir, now, cellPx) {
+function move(dir, now, cellPx, fresh) {
   const { dx, dy, angle } = DIRS[dir];
   const { x, y } = state.player;
   flushTrack();
   state.from = roverPos(now);
   state.player = { x: x + dx, y: y + dy };
   state.moveStart = now;
-  state.moveMs = stepMs(cellPx);
+  state.moveMs = fresh && state.swims ? FIRST_REPEAT_MS : stepMs(cellPx);
   state.targetAngle = angle;
   state.pendingTrack = { a: { x, y }, b: state.player };
   state.moving = true;
@@ -272,7 +275,7 @@ function step(now, dt, cellPx) {
   }
   state.blocked = false;
   if (dir === input.buffered?.dir) input.buffered = null;
-  move(dir, now, cellPx);
+  move(dir, now, cellPx, isFresh);
 
   if (state.player.x === state.goal.x && state.player.y === state.goal.y) state.wonAt = now + state.moveMs;
 }

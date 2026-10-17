@@ -18,6 +18,7 @@ const KINDS = {
   moon: ['probe', 'panel', 'wreck'],
   mars: ['probe', 'panel', 'wreck'],
   europa: ['probe', 'hummocks', 'geyser', 'wreck'],
+  enceladus: [],
 };
 // Only in a dead end, where nobody needs to pass: an old rover lying in a corridor would look
 // like it blocks the way.

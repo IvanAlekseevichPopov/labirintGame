@@ -452,6 +452,22 @@ const GLOBES = {
       }
     });
   },
+  enceladus: p => {
+    for (const [x, y, r] of [[-0.4, -0.45, 0.1], [0.3, -0.6, 0.08], [-0.05, -0.2, 0.07], [0.55, -0.15, 0.06], [-0.65, 0.05, 0.06]]) {
+      globeCrater(x, y, r, p);
+    }
+    // Its mark: the blue "tiger stripes" near the south pole, the cracks its geysers spray from.
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(70, 150, 200, 0.75)';
+    ctx.lineWidth = 0.05;
+    for (const [k, dy] of [[0, 0.32], [1, 0.46], [2, 0.6], [3, 0.74]]) {
+      const half = 0.45 - k * 0.07;
+      ctx.beginPath();
+      ctx.moveTo(-half - 0.05, dy + 0.08);
+      ctx.quadraticCurveTo(0, dy - 0.06, half, dy + 0.1);
+      ctx.stroke();
+    }
+  },
 };
 
 // A crack through the given points: each segment is split again and again, the middle pushed
@@ -512,7 +528,7 @@ export function drawGlobe(cx, cy, radius, planet, p, { turn = 0, night = false, 
   ctx.beginPath();
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.clip();
-  disc(ctx, 0, 0, 1, p.floor);
+  disc(ctx, 0, 0, 1, p.globe ?? p.floor);
   ctx.save();
   ctx.rotate(turn);
   GLOBES[planet](p);

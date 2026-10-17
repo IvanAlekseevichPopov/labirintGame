@@ -11,17 +11,19 @@ const NEIGHBOURS = {
   moon: [{ body: earth, x: 0.17, y: 0.12, r: 0.09 }],
   mars: [{ body: phobos, x: 0.2, y: 0.09, r: 0.05 }, { body: deimos, x: 0.36, y: 0.05, r: 0.022 }],
   europa: [{ body: jupiter, x: 0.17, y: -0.02, r: 0.24 }],
+  enceladus: [{ body: saturn, x: 0.19, y: 0.085, r: 0.06, reach: 2.4 }],
 };
 
 let c;
 
-// Half the sprite's side, in radii: room for the glow and for squashed Phobos.
+// Half the sprite's side, in radii: room for the glow and for squashed Phobos; Saturn's rings
+// need their own.
 const REACH = 1.6;
 
 // A sprite per body, redrawn only when the screen size changes.
 export function drawNeighbours(context, planet, w, h) {
   for (const [i, n] of (NEIGHBOURS[planet] ?? []).entries()) {
-    const r = n.r * h, side = 2 * REACH * r;
+    const r = n.r * h, side = 2 * (n.reach ?? REACH) * r;
     drawSprite(context, `neighbour|${planet}|${i}`, w - n.x * h - side / 2, n.y * h - side / 2, side, side, g => {
       c = g;
       c.translate(side / 2, side / 2);
@@ -107,6 +109,39 @@ function jupiter() {
   c.fill();
   shade(0.65);
   c.restore();
+}
+
+// Tilted rings, their far half behind the ball and their near half in front of it.
+function saturn() {
+  const rings = half => {
+    c.save();
+    c.rotate(-0.42);
+    c.scale(1, 0.26);
+    for (const [r, w, color] of [[1.42, 0.22, 'rgba(201, 173, 110, 0.9)'], [1.78, 0.3, 'rgba(232, 213, 163, 0.95)'], [2.1, 0.18, 'rgba(201, 173, 110, 0.8)']]) {
+      c.beginPath();
+      c.arc(0, 0, r, half ? 0 : Math.PI, half ? Math.PI : Math.PI * 2);
+      c.lineWidth = w;
+      c.strokeStyle = color;
+      c.stroke();
+    }
+    c.restore();
+  };
+  glow('rgba(255, 220, 160, 0.2)');
+  rings(false);
+  c.save();
+  c.beginPath();
+  c.arc(0, 0, 1, 0, Math.PI * 2);
+  c.clip();
+  disc(1, '#e8d5a3');
+  c.rotate(-0.42);
+  for (const [y, hgt, color] of [[-0.7, 0.18, '#d9bf86'], [-0.3, 0.12, '#c9ad6e'], [0.1, 0.2, '#dcc58f'], [0.5, 0.14, '#c9ad6e']]) {
+    c.fillStyle = color;
+    c.fillRect(-1.2, y, 2.4, hgt);
+  }
+  c.rotate(0.42);
+  shade(0.65);
+  c.restore();
+  rings(true);
 }
 
 function moonlet(seed) {

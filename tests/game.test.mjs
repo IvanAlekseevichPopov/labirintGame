@@ -427,3 +427,18 @@ test('a meteor without a trigger goes off METEOR.startMs after the level starts'
   assert.deepEqual(meteorEvents(run(METEOR.warnMs + FRAME_MS * 2)), ['meteorImpact']);
   assert.equal(state.player.x, 0, 'the rover was still parked');
 });
+
+test('under water a held direction swims on without stopping after the first cell', () => {
+  game.setLevels([{ ...CORRIDOR, planet: 'enceladus' }]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  game.press('right', 'key', now);
+  run(FRAME_MS);
+  assert.equal(state.moveMs, FIRST_REPEAT_MS);
+  const firstEnds = state.moveStart + state.moveMs;
+  run(FIRST_REPEAT_MS);
+  assert.equal(state.player.x, 2);
+  assert.ok(state.moveStart - firstEnds < FRAME_MS, 'the second step starts as the first one ends');
+  assert.equal(state.moveMs, STEP_MS);
+  game.release('right', 'key');
+});

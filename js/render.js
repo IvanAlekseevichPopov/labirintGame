@@ -18,6 +18,8 @@ import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
+import { drawFront, drawProfile } from './profiles.js';
+import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawRockMass, drawSeabed, drawSmoke, fillWater, wallPaint } from './ocean.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -32,11 +34,22 @@ let decor = null;
 let drawWeather = null;
 let drawVeil = null;
 let wallsPx = [];
+let smokers = [];
 let stars = [];
 
 // On a dark level the tracks are pale, so they can glow through the night.
 const NIGHT_TRACK = '#9fcbe8';
 const STORM_WEATHER = 1.7;
+// A planet seen from the side has its ice crust over the maze, this many cells thick.
+const CRUST_CELLS = 0.5;
+// Room kept over the crust for the rocket standing on the ice; its nose may reach into the header.
+const SKY_CELLS = 0.35;
+// ...and the rock it is cut into this many cells past its sides and below its floor.
+const ROCK_CELLS = { side: 0.45, bottom: 0.55 };
+// Only part of the rock under the floor is kept clear of the screen's margin; the rest, and the
+// rock at the sides, may run into it.
+const ROCK_KEPT = 0.3;
+const DRONE_RATIO = 0.82;
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -68,6 +81,7 @@ function makeDecor() {
 
 export function levelChanged(levelCount) {
   decor = makeDecor();
+  drone.last = null;
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
   drawWeather = createWeather(state.planet, intensity);
@@ -112,9 +126,12 @@ function layout() {
   const header = h * 0.1;
   const margin = Math.min(w, h) * 0.05;
   const { cols, rows } = state.maze;
-  const cell = Math.min((w - 2 * margin) / cols, (h - header - margin) / rows);
+  const side = PLANETS[state.planet].side;
+  const crust = side ? CRUST_CELLS : 0;
+  const tall = rows + crust + (side ? ROCK_KEPT + SKY_CELLS : 0);
+  const cell = Math.min((w - 2 * margin) / cols, (h - header - margin) / tall);
   const ox = (w - cell * cols) / 2;
-  const oy = header + (h - header - margin - cell * rows) / 2;
+  const oy = header + (crust + (side ? SKY_CELLS : 0)) * cell + (h - header - margin - cell * tall) / 2;
   return { w, h, header, cell, ox, oy };
 }
 
@@ -130,13 +147,25 @@ function buildMazeLayer() {
   const p = PLANETS[state.planet];
   const wall = cell * WALL_RATIO;
 
+  const frame = { x: ox - wall / 2, y: oy - wall / 2, w: cell * cols + wall, h: cell * rows + wall };
+  const rockSide = ROCK_CELLS.side * cell;
+  const crustBox = { x: frame.x - rockSide, w: frame.w + 2 * rockSide, top: oy - CRUST_CELLS * cell, bottom: oy + wall / 2 };
+  const cracks = p.side ? crustCracks(state.index, crustBox.x, crustBox.w, cell) : [];
+  // Seen from the side, the walls are ice up under the crust and rock down by the floor.
+  const paint = p.side ? wallPaint(g, p, oy, oy + cell * rows) : { base: p.wallBase, top: p.wallTop };
+  if (p.side) drawRockMass(g, p, { frame, side: rockSide, bottom: ROCK_CELLS.bottom * cell, cell, seed: state.index, paint });
   g.save();
   g.beginPath();
-  g.roundRect(ox - wall / 2, oy - wall / 2, cell * cols + wall, cell * rows + wall, wall);
-  g.fillStyle = p.floor;
-  g.fill();
-  g.clip();
-  drawGround(g, decor.ground, p, cell, ox, oy, innerWidth, innerHeight);
+  g.roundRect(frame.x, frame.y, frame.w, frame.h, wall);
+  if (p.side) {
+    g.clip();
+    fillWater(g, p, { ...frame, cell, surface: crustBox.bottom, cracks });
+  } else {
+    g.fillStyle = p.floor;
+    g.fill();
+    g.clip();
+    drawGround(g, decor.ground, p, cell, ox, oy, innerWidth, innerHeight);
+  }
   const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
   const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed ?? l.x * 31 + l.y * 17);
   for (const l of floorMarks.filter(l => l.type !== 'impact')) drawMark(l);
@@ -164,8 +193,8 @@ function buildMazeLayer() {
   g.clip();
   drawWallDetails(g, decor.walls, p, { ...details, under: true });
   g.restore();
-  fillShapes(g, ragged(half, 0.03 * rough), p.wallBase);
-  fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), p.wallTop);
+  fillShapes(g, ragged(half, 0.03 * rough), paint.base);
+  fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
   // Rays and rubble stay on the ground, never on the sky.
   g.save();
@@ -177,6 +206,11 @@ function buildMazeLayer() {
     drawMark({ type: 'impact', x: c.x - 0.5, y: c.y - 0.5, seed: c.seed });
   }
   g.restore();
+  if (p.side) {
+    drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: state.index });
+    smokers = drawSeabed(g, p, { x: ox, w: cell * cols, line: oy + cell * rows, half: wall / 2, cell, seed: state.index });
+    drawIceCrust(g, p, { ...crustBox, cell, seed: state.index, cracks, hole: ox + (state.goal.x + 0.5) * cell });
+  }
 }
 
 // How far (cells) a blast reaches into the walls, and how much it pushes them at the crater's edge.
@@ -345,8 +379,12 @@ export function render(now, { soundOff = false } = {}) {
   ctx.save();
   ctx.translate(shakeX, shakeY);
   ctx.drawImage(mazeLayer, 0, 0, w, h);
-  drawNewTracks();
-  ctx.drawImage(trackLayer, 0, 0, w, h);
+  if (planet.side) {
+    drawSmoke(ctx, smokers, now, cell);
+  } else {
+    drawNewTracks();
+    ctx.drawImage(trackLayer, 0, 0, w, h);
+  }
 
   for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {
     const [lx, ly] = toPx(l);
@@ -355,8 +393,10 @@ export function render(now, { soundOff = false } = {}) {
   drawProps(ctx, decor.props, toPx, cell, now, planet);
 
   const [gx, gy] = toPx(state.goal);
-  const padY = gy + cell * 0.32;
-  drawPad(gx, padY, cell, now);
+  // Seen from the side the rocket stands on the ice, and lets a probe down to the goal on a cable.
+  const surface = oy - CRUST_CELLS * cell;
+  const padY = planet.side ? surface + cell * 0.04 : gy + cell * 0.32;
+  if (!planet.side) drawPad(gx, padY, cell, now);
 
   const flame = winT !== null && winT >= WIN.ignite;
   const shake = flame && winT < WIN.lift ? (Math.random() - 0.5) * cell * 0.04 : 0;
@@ -368,8 +408,16 @@ export function render(now, { soundOff = false } = {}) {
   drawRocket(ctx, gx + shake, padY - lift, cell * 0.95, flame, now, planet);
   drawLaunchSmoke(ctx, winT, {
     x: gx, padY, cell, climb, palette: planet,
-    area: { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
+    area: planet.side
+      ? { x: 0, y: padY - cell * 1.5, w, h: cell * 1.6 }
+      : { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
   });
+  if (planet.side) {
+    // Once the drone is in, the probe is reeled up through the ice before the rocket lifts off.
+    const docked = WIN.shrinkStart + WIN.shrinkMs;
+    const reel = winT === null ? 0 : clamp01((winT - docked) / (WIN.lift - docked - 50));
+    drawProbe(ctx, gx, gy + (padY - gy) * reel * reel, padY, cell, now, 1 - clamp01((reel - 0.8) / 0.2));
+  }
 
   const shrink = winT === null ? 1 : 1 - clamp01((winT - WIN.shrinkStart) / WIN.shrinkMs);
   let rover = null;
@@ -378,8 +426,14 @@ export function render(now, { soundOff = false } = {}) {
     const bumpT = state.bump ? (now - state.bump.at) / BUMP_MS : 1;
     const nudge = bumpT < 1 ? Math.sin(Math.PI * bumpT) * cell * 0.1 : 0;
     const { dx, dy } = state.bump ? DIRS[state.bump.dir] : DIRS.right;
-    rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
-    rover.draw = () => ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
+    if (planet.side) {
+      const d = followDrone(now, roverPos(now));
+      rover = { x: ox + (d.x + 0.5) * cell + dx * nudge, y: oy + (d.y + 0.5) * cell + dy * nudge, angle: state.angle, size: cell * DRONE_RATIO * shrink };
+      rover.draw = () => drawDrone(rover, d, now);
+    } else {
+      rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
+      rover.draw = () => ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
+    }
     rover.draw();
   }
 
@@ -405,6 +459,83 @@ export function render(now, { soundOff = false } = {}) {
     drawWeather(ctx, now, { w, h }, area);
   }
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
+}
+
+// The drone swims rather than drives: it trails its cell on a soft spring, so it eases off, glides
+// a touch past the cell and settles back; it pitches with the climb,
+// turns round to face the way it goes, and bobs in place. Drawing only — the rules stay on the grid.
+const drone = { x: 0, y: 0, vx: 0, vy: 0, pitch: 0, facing: 1, turn: 1, prop: 0, last: null };
+// At full speed it trails ~0.2 cell behind, and on stopping glides ~0.07 cell past and back.
+const SPRING = { k: 700, c: 24 };
+
+function followDrone(now, target) {
+  const dir = Math.cos(state.targetAngle);
+  if (drone.last === null || Math.hypot(target.x - drone.x, target.y - drone.y) > 1.5) {
+    Object.assign(drone, { ...target, vx: 0, vy: 0, pitch: 0, facing: dir < 0 ? -1 : 1, last: now });
+    drone.turn = drone.facing;
+  }
+  const dt = Math.min(0.05, Math.max(0, (now - drone.last) / 1000));
+  drone.last = now;
+  const ax = SPRING.k * (target.x - drone.x) - SPRING.c * drone.vx;
+  const ay = SPRING.k * (target.y - drone.y) - SPRING.c * drone.vy;
+  drone.vx += ax * dt;
+  drone.vy += ay * dt;
+  drone.x += drone.vx * dt;
+  drone.y += drone.vy * dt;
+  if (dir > 0.5) drone.facing = 1;
+  if (dir < -0.5) drone.facing = -1;
+  drone.turn += Math.sign(drone.facing - drone.turn) * Math.min(Math.abs(drone.facing - drone.turn), dt * 5);
+  const clampTo = (v, m) => Math.max(-m, Math.min(m, v));
+  const want = clampTo(drone.vy * 0.09, 0.4);
+  drone.pitch += (want - drone.pitch) * Math.min(1, dt * 10);
+  const speed = Math.hypot(drone.vx, drone.vy);
+  drone.prop += dt * (speed > 0.3 ? 2.2 : 0.5);
+  return drone;
+}
+
+// The bow lamp in the drone's own space (see PROFILES.drone), and its beam: it shows which way the
+// drone faces and that it is deep under water. Faint, so it never reads as a wall or a path.
+const LAMP = { x: 0.3, y: -0.15 };
+const BEAM = { length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
+
+// Turning round it narrows a little, then shows itself head-on for a moment and comes out facing
+// the other way; squeezed any thinner it would turn into a flat cut-out.
+const HEAD_ON = 0.35;
+
+function drawDrone({ x, y, size }, d, now) {
+  if (size <= 0) return;
+  ctx.save();
+  ctx.translate(x, y + Math.sin(now / 700) * size * 0.03);
+  if (Math.abs(d.turn) < HEAD_ON) {
+    drawFront(ctx, 'drone', 0, size * 0.3, size);
+    ctx.restore();
+    return;
+  }
+  ctx.scale(Math.sign(d.turn) * (0.7 + 0.3 * (Math.abs(d.turn) - HEAD_ON) / (1 - HEAD_ON)), 1);
+  ctx.rotate(d.pitch);
+  ctx.translate(size * 0.06, size * 0.3);
+  drawBeam(LAMP.x * size, LAMP.y * size, size);
+  drawProfile(ctx, 'drone', 0, 0, size, { rolled: d.prop });
+  ctx.restore();
+}
+
+function drawBeam(lx, ly, size) {
+  const len = size * BEAM.length;
+  const end = side => [lx + Math.cos(BEAM.dip + side * BEAM.spread) * len, ly + Math.sin(BEAM.dip + side * BEAM.spread) * len];
+  const glow = ctx.createLinearGradient(lx, ly, lx + Math.cos(BEAM.dip) * len, ly + Math.sin(BEAM.dip) * len);
+  glow.addColorStop(0, `rgba(255, 243, 190, ${BEAM.alpha})`);
+  glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.moveTo(lx, ly - size * 0.02);
+  ctx.lineTo(...end(-1));
+  ctx.lineTo(...end(1));
+  ctx.lineTo(lx, ly + size * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 // Pause menu over the frozen game: large buttons, the selected one lit up yellow.

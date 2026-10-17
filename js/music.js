@@ -204,8 +204,32 @@ const EUROPA_WIND = [
   '-/4 w/2.', 'W/1', 'w/1', 'W/2 w/2', '-/2 W/2', 'w/1',
 ].join(' | ');
 
+// Enceladus: the arpeggio ripples in triplets like light through water.
+const ripple = (a, b, c, d) => `${a}/12 ${b}/12 ${c}/12 ${d}/12 ${c}/12 ${b}/12`;
+const arp12 = (a, b, c, d) => `${ripple(a, b, c, d)} ${ripple(a, b, c, d)}`;
+const halves = (root, fifth) => `${root}/2 ${fifth}/2`;
+
+// F Lydian: G over an F bass gives the raised fourth (B) that makes it float.
+const ENCELADUS_CHORDS = {
+  F: { arp: arp12('F4', 'A4', 'C5', 'E5'), bass: halves('F2', 'C3') },
+  'G/F': { arp: arp12('F4', 'G4', 'B4', 'D5'), bass: halves('F2', 'D3') },
+  Am: { arp: arp12('E4', 'A4', 'C5', 'E5'), bass: halves('A2', 'E3') },
+  G: { arp: arp12('D4', 'G4', 'B4', 'D5'), bass: halves('G2', 'D3') },
+  Dm: { arp: arp12('D4', 'F4', 'A4', 'C5'), bass: halves('D2', 'A2') },
+  Em: { arp: arp12('E4', 'G4', 'B4', 'D5'), bass: halves('E2', 'B2') },
+  C: { arp: arp12('E4', 'G4', 'C5', 'E5'), bass: halves('C3', 'G2') },
+};
+const ENCELADUS_PROGRESSION = ['F', 'G/F', 'F', 'G/F', 'F', 'G/F', 'Am', 'G', 'Dm', 'Em', 'F', 'G', 'Dm', 'Em', 'C', 'C'];
+const ENCELADUS_LEAD = [
+  'C5/4 F5/4 A5/2', 'G5/4 B5/4 D6/2', 'C6/4. A5/8 F5/4 E5/4', 'D5/2. -/4',
+  'C5/4 F5/4 A5/2', 'B5/4 D6/4 G6/2', 'E6/4. D6/8 C6/4 A5/4', 'B5/2. -/4',
+  'A5/4. F5/8 D5/4 F5/4', 'G5/4. E5/8 B4/4 E5/4', 'A5/4 C6/4 F6/4 E6/4', 'D6/2 B5/2',
+  'A5/4. F5/8 D5/4 A5/4', 'B5/4. G5/8 E5/4 B5/4', 'C6/4 B5/4 G5/4 E5/4', 'G5/2. -/4',
+].join(' | ');
+
 // Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 24 bars at 120 (48 s),
-// Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s), the Mars storm 24 bars at 108 (~53 s).
+// Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s), the Mars storm 24 bars at 108 (~53 s),
+// Enceladus 16 bars at 88 (~44 s).
 export const SONGS = {
   moon: {
     bpm: 84,
@@ -260,6 +284,16 @@ export const SONGS = {
       pulse2: { notes: MARS_STORM_ECHO, duty: 0.125, env: 'pluck', decay: 14, vol: 0.25 },
       triangle: { notes: follow(MARS_CHORDS, MARS_PROGRESSION, 'bass'), env: 'hold', vol: 0.8 },
       noise: { notes: MARS_STORM_WIND_KICK, vol: 0.45 },
+    },
+  },
+  // Light hats in triplet pairs, like bubbles.
+  enceladus: {
+    bpm: 88,
+    channels: {
+      pulse1: { notes: ENCELADUS_LEAD, duty: 0.5, env: 'soft', vol: 0.5, vibrato: { hz: 5, cents: 14, delay: 12 } },
+      pulse2: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_PROGRESSION, 'arp'), duty: 0.125, env: 'pluck', decay: 12, vol: 0.3 },
+      triangle: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_PROGRESSION, 'bass'), env: 'soft', vol: 0.8 },
+      noise: { notes: repeat('K/4 -/12 H/12 H/12 -/4 -/12 H/12 H/12', 16), vol: 0.22 },
     },
   },
 };

@@ -26,7 +26,7 @@ function puffs(kind, winT, place) {
   return out;
 }
 
-function drawCloud(ctx, list, lineWidth, shade, light) {
+export function drawCloud(ctx, list, lineWidth, shade, light) {
   for (const [color, grow, dx, dy, k] of [
     [OUTLINE, lineWidth, 0, 0, 1],
     [shade, 0, 0, 0, 1],
