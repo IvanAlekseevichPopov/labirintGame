@@ -285,22 +285,43 @@ function contact(wall) {
   return { x: f.cx + du, y: f.cy + dv, bx, by };
 }
 
-const CRUMBS = { everyMs: 22, lifeMs: 400, speed: [1, 2.6], fan: 1.1, drag: 6, size: [0.025, 0.05] };
-const SHARDS = { count: 26, lifeMs: [600, 800], speed: [0.7, 2.3], drag: 4, size: [0.05, 0.11] };
-const CHIP_COLORS = ['#ffffff', '#c9f3ff', '#7fd8f2', '#4fb8e3'];
+// Chips have weight: thrown up and out, they fall back under gravity (cells/s²), bounce once
+// low and skid to a stop, so they read as bits of ice rather than confetti. Seen from above, the
+// height lifts a chip off its shadow.
+const GRAVITY = 9;
+const CRUMBS = { everyMs: 45, lifeMs: [400, 600], speed: [0.6, 1.3], rise: [0.4, 0.9], fan: 0.9, size: [0.025, 0.045] };
+// Shards fly only away from the rover, so they never land on it.
+const SHARDS = { count: 9, lifeMs: [1100, 1400], speed: [0.35, 0.9], rise: [0.9, 1.6], fan: 0.8, size: [0.05, 0.1] };
+const CHIP_COLORS = ['#ffffff', '#c9f3ff', '#9fe0f5', '#6cc6ea'];
+const SKID = 9;
 const between = ([lo, hi]) => lo + Math.random() * (hi - lo);
 
+// An irregular chunk: 4 to 6 corners at uneven radii, some long slivers.
+function chunkShape() {
+  const corners = 4 + Math.floor(Math.random() * 3), stretch = 1 + Math.random() * 0.8;
+  return Array.from({ length: corners }, (_, k) => {
+    const a = (k / corners) * Math.PI * 2 + (Math.random() - 0.5) * 0.6, r = 0.6 + Math.random() * 0.4;
+    return [Math.cos(a) * r * stretch, Math.sin(a) * r];
+  });
+}
+
 // Ice chips in cells, timed by the game clock like the bubbles: crumbs spray back at the rover
-// while it drills, shards fly both ways when a wall gives.
+// while it drills, a few shards fly off the far side when a wall gives.
 export function createChips() {
   let list = [];
   let nextAt = 0;
   let last = null;
-  const add = (x, y, vx, vy, now, life, size, drag) => list.push({
-    x, y, vx, vy, born: now, life, size, drag,
-    rot: Math.random() * Math.PI * 2, spin: (Math.random() - 0.5) * 16,
-    color: CHIP_COLORS[Math.floor(Math.random() * CHIP_COLORS.length)],
-  });
+  // `angle` is the way it flies on the ground.
+  const add = (x, y, angle, kind, now) => {
+    const speed = between(kind.speed);
+    list.push({
+      shard: kind === SHARDS,
+      x, y, z: 0.02, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: between(kind.rise),
+      born: now, life: between(kind.lifeMs), size: between(kind.size),
+      rot: Math.random() * Math.PI * 2, spin: (Math.random() - 0.5) * 9, shape: chunkShape(),
+      color: CHIP_COLORS[Math.floor(Math.random() * CHIP_COLORS.length)],
+    });
+  };
   return {
     reset() {
       list = [];
@@ -311,9 +332,19 @@ export function createChips() {
       const dt = last === null ? 0 : Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
       for (const c of list) {
-        const slow = Math.exp(-dt * c.drag);
-        c.vx *= slow;
-        c.vy *= slow;
+        c.vz -= GRAVITY * dt;
+        c.z += c.vz * dt;
+        if (c.z <= 0) {
+          c.z = 0;
+          c.vz = c.vz < -0.8 ? -c.vz * 0.3 : 0;
+          c.spin *= 0.5;
+        }
+        if (c.z === 0) {
+          const skid = Math.exp(-dt * SKID);
+          c.vx *= skid;
+          c.vy *= skid;
+          c.spin *= skid;
+        }
         c.x += c.vx * dt;
         c.y += c.vy * dt;
         c.rot += c.spin * dt;
@@ -322,40 +353,43 @@ export function createChips() {
       if (!drillingWall || now < nextAt) return;
       const { x, y, bx, by } = contact(drillingWall);
       const back = Math.atan2(by, bx);
-      for (let i = 0; i < 2; i++) {
-        const angle = back + (Math.random() - 0.5) * 2 * CRUMBS.fan, speed = between(CRUMBS.speed);
-        add(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, now,
-          CRUMBS.lifeMs * (0.7 + Math.random() * 0.5), between(CRUMBS.size), CRUMBS.drag);
-      }
+      add(x, y, back + (Math.random() - 0.5) * 2 * CRUMBS.fan, CRUMBS, now);
       nextAt = now + CRUMBS.everyMs * (0.6 + Math.random() * 0.8);
     },
     burst(now, wall) {
-      const f = frame(wall);
+      const f = frame(wall), away = -fromB(wall);
+      const [ax, ay] = toScreen(f, 0, away);
+      const out = Math.atan2(ay, ax);
       for (let i = 0; i < SHARDS.count; i++) {
-        const side = i % 2 ? 1 : -1;
-        const u = (Math.random() - 0.5) * BLOCK.halfLength * 2, v = side * Math.random() * BLOCK.halfThick;
-        const [dx, dy] = toScreen(f, u, v);
-        const [vx, vy] = toScreen(f, (Math.random() - 0.5) * 1.2, side * between(SHARDS.speed));
-        add(f.cx + dx, f.cy + dy, vx, vy, now, between(SHARDS.lifeMs), between(SHARDS.size), SHARDS.drag);
+        const [dx, dy] = toScreen(f, (Math.random() - 0.5) * BLOCK.halfLength * 1.6, away * Math.random() * BLOCK.halfThick);
+        add(f.cx + dx, f.cy + dy, out + (Math.random() - 0.5) * 2 * SHARDS.fan, SHARDS, now);
       }
     },
-    draw(g, now, { cell, ox, oy }) {
+    // `shards`: the shards of a broken wall (drawn under the rover, which drives over them) or the
+    // crumbs the drill throws (over it).
+    draw(g, now, { cell, ox, oy }, shards) {
       if (!list.length) return;
       g.save();
       g.lineJoin = 'round';
       g.strokeStyle = COLORS.edge;
       for (const c of list) {
+        if (c.shard !== shards) continue;
         const t = (now - c.born) / c.life;
-        const x = ox + c.x * cell, y = oy + c.y * cell, r = c.size * cell;
-        g.globalAlpha = 1 - clamp01((t - 0.5) / 0.5);
+        const fade = 1 - clamp01((t - 0.65) / 0.35);
+        const x = ox + c.x * cell, y = oy + c.y * cell, r = c.size * cell * (1 + c.z * 0.5);
+        g.globalAlpha = 0.25 * fade;
+        g.fillStyle = '#2b5f80';
         g.beginPath();
-        g.moveTo(x + Math.cos(c.rot) * r, y + Math.sin(c.rot) * r);
-        g.lineTo(x + Math.cos(c.rot + 2.3) * r * 0.75, y + Math.sin(c.rot + 2.3) * r * 0.75);
-        g.lineTo(x + Math.cos(c.rot + 4.1) * r * 0.9, y + Math.sin(c.rot + 4.1) * r * 0.9);
+        g.ellipse(x, y + r * 0.3, c.size * cell, c.size * cell * 0.5, 0, 0, Math.PI * 2);
+        g.fill();
+        g.globalAlpha = fade;
+        const cos = Math.cos(c.rot), sin = Math.sin(c.rot), lift = c.z * cell;
+        g.beginPath();
+        c.shape.forEach(([px, py], k) => g[k ? 'lineTo' : 'moveTo'](x + (px * cos - py * sin) * r, y - lift + (px * sin + py * cos) * r));
         g.closePath();
         g.fillStyle = c.color;
         g.fill();
-        g.lineWidth = Math.max(1, r * 0.22);
+        g.lineWidth = Math.max(1, r * 0.18);
         g.stroke();
       }
       g.restore();

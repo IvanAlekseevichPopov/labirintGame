@@ -56,7 +56,8 @@ test('an ice wall looks the same every time it is drawn, and drilling changes it
 
 const chipsDrawn = (chips, now) => {
   const { ctx, calls, numbers } = recorder();
-  chips.draw(ctx, now, VIEW);
+  chips.draw(ctx, now, VIEW, false);
+  chips.draw(ctx, now, VIEW, true);
   assert.ok(numbers().every(Number.isFinite));
   return calls.filter(c => c.name === 'fill').length;
 };
@@ -72,15 +73,20 @@ test('ice crumbs fly only while the wall is drilled, and are gone soon after', (
   assert.equal(chipsDrawn(chips, 1500), 0);
 });
 
-test('a broken wall bursts into shards that are gone within a second', () => {
+test('a broken wall bursts into a few shards, all off the far side from the rover, gone in a second and a half', () => {
   const chips = createChips();
   chips.update(0, null);
   chips.burst(0, wall(false, 1, 'a'));
-  chips.update(16, null);
-  assert.ok(chipsDrawn(chips, 16) > 10);
-  for (let now = 16; now <= 1000; now += 16) chips.update(now, null);
-  assert.equal(chipsDrawn(chips, 1000), 0);
-  chips.burst(1000, wall(true, 1, 'b'));
+  for (let now = 16; now <= 600; now += 16) chips.update(now, null);
+  const { ctx, calls } = recorder();
+  chips.draw(ctx, 600, VIEW, true);
+  const shadows = calls.filter(c => c.name === 'ellipse');
+  assert.ok(shadows.length >= 5 && shadows.length <= 12);
+  // The rover is in cell a, above the wall at y = 4.
+  assert.ok(shadows.every(({ args: [, y] }) => y > VIEW.oy + 3.9 * CELL));
+  for (let now = 616; now <= 1500; now += 16) chips.update(now, null);
+  assert.equal(chipsDrawn(chips, 1500), 0);
+  chips.burst(1500, wall(true, 1, 'b'));
   chips.reset();
-  assert.equal(chipsDrawn(chips, 1000), 0);
+  assert.equal(chipsDrawn(chips, 1500), 0);
 });

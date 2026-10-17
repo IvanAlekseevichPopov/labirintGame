@@ -441,6 +441,16 @@ export function render(now, { soundOff = false } = {}) {
   const toPx = p => [ox + (p.x + 0.5) * cell, oy + (p.y + 0.5) * cell];
   const winT = state.wonAt === null ? null : now - state.wonAt;
 
+  // Ice chips stay on the ground: flying out over the edge into space would break the picture.
+  const onGround = draw => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ox, oy, cell * state.maze.cols, cell * state.maze.rows);
+    ctx.clip();
+    draw();
+    ctx.restore();
+  };
+
   drawSky(now, w, h, state.planet);
   const [shakeX, shakeY] = meteorShake(state.meteor, now, cell);
   ctx.save();
@@ -507,6 +517,11 @@ export function render(now, { soundOff = false } = {}) {
     bubbles.update(now, { screw, back, swimming, active: shrink >= 1 });
     drawInWater(bubbles.bounds({ cell, ox, oy }), g => bubbles.draw(g, now, { cell, ox, oy }));
   }
+  if (!planet.side) {
+    for (const wall of bursts.splice(0)) chips.burst(now, wall);
+    chips.update(now, state.drilling?.wall ?? null);
+    onGround(() => chips.draw(ctx, now, { cell, ox, oy }, true));
+  }
   if (shrink > 0) {
     const [rx, ry] = toPx(roverPos(now));
     const bumpT = state.bump ? (now - state.bump.at) / BUMP_MS : 1;
@@ -524,11 +539,7 @@ export function render(now, { soundOff = false } = {}) {
     }
     rover.draw();
   }
-  if (!planet.side) {
-    for (const wall of bursts.splice(0)) chips.burst(now, wall);
-    chips.update(now, state.drilling?.wall ?? null);
-    chips.draw(ctx, now, { cell, ox, oy });
-  }
+  if (!planet.side) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
 
   drawMeteor(ctx, state.meteor, now, cell, toPx);
   // The shake stops here: the veil, the weather and the title stay put (the lights drift from the
