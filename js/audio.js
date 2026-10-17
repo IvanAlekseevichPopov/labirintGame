@@ -7,7 +7,7 @@ import { DRUMS, JINGLES, SONGS, parseSong } from './music.js';
 import { ROVERS } from './rovers.js';
 
 // Balance: effects above music above the engine; `duck` is the music level under the win jingle.
-export const VOLUME = { master: 0.5, sfx: 0.6, music: 0.3, engine: 0.07, duck: 0.3 };
+export const VOLUME = { master: 0.5, sfx: 0.6, music: 0.3, engine: 0.07, drill: 0.12, duck: 0.3 };
 
 const CPU_HZ = 1789773;
 const FRAME = 1 / 60;
@@ -104,7 +104,8 @@ export function createAudio() {
   // Remembered while the context is locked, so unlock() can start what the game already asked for.
   const wanted = { planet: null, rover: null, musicOn: true, muted: false };
   let music = null;
-  let engine = null;
+  // The sounds that run until replaced: the engine's hum and the drill's grind.
+  const loops = { engine: null, drill: null };
   let meter = null;
 
   function unlock() {
@@ -150,6 +151,7 @@ export function createAudio() {
       sfx: gain(VOLUME.sfx, limiter),
       music: gain(VOLUME.music, duck),
       engine: gain(VOLUME.engine, limiter),
+      drill: gain(VOLUME.drill, limiter),
       duck,
       musicOn,
       master,
@@ -418,6 +420,15 @@ export function createAudio() {
       sweep({ src: noise('long', 10), t0: t0 + 0.05, points: [[0.02, 0.2], [0.2, 0]], out: bus.sfx });
       return 0.9;
     },
+    // Ice giving way: a crunch and two glassy tinkles falling, light rather than a smash.
+    iceBroken() {
+      const t0 = ctx.currentTime + 0.005;
+      sweep({ src: noise('short', 3), t0, points: [[0.004, 0.45], [0.12, 0]], out: bus.sfx });
+      sweep({ src: noise('long', 6), t0, points: [[0.004, 0.3], [0.2, 0]], out: bus.sfx });
+      sweep({ src: tone('pulse', 0.125, 2400), from: 2400, to: 900, t0: t0 + 0.02, points: [[0.004, 0.14], [0.25, 0]], out: bus.sfx });
+      sweep({ src: tone('pulse', 0.25, 3200), from: 3200, to: 1500, t0: t0 + 0.09, points: [[0.004, 0.1], [0.22, 0]], out: bus.sfx });
+      return 0.32;
+    },
     ignite() {
       const t0 = ctx.currentTime + 0.005;
       sweep({ src: noise('long', 11), from: 0.7, to: 1.6, t0, points: [[0.4, 0.7], [0.75, 0.7], [1.05, 0]], out: bus.sfx });
@@ -447,26 +458,32 @@ export function createAudio() {
     return SFX[name]();
   }
 
-  function setEngine(rover) {
-    wanted.rover = rover;
-    if (!ctx || engine?.rover === rover) return;
+  // Fades what plays in `slot` out and the rover's recipe for it (rovers.js) in; null for silence.
+  function setLoop(slot, rover) {
+    const playing = loops[slot];
+    if (!ctx || (playing?.rover ?? null) === rover) return;
     const now = ctx.currentTime;
-    if (engine) {
-      const { out, nodes } = engine;
+    if (playing) {
+      const { out, nodes } = playing;
       out.gain.cancelScheduledValues(now);
       out.gain.setValueAtTime(out.gain.value, now);
       out.gain.linearRampToValueAtTime(0, now + ENGINE_FADE);
       for (const n of nodes) n.stop(now + ENGINE_FADE + 0.02);
       nodes[0].onended = () => out.disconnect();
-      engine = null;
+      loops[slot] = null;
     }
-    const recipe = ROVERS[rover]?.engine;
+    const recipe = ROVERS[rover]?.[slot];
     if (!recipe) return;
-    const out = gain(0, bus.engine);
+    const out = gain(0, bus[slot]);
     out.gain.linearRampToValueAtTime(1, now + ENGINE_FADE);
     const nodes = recipe(out, { ctx, tone, gain, noise, waves });
     for (const n of nodes) n.start(now);
-    engine = { rover, out, nodes };
+    loops[slot] = { rover, out, nodes };
+  }
+
+  function setEngine(rover) {
+    wanted.rover = rover;
+    setLoop('engine', rover);
   }
 
   return {
@@ -479,6 +496,7 @@ export function createAudio() {
     duckMusic,
     unduckMusic,
     setEngine,
+    setDrill: rover => setLoop('drill', rover),
     sfx,
     get unlocked() {
       return ctx !== null;

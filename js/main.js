@@ -96,6 +96,7 @@ function openPause(now) {
   game.forgetSource('key');
   game.forgetSource('pad');
   audio.setEngine(null);
+  audio.setDrill(null);
   audio.duckMusic();
 }
 
@@ -168,6 +169,7 @@ function handle(event) {
       renderer.levelChanged(levels.length);
       rememberLevelInUrl(event.index);
       audio.setEngine(null);
+      audio.setDrill(null);
       audio.playMusic(songFor(game.state));
       if (event.restart) audio.cutSweeps();
       audio.sfx(event.restart ? 'restart' : 'levelStart');
@@ -181,8 +183,16 @@ function handle(event) {
       renderer.mazeChanged();
       audio.sfx(event.type);
       break;
+    case 'drillStart':
+      audio.setDrill(planet.rover);
+      break;
+    case 'drillStop':
+      audio.setDrill(null);
+      break;
     case 'iceBroken':
-      renderer.mazeChanged();
+      renderer.iceBroken(event.wall);
+      audio.setDrill(null);
+      audio.sfx(event.type);
       break;
     case 'move':
       audio.setEngine(planet.rover);

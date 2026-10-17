@@ -8,6 +8,7 @@
 // beam: its bow lamp's beam, for drawBeam().
 // engine(out, sound): its hum while it moves, a recipe audio.js plays: `sound` is audio.js's
 // helpers ({ ctx, tone, gain, noise, waves }); returns the source nodes to start, connected to `out`.
+// drill(out, sound): the same for its drill grinding into ice, for a machine that has one.
 
 import { drawIcebreaker, drawLunokhod, drawMarsRover } from './art.js';
 import { FRONTS, PROFILES } from './profiles.js';
@@ -63,6 +64,22 @@ export const ROVERS = {
       lfo.connect(gain(0.45)).connect(gate.gain);
       clack.connect(gate);
       return [rumble, clack, lfo];
+    },
+    // A buzzing whine with a fast wobble, and ice crunching in bursts as the bit bites.
+    drill(out, { ctx, tone, gain, noise, waves }) {
+      const whine = tone('pulse', 0.125, 196);
+      whine.connect(gain(0.5, out));
+      const wobble = ctx.createOscillator();
+      wobble.frequency.value = 28;
+      wobble.connect(gain(40)).connect(whine.detune);
+      const crunch = noise('short', 4);
+      const gate = gain(0.5 / 7, out);
+      const bite = ctx.createOscillator();
+      bite.setPeriodicWave(waves[0.125]);
+      bite.frequency.value = 11;
+      bite.connect(gain(0.5)).connect(gate.gain);
+      crunch.connect(gate);
+      return [whine, wobble, crunch, bite];
     },
   },
   // Under water, seen only from the side.

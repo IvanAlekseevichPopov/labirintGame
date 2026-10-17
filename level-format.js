@@ -37,11 +37,12 @@ export function parseLevel(level, number, planets) {
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
   if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
-  const { planet, map, dark = false, storm = null } = level;
+  const { planet, map, dark = false, storm = null, intro = false } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');
   if (typeof dark !== 'boolean') fail('dark может быть только true или false');
+  if (typeof intro !== 'boolean') fail('intro может быть только true или false');
   if (storm !== null) {
     const ok = storm && typeof storm === 'object' && [storm.from, storm.to].every(v => typeof v === 'number' && v >= 0 && v <= 1) && storm.from < storm.to;
     if (!ok) fail('storm должен быть { from, to } — доли ширины карты от 0 до 1, from < to');
@@ -139,10 +140,19 @@ export function parseLevel(level, number, planets) {
     }
     meteor = { cell, trigger };
   }
+  // The intro shows the drill: the rover drills the ice next to the start by itself and drives on.
+  let introDir = null;
+  if (intro) {
+    const next = ice.filter(w => [w.a, w.b].some(c => c.x === start.x && c.y === start.y));
+    if (next.length !== 1) fail(`показ бура intro: у старта должна быть ровно одна ледяная стена I, а их ${next.length}`);
+    const [{ a, b }] = next;
+    const other = a.x === start.x && a.y === start.y ? b : a;
+    introDir = LEVEL_DIRS.find(d => start.x + d.dx === other.x && start.y + d.dy === other.y).wall;
+  }
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, ice, startDir: toGoal.first };
+  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, ice, intro: introDir, startDir: introDir ?? toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

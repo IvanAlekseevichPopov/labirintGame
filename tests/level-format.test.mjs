@@ -187,3 +187,9 @@ test('ice walls stand between two cells on Europa and do not count as blocking t
 #######
 `, /стоит на углу/, 'europa');
 });
+
+test('the drill intro needs exactly one ice wall at the start and faces it', () => {
+  assert.equal(parseLevel({ planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS).intro, 'right');
+  assert.equal(parse(ICY, 'europa').intro, null);
+  assert.throws(() => parseLevel({ planet: 'europa', intro: true, map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
+});

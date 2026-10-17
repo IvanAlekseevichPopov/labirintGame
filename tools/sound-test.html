@@ -59,7 +59,7 @@ unlock.addEventListener('click', () => {
   unlock.textContent = audio.unlocked ? 'Звук включён' : 'Web Audio недоступен';
 });
 
-for (const name of ['bump', 'landmark', 'arrive', 'ignite', 'liftoff', 'cheer', 'levelStart', 'restart', 'menu']) {
+for (const name of ['bump', 'iceBroken', 'landmark', 'arrive', 'ignite', 'liftoff', 'cheer', 'levelStart', 'restart', 'menu']) {
   button('sfx', name, () => say(`${name}: ${audio.sfx(name).toFixed(2)} с`));
 }
 button('sfx', 'arrive → ignite → liftoff → cheer', () => {
@@ -90,6 +90,11 @@ document.getElementById('cheer-duck').addEventListener('click', () => {
 const engineButtons = [
   ...['lunokhod', 'marsRover', 'icebreaker', 'drone'].map(rover => button('engine', rover, b => { audio.setEngine(rover); select(engineButtons, b); })),
   button('engine', 'стоп мотор', b => { audio.setEngine(null); select(engineButtons, b); }),
+];
+
+const drillButtons = [
+  button('engine', 'бур ледохода', b => { audio.setDrill('icebreaker'); select(drillButtons, b); }),
+  button('engine', 'стоп бур', b => { audio.setDrill(null); select(drillButtons, b); }),
 ];
 
 addEventListener('keydown', e => {

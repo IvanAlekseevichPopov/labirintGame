@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
 import { levelDistances } from '../level-format.js';
-import { DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, INTRO, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -480,6 +480,7 @@ test('letting go keeps the drilling done so far, and restart brings the ice back
   assert.ok(types(run(FRAME_MS)).includes('drillStop'));
   const done = state.ice[0].drilled;
   assert.ok(done > 0 && done < DRILL_MS);
+  assert.deepEqual(state.ice[0].from, { x: 1, y: 0 }, 'remembers which side it is drilled from');
   run(1000);
   assert.equal(state.ice[0].drilled, done, 'nothing drills while let go');
   game.press('right', 'key', now);
@@ -490,4 +491,25 @@ test('letting go keeps the drilling done so far, and restart brings the ice back
   assert.equal(state.ice.length, 1);
   assert.equal(state.ice[0].drilled, 0);
   assert.ok(state.maze.cells[0][1].right);
+});
+
+test('the intro drills the ice next to the start by itself, then hands over', () => {
+  game.setLevels([{ planet: 'europa', intro: true, map: `
+#########
+#SI     #
+####### #
+#R      #
+#########
+` }]);
+  game.startLevel(0, now);
+  assert.equal(state.angle, 0, 'faces the ice');
+  game.press('down', 'key', now);
+  const events = run(INTRO.leadMs + DRILL_MS + STEP_MS + INTRO.holdMs + FRAME_MS * 3);
+  game.release('down', 'key');
+  assert.deepEqual(types(events).filter(t => t !== 'levelStart' && t !== 'move' && t !== 'stop'), ['drillStart', 'iceBroken', 'introEnd']);
+  assert.deepEqual(state.player, { x: 1, y: 0 }, 'drove one cell through, ignoring the held key');
+  tap('right');
+  assert.equal(state.player.x, 2, 'the player drives once it is over');
+  game.restartLevel(now);
+  assert.equal(state.intro.endedAt, null, 'restart plays it again');
 });

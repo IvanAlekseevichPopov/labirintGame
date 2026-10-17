@@ -2,7 +2,7 @@
 
 import { state, roverPos } from './game.js';
 import { PLANETS } from './planets.js';
-import { BUMP_MS, DIRS, DRILL_MS, DROPPED_LEVELS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
+import { BUMP_MS, DIRS, DROPPED_LEVELS, INTRO, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
@@ -22,6 +22,7 @@ import { drawMuseum } from './finale.js';
 import { drawProfile } from './profiles.js';
 import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
+import { createChips, drawIceWall, iceSegment } from './ice.js';
 import { createSilt } from './silt.js';
 import { createCaustics, crustCracks, drawFrost, drawGrowths, drawIceCrust, drawPebbles, drawProbe, drawProbeLight, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
@@ -77,8 +78,6 @@ function wallSegments({ cols, rows, cells }) {
   return segments;
 }
 
-// An ice wall's edge in grid units, as wallSegments gives it; `a` is the top or left cell.
-const iceSegment = ({ a, b }) => (a.x !== b.x ? [b.x, a.y, b.x, a.y + 1] : [a.x, b.y, a.x + 1, b.y]);
 const sameSegment = (s, t) => s.every((v, i) => v === t[i]);
 
 // Seeded by level, so a level's decorations look the same every time — part of what makes it recognisable.
@@ -99,6 +98,8 @@ export function levelChanged(levelCount) {
   decor = makeDecor();
   drone.last = null;
   bubbles.reset();
+  chips.reset();
+  bursts.length = 0;
   silt.reset();
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
@@ -115,6 +116,14 @@ function sizeVeilLayer() {
   if (veilLayer.width === want && veilLayer.height === (drawVeil ? canvas.height : 0)) return;
   veilLayer.width = want;
   veilLayer.height = drawVeil ? canvas.height : 0;
+}
+
+// Walls the drill broke through since the last frame: their shards fly at the next one.
+const bursts = [];
+
+export function iceBroken(wall) {
+  bursts.push(wall);
+  buildMazeLayer();
 }
 
 // A meteor crater appeared: redraw the cached layer.
@@ -249,32 +258,6 @@ function buildMazeLayer() {
     const pebblesOff = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
     drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: lookSeed(), clear: pebblesOff });
     drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole: ox + (state.goal.x + 0.5) * cell });
-  }
-}
-
-// A placeholder look: a pale blue block, cracking more the longer it has been drilled.
-function drawIce(cell, ox, oy) {
-  const thick = cell * WALL_RATIO * 1.4;
-  for (const w of state.ice) {
-    const [x0, y0, x1, y1] = iceSegment(w);
-    const along = x0 === x1 ? [0, 1] : [1, 0];
-    const cx = ox + (x0 + x1) / 2 * cell, cy = oy + (y0 + y1) / 2 * cell;
-    const [bw, bh] = along[0] ? [cell + thick * 0.4, thick] : [thick, cell + thick * 0.4];
-    ctx.fillStyle = 'rgba(170, 225, 250, 0.95)';
-    ctx.strokeStyle = '#2b78a8';
-    ctx.lineWidth = cell * 0.03;
-    ctx.beginPath();
-    ctx.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, thick * 0.3);
-    ctx.fill();
-    ctx.stroke();
-    const cracks = Math.ceil((w.drilled / DRILL_MS) * 6);
-    ctx.beginPath();
-    for (let k = 0; k < cracks; k++) {
-      const a = k * 2.4 + 0.5;
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(a) * bw * 0.45, cy + Math.sin(a) * bh * 0.45);
-    }
-    ctx.stroke();
   }
 }
 
@@ -471,7 +454,7 @@ export function render(now, { soundOff = false } = {}) {
   } else {
     drawNewTracks(now);
     ctx.drawImage(trackLayer, 0, 0, w, h);
-    drawIce(cell, ox, oy);
+    for (const w of state.ice) drawIceWall(ctx, w, { cell, ox, oy, now, drilling: state.drilling?.wall === w });
   }
 
   for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {
@@ -533,10 +516,18 @@ export function render(now, { soundOff = false } = {}) {
       rover = { x: ox + (d.x + 0.5) * cell + dx * nudge, y: oy + (d.y + 0.5) * cell + dy * nudge, angle: state.angle, size: cell * DRONE_RATIO * shrink };
       rover.draw = () => drawDrone(rover, d, now);
     } else {
-      rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
-      rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size);
+      // Drilling shakes the rover and turns its drill.
+      const judder = () => (state.drilling ? (Math.random() - 0.5) * cell * 0.025 : 0);
+      const spin = state.drilling ? (now / 90) % 1 : 0;
+      rover = { x: rx + dx * nudge + judder(), y: ry + dy * nudge + judder(), angle: state.angle, size: cell * ROVER_RATIO * shrink };
+      rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size, spin);
     }
     rover.draw();
+  }
+  if (!planet.side) {
+    for (const wall of bursts.splice(0)) chips.burst(now, wall);
+    chips.update(now, state.drilling?.wall ?? null);
+    chips.draw(ctx, now, { cell, ox, oy });
   }
 
   drawMeteor(ctx, state.meteor, now, cell, toPx);
@@ -554,7 +545,10 @@ export function render(now, { soundOff = false } = {}) {
       lights: drawWeather?.lights(cell) ?? [],
     });
   }
+  const bars = letterbox(now);
+  ctx.globalAlpha = 1 - bars;
   drawText(`${planet.name} — уровень ${state.index + 1}`, ox, header / 2, header * 0.45, 'left', '#ffffff');
+  ctx.globalAlpha = 1;
 
   if (drawWeather) {
     const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };
@@ -562,7 +556,22 @@ export function render(now, { soundOff = false } = {}) {
     if (planet.side) drawInWater(area, g => drawWeather(g, now, { w, h }, area));
     else drawWeather(ctx, now, { w, h }, area);
   }
+  if (bars > 0) {
+    // Thin enough to leave the maze's bottom row clear; the level title fades out under them.
+    const bar = h * 0.07 * bars;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, bar);
+    ctx.fillRect(0, h - bar, w, bar);
+  }
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
+}
+
+// Black bars, as in the cinema, while the player only watches the intro: 0 (none) to 1, eased.
+function letterbox(now) {
+  const intro = state.intro;
+  if (!intro) return 0;
+  const k = intro.endedAt === null ? clamp01((now - intro.startedAt) / INTRO.barsMs) : 1 - clamp01((now - intro.endedAt) / INTRO.barsMs);
+  return k * k * (3 - 2 * k);
 }
 
 // The drone swims rather than drives: it trails its cell on a soft spring, so it eases off, glides
@@ -570,6 +579,7 @@ export function render(now, { soundOff = false } = {}) {
 // turns round to face the way it goes, and bobs in place. Drawing only — the rules stay on the grid.
 const drone = { x: 0, y: 0, vx: 0, vy: 0, pitch: 0, facing: 1, turn: 1, prop: 0, last: null };
 const bubbles = createBubbles();
+const chips = createChips();
 const silt = createSilt();
 const caustics = createCaustics();
 // At full speed it trails ~0.2 cell behind, and on stopping glides ~0.07 cell past and back.

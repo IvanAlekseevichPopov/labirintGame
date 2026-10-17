@@ -4,7 +4,7 @@
 import { blockCell, openWall, parseLevel } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 import {
-  DIRS, DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, DRILL_MS, FIRST_REPEAT_MS, INTRO, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -17,7 +17,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, ice, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -34,10 +34,13 @@ export function startLevel(index, now, { restart = false } = {}) {
     goal,
     landmarks,
     smokers,
-    // Ice walls still standing, each with how long it has been drilled (ms).
+    // Ice walls still standing, each with how long it has been drilled (ms) and from which cell.
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.
     drilling: null,
+    // A scene the player only watches: `dir` to drill, `through` once driving on, `endedAt` once
+    // over (the black bars slide out from then).
+    intro: intro && { dir: Object.keys(DIRS).find(k => DIRS[k].wall === intro), startedAt: now, through: false, endedAt: null },
     player: { ...start },
     from: { ...start },
     moveStart: -Infinity,
@@ -197,7 +200,7 @@ function iceAhead(dir) {
 // once through, the held direction drives on at once.
 function drill(now, dt) {
   const { wall, dir } = state.drilling;
-  if (!input.held.includes(dir)) {
+  if (!input.held.includes(dir) && state.intro?.endedAt !== null) {
     state.drilling = null;
     events.push({ type: 'drillStop' });
     return false;
@@ -210,13 +213,37 @@ function drill(now, dt) {
   state.ice = state.ice.filter(w => w !== wall);
   state.maze = openWall(state.maze, wall);
   state.nextMoveAt = now;
-  events.push({ type: 'iceBroken' });
+  events.push({ type: 'iceBroken', wall });
+  return false;
+}
+
+// The rover drills the ice next to the start by itself and drives through, then hands over.
+// Returns true while it plays.
+function playIntro(now, dt, cellPx) {
+  const intro = state.intro;
+  if (now < intro.startedAt + INTRO.leadMs) return true;
+  if (!intro.through) {
+    if (!state.drilling) {
+      const wall = iceAhead(intro.dir);
+      state.drilling = { wall, dir: intro.dir };
+      wall.from = { ...state.player };
+      events.push({ type: 'drillStart' });
+    }
+    if (drill(now, dt)) return true;
+    intro.through = true;
+    move(intro.dir, now, cellPx, true);
+    return true;
+  }
+  if (now < state.moveStart + state.moveMs + INTRO.holdMs) return true;
+  intro.endedAt = now;
+  state.inputFrom = now;
+  events.push({ type: 'introEnd' });
   return false;
 }
 
 // Advances the game to `now`; returns what happened since the last call:
 // levelStart, move, bump, landmark, stop, lightsOn / lightsOff, meteorWarn / meteorImpact,
-// drillStart / drillStop / iceBroken,
+// drillStart / drillStop / iceBroken, introEnd,
 // the win sequence arrive → ignite → liftoff,
 // and finished after the last level's rocket has flown off.
 export function update(now, dt, cellPx) {
@@ -289,6 +316,7 @@ function step(now, dt, cellPx) {
     }
     return;
   }
+  if (state.intro?.endedAt === null && playIntro(now, dt, cellPx)) { resetInput(); return; }
   if (now < state.inputFrom) { resetInput(); return; }
 
   if (state.drilling && drill(now, dt)) return;
@@ -309,6 +337,7 @@ function step(now, dt, cellPx) {
     state.targetAngle = DIRS[wanted[0]].angle;
     state.blocked = false;
     state.drilling = { wall: ice, dir: wanted[0] };
+    ice.from = { ...state.player };
     events.push({ type: 'drillStart' });
     return;
   }

@@ -62,8 +62,28 @@ export function drawLunokhod(cx, cy, angle, size) {
   });
 }
 
+// Spiral marks on the drill cone, DRILL_PITCH apart; they fade in at the cone's base and out
+// near its tip, so a steadily growing `spin` slides them on without a jump.
+const DRILL_PITCH = 0.08;
+const DRILL_MARKS = { from: 0.27, to: 0.47, fade: 0.04 };
+
+function drillMarks(spin) {
+  const shift = (spin - Math.floor(spin)) * DRILL_PITCH;
+  const alpha0 = ctx.globalAlpha;
+  for (let k = -1; k <= 2; k++) {
+    const x = 0.33 + k * DRILL_PITCH + shift;
+    const alpha = Math.min(1, (x - DRILL_MARKS.from) / DRILL_MARKS.fade, (DRILL_MARKS.to - x) / DRILL_MARKS.fade);
+    if (alpha <= 0) continue;
+    const lean = 0.375 * (x - 0.33);
+    ctx.globalAlpha = alpha0 * alpha;
+    line([[x, -0.09 + lean], [x + 0.04, 0.07 - lean]], OUTLINE, 0.02);
+  }
+  ctx.globalAlpha = alpha0;
+}
+
 // The ice drill sits at the front, so the direction of travel is obvious at a glance.
-export function drawIcebreaker(cx, cy, angle, size) {
+// `spin` (0..1, wrapping) turns the drill: run it with time and the cone looks like it spins.
+export function drawIcebreaker(cx, cy, angle, size, spin = 0) {
   withRoverSpace(cx, cy, angle, size, () => {
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
@@ -79,8 +99,7 @@ export function drawIcebreaker(cx, cy, angle, size) {
     ctx.fillStyle = '#c3c8d1';
     ctx.fill();
     ctx.stroke();
-    line([[0.33, -0.09], [0.37, 0.07]], OUTLINE, 0.02);
-    line([[0.41, -0.06], [0.45, 0.04]], OUTLINE, 0.02);
+    drillMarks(spin);
     box(-0.06, 0, 0.62, 0.52, 0.1, '#ff7a1a', true);
     box(0.13, 0, 0.13, 0.36, 0.04, '#1d3557', true);
     line([[0.1, -0.12], [0.1, -0.02]], '#8fb8ff', 0.025);
