@@ -37,6 +37,8 @@ const veilLayer = document.createElement('canvas');
 const wallMask = document.createElement('canvas');
 const waterLayer = document.createElement('canvas');
 let drawnTracks = 0;
+// The track being laid under the rover and how many of its marks are already on the layer.
+let laying = { seg: null, marks: 0 };
 let decor = null;
 let drawWeather = null;
 let drawVeil = null;
@@ -345,33 +347,52 @@ function fillShapes(g, shapes, color) {
   }
 }
 
-function drawTrack(g, { a, b }, cell, ox, oy) {
+const TRACK_MARKS = 5;
+
+// Draws the segment's marks from `from` up to the rover's progress `upTo` along it (0..1);
+// returns how many are on the layer now.
+function drawTrack(g, { a, b }, cell, ox, oy, from = 0, upTo = 1) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const along = cell * 0.07, across = cell * 0.13;
   const [w, h] = dx ? [along, across] : [across, along];
-  for (let t = 0; t < 1; t += 0.2) {
+  let i = from;
+  for (; i < TRACK_MARKS && i / TRACK_MARKS <= upTo; i++) {
+    const t = i / TRACK_MARKS;
     for (const side of [-0.3, 0.3]) {
       const x = ox + (a.x + 0.5 + dx * t - dy * side) * cell;
       const y = oy + (a.y + 0.5 + dy * t + dx * side) * cell;
       g.fillRect(x - w / 2, y - h / 2, w, h);
     }
   }
+  return i;
 }
 
 function buildTrackLayer() {
   trackLayer.width = canvas.width;
   trackLayer.height = canvas.height;
   drawnTracks = 0;
+  laying = { seg: null, marks: 0 };
   drawNewTracks();
 }
 
-function drawNewTracks() {
+// Marks go down as the rover passes over them, so the track grows right behind it. The rover
+// is drawn on top, so a mark never shows ahead of it.
+function drawNewTracks(now) {
   const g = trackLayer.getContext('2d');
   const dpr = devicePixelRatio || 1;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.fillStyle = state.dark ? NIGHT_TRACK : PLANETS[state.planet].track;
   const { cell, ox, oy } = layout();
-  for (; drawnTracks < state.tracks.length; drawnTracks++) drawTrack(g, state.tracks[drawnTracks], cell, ox, oy);
+  const lay = (seg, upTo) => {
+    if (laying.seg !== seg) laying = { seg, marks: 0 };
+    laying.marks = drawTrack(g, seg, cell, ox, oy, laying.marks, upTo);
+  };
+  for (; drawnTracks < state.tracks.length; drawnTracks++) lay(state.tracks[drawnTracks], 1);
+  const seg = state.pendingTrack;
+  if (seg && now !== undefined) {
+    const p = roverPos(now);
+    lay(seg, (p.x - seg.a.x) * (seg.b.x - seg.a.x) + (p.y - seg.a.y) * (seg.b.y - seg.a.y));
+  }
 }
 
 function makeStars() {
@@ -415,7 +436,7 @@ export function render(now, { soundOff = false } = {}) {
       drawInWater({ x: m.x - cell, y: m.y - cell * 1.4, w: cell * 2, h: cell * 1.6 }, g => drawSmoke(g, [m], now, cell));
     }
   } else {
-    drawNewTracks();
+    drawNewTracks(now);
     ctx.drawImage(trackLayer, 0, 0, w, h);
   }
 

@@ -154,7 +154,7 @@ function move(dir, now, cellPx, fresh) {
   state.moveStart = now;
   state.moveMs = fresh && state.swims ? FIRST_REPEAT_MS : stepMs(cellPx);
   state.targetAngle = angle;
-  state.pendingTrack = { a: { x, y }, b: state.player };
+  state.pendingTrack = newTrack({ x, y }, state.player);
   state.moving = true;
   events.push({ type: 'move', dir });
   if (state.storm) switchLightsAtStormEdge(now);
@@ -166,16 +166,20 @@ function move(dir, now, cellPx, fresh) {
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
 }
 
-// Tracks are laid once the rover has left them behind, so they never appear ahead of it.
-function flushTrack() {
-  const seg = state.pendingTrack;
-  if (!seg) return;
-  state.pendingTrack = null;
-  const [p, q] = [seg.a, seg.b].sort((m, n) => m.x - n.x || m.y - n.y);
+// The segment being driven, or null if it already has a track. It joins `tracks` once the rover
+// has left it behind; until then the renderer lays it mark by mark under the rover.
+function newTrack(a, b) {
+  const [p, q] = [a, b].sort((m, n) => m.x - n.x || m.y - n.y);
   const key = `${p.x},${p.y}-${q.x},${q.y}`;
-  if (state.trackKeys.has(key)) return;
+  if (state.trackKeys.has(key)) return null;
   state.trackKeys.add(key);
-  state.tracks.push(seg);
+  return { a, b };
+}
+
+function flushTrack() {
+  if (!state.pendingTrack) return;
+  state.tracks.push(state.pendingTrack);
+  state.pendingTrack = null;
 }
 
 // Advances the game to `now`; returns what happened since the last call:
