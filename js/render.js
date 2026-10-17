@@ -7,7 +7,8 @@ import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
 import { createStorm } from './storm.js';
-import { FONT, ROVERS, drawPad, drawSoundOff, drawText, useContext } from './art.js';
+import { FONT, drawPad, drawSoundOff, drawText, useContext } from './art.js';
+import { ROVERS } from './rovers.js';
 import { drawRocket } from './rockets.js';
 import { LANDMARKS } from './landmarks.js';
 import { drawMeteor, meteorShake } from './meteor.js';
@@ -18,7 +19,7 @@ import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
-import { DRONE_LAMP, drawFront, drawProfile } from './profiles.js';
+import { drawProfile } from './profiles.js';
 import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
 import { createSilt } from './silt.js';
@@ -478,7 +479,7 @@ export function render(now, { soundOff = false } = {}) {
       rover.draw = () => drawDrone(rover, d, now);
     } else {
       rover = { x: rx + dx * nudge, y: ry + dy * nudge, angle: state.angle, size: cell * ROVER_RATIO * shrink };
-      rover.draw = () => ROVERS[planet.rover](rover.x, rover.y, rover.angle, rover.size);
+      rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size);
     }
     rover.draw();
   }
@@ -502,7 +503,9 @@ export function render(now, { soundOff = false } = {}) {
 
   if (drawWeather) {
     const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };
-    drawWeather(ctx, now, { w, h }, area);
+    // Under water the weather sinks through the water, never over a wall.
+    if (planet.side) drawInWater(area, g => drawWeather(g, now, { w, h }, area));
+    else drawWeather(ctx, now, { w, h }, area);
   }
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
 }
@@ -548,6 +551,8 @@ function followDrone(now, target) {
 // Turning round it narrows a little, then shows itself head-on for a moment and comes out facing
 // the other way; squeezed any thinner it would turn into a flat cut-out.
 const HEAD_ON = 0.35;
+// The machine that swims here, from rovers.js.
+const swimmer = () => ROVERS[PLANETS[state.planet].rover];
 // The propeller in the drone's own space (see PROFILES.drone).
 const SCREW = { x: -0.47, y: -0.27 };
 
@@ -588,29 +593,30 @@ function drawDrone({ x, y, size }, d, now) {
   ctx.save();
   ctx.translate(x, y);
   if (headOn(d)) {
-    drawFront(ctx, 'drone', 0, size * 0.3, size);
+    drawProfile(ctx, swimmer().front, 0, size * 0.3, size);
     ctx.restore();
     return;
   }
   ctx.scale(sideways(d), 1);
   ctx.rotate(d.pitch);
   ctx.translate(size * 0.06, size * 0.3);
-  drawProfile(ctx, 'drone', 0, 0, size, { rolled: d.prop });
+  drawProfile(ctx, swimmer().profile, 0, 0, size, { rolled: d.prop });
   ctx.restore();
 }
 
 // The bow lamp's beam, cast against the walls like the headlights at night and then cut by the
 // wall mask, so it lights the water up to a wall and never shows on or past it.
 function drawLampBeam(d, x, y, size) {
+  const lamp = swimmer().beam;
   const k = sideways(d), c = Math.cos(d.pitch), s = Math.sin(d.pitch);
-  const px = (0.06 + DRONE_LAMP.x) * size, py = (0.3 + DRONE_LAMP.y) * size;
+  const px = (0.06 + lamp.x) * size, py = (0.3 + lamp.y) * size;
   const lx = x + k * (px * c - py * s), ly = y + px * s + py * c;
-  const angle = Math.atan2(Math.sin(DRONE_LAMP.dip + d.pitch), Math.sign(k) * Math.cos(DRONE_LAMP.dip + d.pitch));
-  const len = size * DRONE_LAMP.length;
-  const pts = beamPolygon(lx, ly, angle, len, wallsPx, { rays: 24, halfAngle: DRONE_LAMP.spread });
+  const angle = Math.atan2(Math.sin(lamp.dip + d.pitch), Math.sign(k) * Math.cos(lamp.dip + d.pitch));
+  const len = size * lamp.length;
+  const pts = beamPolygon(lx, ly, angle, len, wallsPx, { rays: 24, halfAngle: lamp.spread });
   drawInWater({ x: lx - len, y: ly - len, w: len * 2, h: len * 2 }, g => {
     const glow = g.createLinearGradient(lx, ly, lx + Math.cos(angle) * len, ly + Math.sin(angle) * len);
-    glow.addColorStop(0, `rgba(255, 243, 190, ${DRONE_LAMP.alpha})`);
+    glow.addColorStop(0, `rgba(255, 243, 190, ${lamp.alpha})`);
     glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
     g.fillStyle = glow;
     g.beginPath();

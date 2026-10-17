@@ -23,8 +23,7 @@ function fakeContext() {
   return ctx;
 }
 
-// Enceladus has no weather yet.
-for (const planet of PLANET_KEYS.filter(p => p !== 'enceladus')) {
+for (const planet of PLANET_KEYS) {
   test(`${planet} weather runs for a while and draws something`, () => {
     const draw = createWeather(planet, 1);
     const ctx = fakeContext();

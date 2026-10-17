@@ -47,7 +47,7 @@ function withRoverSpace(cx, cy, angle, size, draw) {
   ctx.restore();
 }
 
-function drawLunokhod(cx, cy, angle, size) {
+export function drawLunokhod(cx, cy, angle, size) {
   withRoverSpace(cx, cy, angle, size, () => {
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
@@ -63,7 +63,7 @@ function drawLunokhod(cx, cy, angle, size) {
 }
 
 // The ice drill sits at the front, so the direction of travel is obvious at a glance.
-function drawIcebreaker(cx, cy, angle, size) {
+export function drawIcebreaker(cx, cy, angle, size) {
   withRoverSpace(cx, cy, angle, size, () => {
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 0.03;
@@ -92,7 +92,7 @@ function drawIcebreaker(cx, cy, angle, size) {
   });
 }
 
-function drawMarsRover(cx, cy, angle, size) {
+export function drawMarsRover(cx, cy, angle, size) {
   withRoverSpace(cx, cy, angle, size, () => {
     for (const y of [-0.4, 0.4]) line([[-0.3, y], [0.3, y]], '#5a5650', 0.05);
     ctx.strokeStyle = OUTLINE;
@@ -623,7 +623,6 @@ export function drawText(text, x, y, size, align, color) {
   ctx.fillText(text, x, y);
 }
 
-export const ROVERS = { lunokhod: drawLunokhod, marsRover: drawMarsRover, icebreaker: drawIcebreaker };
 
 // Speaker with a cross: the game runs, but the browser has not allowed sound yet.
 export function drawSoundOff(cx, cy, size) {

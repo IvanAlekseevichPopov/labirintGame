@@ -5,6 +5,7 @@
 
 import { FONT, OUTLINE, drawGlobe } from './art.js';
 import { drawProfile } from './profiles.js';
+import { ROVERS } from './rovers.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 
 let c;
@@ -37,7 +38,7 @@ export function drawMuseum(context, now, w, h) {
     c.ellipse(x, top, size * 0.45, size * 0.025, 0, 0, Math.PI * 2);
     c.fillStyle = 'rgba(0, 0, 0, 0.25)';
     c.fill();
-    drawProfile(c, PLANETS[planet].rover, x, top, size);
+    drawProfile(c, ROVERS[PLANETS[planet].rover].profile, x, top, size);
   });
   rope(w, h, spacing);
 }

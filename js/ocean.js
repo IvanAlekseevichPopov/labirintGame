@@ -334,7 +334,7 @@ const SMOKE_TINT = {
 const ease = (t, from, to) => Math.max(0, Math.min(1, (t - from) / (to - from)));
 // The column is drawn apart and faded out towards its top before it goes on screen: one cloud
 // cannot fade puff by puff, and a cut-off cloud would leave a hard edge against the haze.
-const columnLayer = document.createElement('canvas');
+let columnLayer = null;
 
 export function drawSmoke(ctx, mouths, now, cell) {
   const [soft, solid] = SMOKE.handOver;
@@ -364,6 +364,7 @@ export function drawSmoke(ctx, mouths, now, cell) {
 }
 
 function drawColumn(ctx, column, m, cell, soft, solid) {
+  columnLayer ??= document.createElement('canvas');
   const dpr = devicePixelRatio || 1;
   const box = { x: m.x - cell * 0.6, y: m.y - cell * (SMOKE.rise * solid + 0.3), w: cell * 1.2, h: cell * (SMOKE.rise * solid + 0.45) };
   const pw = Math.ceil(box.w * dpr), ph = Math.ceil(box.h * dpr);

@@ -4,18 +4,12 @@
 // its ocean under the ice is shown cut open instead, the drone swimming in it over the turning core.
 
 import { crack, drawGlobe } from './art.js';
-import { drawDroneBeam, drawProfile } from './profiles.js';
+import { drawBeam, drawProfile } from './profiles.js';
+import { ROVERS } from './rovers.js';
 import { mulberry32 } from './random.js';
 
 // Milliseconds per radian of the globe's turn.
 const TURN_MS = 1600;
-
-// Lamps in profile space (wheels on y = 0, facing right, 1 = rover length).
-const LIGHTS = {
-  lunokhod: { front: [[0.42, -0.34], [0.42, -0.26]], rear: [[-0.44, -0.3]] },
-  marsRover: { front: [[0.29, -0.44], [0.29, -0.36]], rear: [[-0.33, -0.36]] },
-  icebreaker: { front: [[0.3, -0.27]], rear: [[-0.37, -0.36]] },
-};
 
 const BEAM = { length: 1.3, spread: 0.13, dip: 0.12, color: '255,236,170' };
 
@@ -31,7 +25,7 @@ export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, nigh
   const groundY = cy - radius;
   const rolled = (now / TURN_MS) * radius / size;
   if (!night) {
-    drawProfile(ctx, p.rover, cx, groundY, size, { rolled, spokes: 1, ground: radius });
+    drawProfile(ctx, ROVERS[p.rover].profile, cx, groundY, size, { rolled, spokes: 1, ground: radius });
     return;
   }
 
@@ -50,14 +44,14 @@ export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, nigh
   g.globalCompositeOperation = 'source-over';
   g.clearRect(0, 0, pw, ph);
   g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
-  drawProfile(g, p.rover, cx, groundY, size, { rolled, spokes: 1, ground: radius });
+  drawProfile(g, ROVERS[p.rover].profile, cx, groundY, size, { rolled, spokes: 1, ground: radius });
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(4, 6, 20, 0.5)';
   g.fillRect(box.x, box.y, box.w, box.h);
   ctx.drawImage(shade, box.x, box.y, box.w, box.h);
 
-  // A rover not in LIGHTS yet still drives dimmed, only without lamps.
-  const lights = LIGHTS[p.rover];
+  // A rover without lamps in rovers.js still drives dimmed, only without them.
+  const lights = ROVERS[p.rover].lamps;
   if (!lights) return;
   const at = ([x, y]) => [cx + x * size, groundY + y * size];
   ctx.save();
@@ -195,7 +189,7 @@ function drawCutaway(ctx, now, { cx, cy, radius, p }) {
   const size = radius * CUT.drone;
   ctx.save();
   ctx.translate(cx, cy - radius * CUT.swim + Math.sin(now / 700) * size * 0.04);
-  drawDroneBeam(ctx, size * 0.06, size * 0.3, size);
-  drawProfile(ctx, p.rover, size * 0.06, size * 0.3, size, { rolled: now / 300 });
+  drawBeam(ctx, ROVERS[p.rover].beam, size * 0.06, size * 0.3, size);
+  drawProfile(ctx, ROVERS[p.rover].profile, size * 0.06, size * 0.3, size, { rolled: now / 300 });
   ctx.restore();
 }

@@ -88,7 +88,7 @@ document.getElementById('cheer-duck').addEventListener('click', () => {
 });
 
 const engineButtons = [
-  ...['lunokhod', 'marsRover', 'icebreaker'].map(rover => button('engine', rover, b => { audio.setEngine(rover); select(engineButtons, b); })),
+  ...['lunokhod', 'marsRover', 'icebreaker', 'drone'].map(rover => button('engine', rover, b => { audio.setEngine(rover); select(engineButtons, b); })),
   button('engine', 'стоп мотор', b => { audio.setEngine(null); select(engineButtons, b); }),
 ];
 

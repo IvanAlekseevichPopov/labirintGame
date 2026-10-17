@@ -1,4 +1,5 @@
-// Atmosphere on the later levels: meteors on the Moon, a dust storm on Mars, a snowstorm on Europa.
+// Atmosphere on the later levels: meteors on the Moon, a dust storm on Mars, a snowstorm on Europa,
+// marine snow in the ocean under Enceladus' ice.
 // Purely decorative, drawn over the whole scene and kept translucent, so the way stays visible.
 
 // 21, not 20: Enceladus came in at 19 and every level after it moved up one.
@@ -15,7 +16,7 @@ const rnd = (min, max) => min + Math.random() * (max - min);
 // `area` is the maze on screen: { x, y, w, h, cell } in CSS pixels; the screen is { w, h }.
 export function createWeather(planet, intensity) {
   if (!intensity) return null;
-  const make = { moon: meteors, mars: dustStorm, europa: snowstorm }[planet];
+  const make = { moon: meteors, mars: dustStorm, europa: snowstorm, enceladus: marineSnow }[planet];
   if (!make) return null;
   const system = make(intensity);
   let last = null;
@@ -34,6 +35,45 @@ export function createWeather(planet, intensity) {
 // Particle counts and sizes scale with the screen, so a TV and a laptop look the same.
 const density = screen => (screen.w * screen.h) / (1920 * 1080);
 const unit = screen => screen.h / 540;
+
+// Marine snow: pale specks sinking slowly through the water and swaying as they go, kept to the
+// maze (the caller draws it into the water only). Soft and sparse, it is the quiet the deep has.
+function marineSnow(intensity) {
+  let specks = [];
+  const spawn = (area, top) => ({
+    x: area.x + rnd(0, area.w),
+    y: top ? area.y - rnd(0, 20) : area.y + rnd(0, area.h),
+    r: rnd(0.8, 2.2),
+    sink: rnd(0.08, 0.2),
+    sway: rnd(0.03, 0.08),
+    phase: rnd(0, Math.PI * 2),
+    alpha: rnd(0.25, 0.6),
+  });
+  return {
+    update(dt, now, screen, area) {
+      const want = Math.round(180 * intensity * density(screen));
+      if (specks.length !== want) specks = Array.from({ length: want }, () => spawn(area, false));
+      for (const s of specks) {
+        s.phase += dt * 0.8;
+        s.x += Math.sin(s.phase) * s.sway * area.cell * dt;
+        s.y += s.sink * area.cell * dt;
+        if (s.y > area.y + area.h + 5) Object.assign(s, spawn(area, true));
+      }
+    },
+    draw(ctx, now, screen) {
+      const k = unit(screen) / 2;
+      ctx.save();
+      ctx.fillStyle = '#e6f4fa';
+      for (const s of specks) {
+        ctx.globalAlpha = s.alpha;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, Math.max(0.6, s.r * k), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    },
+  };
+}
 
 function snowstorm(intensity) {
   let flakes = [];

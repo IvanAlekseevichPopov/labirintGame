@@ -4,6 +4,7 @@
 // Nothing touches the browser at import time, so node can test the pure helpers.
 
 import { DRUMS, JINGLES, SONGS, parseSong } from './music.js';
+import { ROVERS } from './rovers.js';
 
 // Balance: effects above music above the engine; `duck` is the music level under the win jingle.
 export const VOLUME = { master: 0.5, sfx: 0.6, music: 0.3, engine: 0.07, duck: 0.3 };
@@ -446,63 +447,6 @@ export function createAudio() {
     return SFX[name]();
   }
 
-  // Each returns the source nodes to start; they connect themselves to `out`.
-  const ENGINES = {
-    // A soft whirr of the propeller under water: a low hum with a quiet buzz over it, the buzz
-    // beating with the turning blades.
-    drone(out) {
-      const hum = tone('triangle', 0, 62);
-      const whirr = tone('pulse', 0.125, 124);
-      hum.connect(gain(0.8, out));
-      const blades = gain(0.12, out);
-      whirr.connect(blades);
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 9;
-      lfo.connect(gain(0.1)).connect(blades.gain);
-      return [hum, whirr, lfo];
-    },
-    lunokhod(out) {
-      const low = tone('triangle', 0, 55);
-      const buzz = tone('pulse', 0.125, 110);
-      low.connect(gain(0.9, out));
-      buzz.connect(gain(0.25, out));
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 5.5;
-      const depth = gain(10);
-      lfo.connect(depth);
-      depth.connect(low.detune);
-      depth.connect(buzz.detune);
-      return [low, buzz, lfo];
-    },
-    marsRover(out) {
-      const servo = tone('pulse', 0.25, 165);
-      const whine = tone('pulse', 0.125, 247);
-      servo.connect(gain(0.55, out));
-      whine.connect(gain(0.3, out));
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.7;
-      const depth = gain(35);
-      lfo.connect(depth);
-      depth.connect(servo.detune);
-      depth.connect(whine.detune);
-      return [servo, whine, lfo];
-    },
-    icebreaker(out) {
-      const rumble = noise('long', 13);
-      rumble.connect(gain(0.8, out));
-      // Track clatter: a 12.5% pulse LFO opens the gate for a short burst 6.5 times a second.
-      // The normalised wave sits at +1 for the burst and -1/7 otherwise, hence the offset.
-      const clack = noise('long', 6);
-      const gate = gain(0.45 / 7, out);
-      const lfo = ctx.createOscillator();
-      lfo.setPeriodicWave(waves[0.125]);
-      lfo.frequency.value = 6.5;
-      lfo.connect(gain(0.45)).connect(gate.gain);
-      clack.connect(gate);
-      return [rumble, clack, lfo];
-    },
-  };
-
   function setEngine(rover) {
     wanted.rover = rover;
     if (!ctx || engine?.rover === rover) return;
@@ -516,10 +460,11 @@ export function createAudio() {
       nodes[0].onended = () => out.disconnect();
       engine = null;
     }
-    if (!ENGINES[rover]) return;
+    const recipe = ROVERS[rover]?.engine;
+    if (!recipe) return;
     const out = gain(0, bus.engine);
     out.gain.linearRampToValueAtTime(1, now + ENGINE_FADE);
-    const nodes = ENGINES[rover](out);
+    const nodes = recipe(out, { ctx, tone, gain, noise, waves });
     for (const n of nodes) n.start(now);
     engine = { rover, out, nodes };
   }

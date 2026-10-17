@@ -14,26 +14,19 @@ const sag = x => (groundR ? groundR - Math.sqrt(groundR * groundR - x * x) : 0);
 // Wheels touch the ground at (x, groundY); `size` is the rover's length. `rolled` is how far it
 // has driven, in its own lengths, to turn the wheels; small rovers read better with fewer `spokes`.
 // `ground` is the radius of the ball it stands on, 0 for flat ground.
-export function drawProfile(context, type, x, groundY, size, options) {
-  drawIn(context, PROFILES[type], x, groundY, size, options);
+// `draw` is one of PROFILES or FRONTS (head-on, for the moment a machine turns round), as the
+// machine's entry in rovers.js names them.
+export function drawProfile(context, draw, x, groundY, size, options) {
+  drawIn(context, draw, x, groundY, size, options);
 }
 
-// Head-on, for the moment a machine turns round between facing left and right; same space.
-export function drawFront(context, type, x, groundY, size) {
-  drawIn(context, FRONTS[type], x, groundY, size);
-}
-
-// The drone's bow lamp (see PROFILES.drone) and its beam, in the same space as drawProfile(): it
-// shows which way the drone faces and that it is deep under water. Faint, so it never reads as a
-// wall or a path.
-export const DRONE_LAMP = { x: 0.3, y: -0.15, length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
-const LAMP = DRONE_LAMP;
-
-export function drawDroneBeam(context, x, groundY, size) {
-  const lx = x + LAMP.x * size, ly = groundY + LAMP.y * size, len = size * LAMP.length;
-  const end = side => [lx + Math.cos(LAMP.dip + side * LAMP.spread) * len, ly + Math.sin(LAMP.dip + side * LAMP.spread) * len];
-  const glow = context.createLinearGradient(lx, ly, lx + Math.cos(LAMP.dip) * len, ly + Math.sin(LAMP.dip) * len);
-  glow.addColorStop(0, `rgba(255, 243, 190, ${LAMP.alpha})`);
+// A bow lamp's beam, `beam` from the machine's entry in rovers.js, in the same space as
+// drawProfile(): it shows which way the machine faces. Faint, so it never reads as a wall or a path.
+export function drawBeam(context, beam, x, groundY, size) {
+  const lx = x + beam.x * size, ly = groundY + beam.y * size, len = size * beam.length;
+  const end = side => [lx + Math.cos(beam.dip + side * beam.spread) * len, ly + Math.sin(beam.dip + side * beam.spread) * len];
+  const glow = context.createLinearGradient(lx, ly, lx + Math.cos(beam.dip) * len, ly + Math.sin(beam.dip) * len);
+  glow.addColorStop(0, `rgba(255, 243, 190, ${beam.alpha})`);
   glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
   context.save();
   context.globalCompositeOperation = 'lighter';
@@ -135,7 +128,7 @@ function bar(x0, y0, x1, y1, color, width) {
   c.strokeStyle = OUTLINE;
 }
 
-const PROFILES = {
+export const PROFILES = {
   // A silver tub on eight wheels (four seen), its blue solar lid swung open, headlights and
   // camera eyes at the front, a whip antenna.
   lunokhod() {
@@ -259,7 +252,7 @@ const PROFILES = {
   },
 };
 
-const FRONTS = {
+export const FRONTS = {
   // The submarine end-on: the round hull with the big porthole looking straight out, the tower on
   // top and the skid below.
   drone() {
