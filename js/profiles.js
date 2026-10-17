@@ -26,7 +26,8 @@ export function drawFront(context, type, x, groundY, size) {
 // The drone's bow lamp (see PROFILES.drone) and its beam, in the same space as drawProfile(): it
 // shows which way the drone faces and that it is deep under water. Faint, so it never reads as a
 // wall or a path.
-const LAMP = { x: 0.3, y: -0.15, length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
+export const DRONE_LAMP = { x: 0.3, y: -0.15, length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
+const LAMP = DRONE_LAMP;
 
 export function drawDroneBeam(context, x, groundY, size) {
   const lx = x + LAMP.x * size, ly = groundY + LAMP.y * size, len = size * LAMP.length;

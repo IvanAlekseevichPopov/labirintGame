@@ -18,10 +18,11 @@ import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
-import { drawDroneBeam, drawFront, drawProfile } from './profiles.js';
+import { DRONE_LAMP, drawFront, drawProfile } from './profiles.js';
+import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
 import { createSilt } from './silt.js';
-import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawPebbles, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
+import { createCaustics, crustCracks, drawFrost, drawGrowths, drawIceCrust, drawProbe, drawPebbles, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -31,6 +32,9 @@ useContext(ctx);
 const mazeLayer = document.createElement('canvas');
 const trackLayer = document.createElement('canvas');
 const veilLayer = document.createElement('canvas');
+// Seen from the side: everything that is not open water, so the drone's beam stops at the walls.
+const wallMask = document.createElement('canvas');
+const beamLayer = document.createElement('canvas');
 let drawnTracks = 0;
 let decor = null;
 let drawWeather = null;
@@ -198,6 +202,19 @@ function buildMazeLayer() {
   drawWallDetails(g, decor.walls, p, { ...details, under: true });
   g.restore();
   fillShapes(g, ragged(half, 0.03 * rough), paint.base);
+  if (p.side) {
+    wallMask.width = canvas.width;
+    wallMask.height = canvas.height;
+    const m = wallMask.getContext('2d');
+    m.setTransform(dpr, 0, 0, dpr, 0, 0);
+    m.fillRect(0, 0, innerWidth, innerHeight);
+    m.globalCompositeOperation = 'destination-out';
+    m.beginPath();
+    m.roundRect(ox - wall / 2, oy + wall / 2, cell * cols + wall, cell * rows, wall);
+    m.fill();
+    m.globalCompositeOperation = 'source-over';
+    fillShapes(m, ragged(half, 0.03 * rough), '#000');
+  }
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
   // Rays and rubble stay on the ground, never on the sky.
@@ -212,9 +229,11 @@ function buildMazeLayer() {
   g.restore();
   if (p.side) {
     drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: state.index });
+    const clear = (x, y) => state.smokers.some(s => s.x === x && s.y === y);
+    drawGrowths(g, p, decor.walls, { cell, ox, oy, cols, rows, half: wall / 2, seed: state.index, clear });
     smokers = state.smokers.map(s => drawSmoker(g, p, { x: ox + (s.x + 0.5) * cell, line: oy + (s.y + 1) * cell, half: wall / 2, cell, white: s.white }));
-    const clear = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
-    drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: state.index, clear });
+    const pebblesOff = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
+    drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: state.index, clear: pebblesOff });
     drawIceCrust(g, p, { ...crustBox, cell, seed: state.index, cracks, hole: ox + (state.goal.x + 0.5) * cell });
   }
 }
@@ -386,6 +405,8 @@ export function render(now, { soundOff = false } = {}) {
   ctx.translate(shakeX, shakeY);
   ctx.drawImage(mazeLayer, 0, 0, w, h);
   if (planet.side) {
+    const surface = oy + WALL_RATIO * cell / 2;
+    drawCaustics(ctx, now, { x: ox - WALL_RATIO * cell / 2, w: cell * (state.maze.cols + WALL_RATIO), surface, h: cell * state.maze.rows, cell, mask: wallMask });
     drawSmoke(ctx, smokers, now, cell);
   } else {
     drawNewTracks();
@@ -482,6 +503,7 @@ export function render(now, { soundOff = false } = {}) {
 const drone = { x: 0, y: 0, vx: 0, vy: 0, pitch: 0, facing: 1, turn: 1, prop: 0, last: null };
 const bubbles = createBubbles();
 const silt = createSilt();
+const drawCaustics = createCaustics();
 // At full speed it trails ~0.2 cell behind, and on stopping glides ~0.07 cell past and back.
 const SPRING = { k: 700, c: 24 };
 
@@ -548,8 +570,10 @@ function screwOf(d, now, size, cell) {
 
 function drawDrone({ x, y, size }, d, now) {
   if (size <= 0) return;
+  y += bob(now, size);
+  if (!headOn(d)) drawLampBeam(d, x, y, size);
   ctx.save();
-  ctx.translate(x, y + bob(now, size));
+  ctx.translate(x, y);
   if (headOn(d)) {
     drawFront(ctx, 'drone', 0, size * 0.3, size);
     ctx.restore();
@@ -558,8 +582,47 @@ function drawDrone({ x, y, size }, d, now) {
   ctx.scale(sideways(d), 1);
   ctx.rotate(d.pitch);
   ctx.translate(size * 0.06, size * 0.3);
-  drawDroneBeam(ctx, 0, 0, size);
   drawProfile(ctx, 'drone', 0, 0, size, { rolled: d.prop });
+  ctx.restore();
+}
+
+// The bow lamp's beam, cast against the walls like the headlights at night and then cut by the
+// wall mask, so it lights the water up to a wall and never shows on or past it.
+function drawLampBeam(d, x, y, size) {
+  const k = sideways(d), c = Math.cos(d.pitch), s = Math.sin(d.pitch);
+  const px = (0.06 + DRONE_LAMP.x) * size, py = (0.3 + DRONE_LAMP.y) * size;
+  const lx = x + k * (px * c - py * s), ly = y + px * s + py * c;
+  const angle = Math.atan2(Math.sin(DRONE_LAMP.dip + d.pitch), Math.sign(k) * Math.cos(DRONE_LAMP.dip + d.pitch));
+  const len = size * DRONE_LAMP.length;
+  const pts = beamPolygon(lx, ly, angle, len, wallsPx, { rays: 24, halfAngle: DRONE_LAMP.spread });
+
+  const dpr = devicePixelRatio || 1;
+  const box = { x: lx - len, y: ly - len, w: len * 2, h: len * 2 };
+  const pw = Math.ceil(box.w * dpr), ph = Math.ceil(box.h * dpr);
+  if (!pw || !ph) return;
+  if (beamLayer.width < pw || beamLayer.height < ph) {
+    beamLayer.width = Math.max(beamLayer.width, pw);
+    beamLayer.height = Math.max(beamLayer.height, ph);
+  }
+  const g = beamLayer.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, pw, ph);
+  g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
+  const glow = g.createLinearGradient(lx, ly, lx + Math.cos(angle) * len, ly + Math.sin(angle) * len);
+  glow.addColorStop(0, `rgba(255, 243, 190, ${DRONE_LAMP.alpha})`);
+  glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
+  g.fillStyle = glow;
+  g.beginPath();
+  pts.forEach(([bx, by], i) => g[i ? 'lineTo' : 'moveTo'](bx, by));
+  g.closePath();
+  g.fill();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'destination-out';
+  g.drawImage(wallMask, box.x * dpr, box.y * dpr, pw, ph, 0, 0, pw, ph);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(beamLayer, 0, 0, pw, ph, box.x, box.y, box.w, box.h);
   ctx.restore();
 }
 

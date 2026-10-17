@@ -111,6 +111,99 @@ export function drawFrost(g, p, segments, { cell, ox, oy, rows, seed }) {
   }
 }
 
+// What grows on the walls, nothing alive: up in the ice, icicles hanging under the walls; down in
+// the rock, mineral crystals on the ledges and stony knobs on the sides. Small, within a fifth of a
+// cell, so no corridor looks narrower. `segments` are wall edges in grid units, `half` the wall's
+// half-width in px; `clear(x, y)` is true for cells to keep bare (the smokers').
+export function drawGrowths(g, p, segments, { cell, ox, oy, cols, rows, half, seed, clear }) {
+  const rand = mulberry32(seed + 3500);
+  for (const [x0, y0, x1, y1] of segments) {
+    const depth = (y0 + y1) / 2 / rows, ice = depth < 0.45;
+    if (y0 === y1) {
+      const y = oy + y0 * cell;
+      // Under the wall, into the cell below it; the top frame's underside is the crust's.
+      if (ice && y0 > 0 && y0 < rows) {
+        for (let k = 0, n = rand() < 1 - depth * 1.8 ? 1 + Math.floor(rand() * 3) : 0; k < n; k++) {
+          icicle(g, p, ox + (x0 + 0.15 + rand() * 0.7) * cell, y + half - cell * 0.01, cell * (0.08 + rand() * 0.12), cell * (0.035 + rand() * 0.025));
+        }
+      }
+      // On top of the wall, in the cell above it.
+      if (!ice && y0 > 0 && rand() < 0.35 && !clear(x0, y0 - 1)) {
+        const cx = ox + (x0 + 0.2 + rand() * 0.6) * cell;
+        for (let k = 0, n = 2 + Math.floor(rand() * 3); k < n; k++) {
+          crystal(g, cx + (rand() - 0.5) * cell * 0.12, y - half + cell * 0.01, cell * (0.08 + rand() * 0.09), cell * (0.03 + rand() * 0.018), (rand() - 0.5) * 1.1);
+        }
+      }
+    } else if (!ice) {
+      const x = ox + x0 * cell;
+      for (const side of [-1, 1]) {
+        if (rand() >= 0.25 || (side < 0 && x0 === 0) || (side > 0 && x0 === cols)) continue;
+        const cy = oy + (y0 + 0.2 + rand() * 0.6) * cell;
+        for (let k = 0, n = 1 + Math.floor(rand() * 3); k < n; k++) {
+          knob(g, p, x + side * half, cy + (k - 1) * cell * 0.07 + (rand() - 0.5) * cell * 0.03, side, cell * (0.035 + rand() * 0.035));
+        }
+      }
+    }
+  }
+}
+
+function icicle(g, p, x, top, length, width) {
+  const lean = (Math.sin(x * 7.1) * 0.15) * length;
+  g.beginPath();
+  g.moveTo(x - width / 2, top);
+  g.quadraticCurveTo(x - width * 0.45, top + length * 0.5, x + lean, top + length);
+  g.quadraticCurveTo(x + width * 0.45, top + length * 0.5, x + width / 2, top);
+  g.closePath();
+  const fill = g.createLinearGradient(0, top, 0, top + length);
+  fill.addColorStop(0, p.iceShade);
+  fill.addColorStop(1, p.ice);
+  g.fillStyle = fill;
+  g.fill();
+  g.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  g.lineWidth = Math.max(1, width * 0.2);
+  g.beginPath();
+  g.moveTo(x - width * 0.25, top + length * 0.1);
+  g.lineTo(x + lean * 0.6 - width * 0.1, top + length * 0.7);
+  g.stroke();
+}
+
+// A pointed prism of pale mineral standing up from a ledge, leaning by `lean` radians.
+function crystal(g, x, base, length, width, lean) {
+  g.save();
+  g.translate(x, base);
+  g.rotate(lean);
+  g.beginPath();
+  g.moveTo(-width / 2, 0);
+  g.lineTo(-width / 2, -length * 0.78);
+  g.lineTo(0, -length);
+  g.lineTo(0, 0);
+  g.closePath();
+  g.fillStyle = '#cdeef0';
+  g.fill();
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(0, -length);
+  g.lineTo(width / 2, -length * 0.78);
+  g.lineTo(width / 2, 0);
+  g.closePath();
+  g.fillStyle = '#86b9c2';
+  g.fill();
+  g.restore();
+}
+
+// A stony knob bulging out of a wall's side (`side` -1 left, 1 right).
+function knob(g, p, x, y, side, r) {
+  g.beginPath();
+  g.ellipse(x, y, r * 1.1, r, 0, -Math.PI / 2, Math.PI / 2, side < 0);
+  g.closePath();
+  g.fillStyle = p.wallTop;
+  g.fill();
+  g.beginPath();
+  g.ellipse(x + side * r * 0.25, y - r * 0.3, r * 0.45, r * 0.3, 0, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255, 255, 255, 0.18)';
+  g.fill();
+}
+
 function softLump(g, cx, cy, r, fill) {
   g.beginPath();
   for (let k = 0; k <= 7; k++) {
@@ -425,4 +518,85 @@ export function drawProbe(ctx, x, y, topY, cell, now, alpha = 1) {
   ctx.lineWidth = cell * 0.04;
   ctx.stroke();
   ctx.restore();
+}
+
+// Caustics: the net of bright ripples sunlight makes through the cracks in the ice, sliding over
+// the water up under the crust and fading out with depth. Two copies of one
+// tileable net drift past each other, which makes it shimmer. Drawn every frame into a layer at
+// CSS-pixel resolution, soft enough not to need more.
+const CAUSTICS = { tile: 128, cells: 2.2, reach: 0.4, alpha: 0.14, drift: [[0.12, 0.05], [-0.08, 0.1]] };
+
+function causticTile() {
+  const size = CAUSTICS.tile, n = 4, rand = mulberry32(5150);
+  const points = [];
+  for (let gy = 0; gy < n; gy++) {
+    for (let gx = 0; gx < n; gx++) points.push([(gx + rand()) * size / n, (gy + rand()) * size / n]);
+  }
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = size;
+  const g = tile.getContext('2d');
+  const img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      // Warped a little so the net's strands wave instead of running straight like cracked glass;
+      // whole waves per tile, and distances wrapped, so the tile repeats without seams.
+      const wx = x + 5 * Math.sin((4 * Math.PI * y) / size), wy = y + 5 * Math.sin((4 * Math.PI * x) / size);
+      let d1 = Infinity, d2 = Infinity;
+      for (const [px, py] of points) {
+        const ax = Math.abs(wx - px) % size, ay = Math.abs(wy - py) % size;
+        const dx = Math.min(ax, size - ax), dy = Math.min(ay, size - ay);
+        const d = dx * dx + dy * dy;
+        if (d < d1) [d1, d2] = [d, d1];
+        else if (d < d2) d2 = d;
+      }
+      const edge = Math.max(0, 1 - (Math.sqrt(d2) - Math.sqrt(d1)) / 6) ** 2;
+      const i = (y * size + x) * 4;
+      img.data.set([225, 248, 255, Math.round(edge * 255)], i);
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return tile;
+}
+
+export function createCaustics() {
+  const layer = document.createElement('canvas');
+  let pattern = null;
+  // `x` and `w` span the water in px, `surface` is where the ice's underside hangs, `h` how deep it
+  // goes; `mask` covers all that is not open water (at the device pixel ratio), so the light plays
+  // on the water only.
+  return (ctx, now, { x, w, surface, h, cell, mask }) => {
+    const lh = Math.ceil(h * CAUSTICS.reach), lw = Math.ceil(w);
+    if (!lw || !lh) return;
+    if (layer.width !== lw || layer.height !== lh) {
+      layer.width = lw;
+      layer.height = lh;
+      pattern = null;
+    }
+    const g = layer.getContext('2d');
+    pattern ??= g.createPattern(causticTile(), 'repeat');
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, lw, lh);
+    const scale = (cell * CAUSTICS.cells) / CAUSTICS.tile;
+    for (const [vx, vy] of CAUSTICS.drift) {
+      pattern.setTransform(new DOMMatrix().translate(vx * cell * now / 1000, vy * cell * now / 1000).scale(scale));
+      g.globalAlpha = 0.6;
+      g.fillStyle = pattern;
+      g.fillRect(0, 0, lw, lh);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'destination-in';
+    const fade = g.createLinearGradient(0, 0, 0, lh);
+    fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+    fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = fade;
+    g.fillRect(0, 0, lw, lh);
+    const dpr = devicePixelRatio || 1;
+    g.globalCompositeOperation = 'destination-out';
+    g.drawImage(mask, x * dpr, surface * dpr, lw * dpr, lh * dpr, 0, 0, lw, lh);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = CAUSTICS.alpha;
+    ctx.drawImage(layer, x, surface, lw, lh);
+    ctx.restore();
+  };
 }
