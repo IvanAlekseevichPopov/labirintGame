@@ -386,6 +386,23 @@ export function createAudio() {
     sweeping.clear();
   }
 
+  // A chunk of ice hitting the ice: a short pitched knock with a click on top.
+  function knock(t, hz, level, length = 0.06) {
+    sweep({ src: tone('triangle', 0, hz), from: hz, to: hz * 0.6, t0: t, points: [[0.003, level], [length, 0]], out: bus.sfx });
+    sweep({ src: noise('long', 8), t0: t, points: [[0.002, level * 0.5], [0.02, 0]], out: bus.sfx });
+  }
+
+  // When the nine shards (ice.js SHARDS) land, each [seconds, pitch]: thrown up, they come down
+  // 0.2–0.36 s after the break, then hit once more off a low bounce.
+  const SHARD_LANDINGS = [[0.2, 1.1], [0.23, 0.95], [0.25, 1.3], [0.27, 0.8], [0.29, 1.2], [0.31, 1], [0.33, 0.88], [0.34, 1.25], [0.36, 1.05]];
+  const BOUNCE_AFTER = [0.1, 0.13, 0.09, 0.12, 0.11, 0.14, 0.1, 0.12, 0.13];
+  function shardsLand(t0, hit, bounce) {
+    SHARD_LANDINGS.forEach(([at, pitch], i) => {
+      hit(t0 + at, pitch);
+      if (bounce) bounce(t0 + at + BOUNCE_AFTER[i], pitch);
+    });
+  }
+
   const SFX = {
     // A barely audible dull knock: the wall is not a mistake, so it must not nag.
     bump() {
@@ -420,14 +437,15 @@ export function createAudio() {
       sweep({ src: noise('long', 10), t0: t0 + 0.05, points: [[0.02, 0.2], [0.2, 0]], out: bus.sfx });
       return 0.9;
     },
-    // Ice giving way: a crunch and two glassy tinkles falling, light rather than a smash.
+    // A heavy block of ice giving way: a muffled crack and a low thud, the shards knocking down
+    // low and heavy as they land (ice.js SHARDS), then a long gritty skid.
     iceBroken() {
       const t0 = ctx.currentTime + 0.005;
-      sweep({ src: noise('short', 3), t0, points: [[0.004, 0.45], [0.12, 0]], out: bus.sfx });
-      sweep({ src: noise('long', 6), t0, points: [[0.004, 0.3], [0.2, 0]], out: bus.sfx });
-      sweep({ src: tone('pulse', 0.125, 2400), from: 2400, to: 900, t0: t0 + 0.02, points: [[0.004, 0.14], [0.25, 0]], out: bus.sfx });
-      sweep({ src: tone('pulse', 0.25, 3200), from: 3200, to: 1500, t0: t0 + 0.09, points: [[0.004, 0.1], [0.22, 0]], out: bus.sfx });
-      return 0.32;
+      sweep({ src: noise('long', 10), t0, points: [[0.01, 0.28], [0.3, 0]], out: bus.sfx });
+      sweep({ src: tone('triangle', 0, 80), from: 80, to: 45, t0, points: [[0.01, 0.4], [0.4, 0]], out: bus.sfx });
+      shardsLand(t0, (t, p) => knock(t, 210 * p, 0.3, 0.09), (t, p) => knock(t, 220 * p, 0.14, 0.06));
+      sweep({ src: noise('long', 7), from: 1, to: 0.5, t0: t0 + 0.35, points: [[0.1, 0.12], [0.85, 0]], out: bus.sfx });
+      return 1.2;
     },
     ignite() {
       const t0 = ctx.currentTime + 0.005;
