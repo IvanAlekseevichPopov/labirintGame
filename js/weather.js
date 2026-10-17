@@ -194,10 +194,11 @@ function dustStorm(intensity) {
       haze = (0.04 + 0.07 * intensity) * (0.6 + 0.4 * Math.sin(now / 3000));
 
       const devilCount = intensity > 0.6 ? 2 : 1;
-      while (devils.length < devilCount) devils.push(spawnDevil(area));
+      for (const d of devils) d.age += dt;
+      // After aging, so draw never sees a devil past its life: its fade would go negative.
       devils = devils.filter(d => d.age < d.life);
+      while (devils.length < devilCount) devils.push(spawnDevil(area));
       for (const d of devils) {
-        d.age += dt;
         d.spin += dt * 6;
         d.x = Math.min(area.x + area.w, Math.max(area.x, d.x + d.vx * dt));
         d.y = Math.min(area.y + area.h, Math.max(area.y, d.y + d.vy * dt));

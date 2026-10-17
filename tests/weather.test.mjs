@@ -33,3 +33,24 @@ for (const planet of PLANET_KEYS) {
     assert.ok(ctx.calls > 0);
   });
 }
+
+// The canvas ignores a globalAlpha outside 0..1 and keeps the previous one, often full: a fading
+// dust devil drawn at -0.01 flashed at full brightness for a frame before it vanished.
+for (const planet of PLANET_KEYS) {
+  test(`${planet} weather never sets an alpha the canvas would ignore`, () => {
+    const draw = createWeather(planet, 1);
+    const bad = [];
+    const ctx = new Proxy({}, {
+      get: (target, key) => key in target ? target[key] : () => ({ addColorStop() {} }),
+      set: (target, key, value) => {
+        if (key === 'globalAlpha' && !(value >= 0 && value <= 1)) bad.push(value);
+        target[key] = value;
+        return true;
+      },
+    });
+    const screen = { w: 1920, h: 1080 };
+    const area = { x: 100, y: 120, w: 1700, h: 900, cell: 85 };
+    for (let now = 0; now < 60000; now += 16) draw(ctx, now, screen, area);
+    assert.deepEqual(bad, []);
+  });
+}
