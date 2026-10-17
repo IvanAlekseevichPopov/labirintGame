@@ -6,8 +6,9 @@
 import { DRILL_MS, WALL_RATIO } from './config.js';
 import { mulberry32 } from './random.js';
 
-// Sizes in cells: half the block along the passage's side (a bit onto the pillars) and across it.
-const BLOCK = { halfLength: 0.6, halfThick: 0.85 * WALL_RATIO, bevel: 0.065 };
+// Sizes in cells: half the block along the passage's side, from pillar to pillar and a touch onto
+// them, so it sits in the gap rather than lying over the walls; and across it.
+const BLOCK = { halfLength: 0.5 - WALL_RATIO / 2 + 0.035, halfThick: 0.85 * WALL_RATIO, bevel: 0.065 };
 const COLORS = {
   shadow: 'rgba(20, 60, 90, 0.3)', light: '#eafdff', body: '#4cd2f2', deep: '#1386c2',
   face: '#a2ecfc', faceDeep: '#32b6e6', edge: '#0d4c72',

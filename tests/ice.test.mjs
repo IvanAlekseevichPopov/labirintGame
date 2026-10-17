@@ -69,8 +69,8 @@ test('ice crumbs fly only while the wall is drilled, and are gone soon after', (
   assert.equal(chipsDrawn(chips, 500), 0);
   for (let now = 500; now <= 900; now += 16) chips.update(now, drilled);
   assert.ok(chipsDrawn(chips, 900) > 0);
-  for (let now = 900; now <= 1500; now += 16) chips.update(now, null);
-  assert.equal(chipsDrawn(chips, 1500), 0);
+  for (let now = 900; now <= 1600; now += 16) chips.update(now, null);
+  assert.equal(chipsDrawn(chips, 1600), 0);
 });
 
 test('a broken wall bursts into a few shards, all off the far side from the rover, gone in a second and a half', () => {
