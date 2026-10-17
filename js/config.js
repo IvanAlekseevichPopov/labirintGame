@@ -41,3 +41,7 @@ export const PAD_STANDARD_DPAD = { 12: 'up', 13: 'down', 14: 'left', 15: 'right'
 // Select does nothing in play: a kid would hit it by accident. Restart lives in the pause menu.
 export const PAD_SELECT_BUTTON = 8;
 export const PAD_START_BUTTON = 9;
+
+// Levels removed from the start of the game after play. Level looks and the generator's mazes are
+// seeded by the old numbers, so the levels that stayed look the same as before.
+export const DROPPED_LEVELS = 1;

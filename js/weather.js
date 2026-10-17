@@ -2,8 +2,7 @@
 // marine snow in the ocean under Enceladus' ice.
 // Purely decorative, drawn over the whole scene and kept translucent, so the way stays visible.
 
-// 21, not 20: Enceladus came in at 19 and every level after it moved up one.
-export const WEATHER_FROM_LEVEL = 21;
+export const WEATHER_FROM_LEVEL = 20;
 
 // 0 before WEATHER_FROM_LEVEL, then from light to full by the last level.
 export function weatherIntensity(levelNumber, levelCount) {

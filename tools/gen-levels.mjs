@@ -1,12 +1,13 @@
 // Generates levels.js. Each level is the best of CANDIDATES random mazes, scored against a
 // difficulty curve. levels.js is curated by hand afterwards, so:
 //   node tools/gen-levels.mjs --force       regenerate the whole set (overwrites hand edits)
-//   node tools/gen-levels.mjs --only 4,26   regenerate just these levels, keep the rest as is
+//   node tools/gen-levels.mjs --only 3,25   regenerate just these levels, keep the rest as is
 // Levels listed in LOCKED were reworked by hand and are never regenerated: --only refuses them,
-// --force refuses to run at all while the lock holds. Levels seen from the side (19, Enceladus) are
+// --force refuses to run at all while the lock holds. Levels seen from the side (18, Enceladus) are
 // all made by hand and refused the same way.
 // Numbers here are the ones the game shows. The generator itself counts only the levels seen from
 // above (a level's step), so a level put in by hand does not change the mazes after it.
+// Steps also count the levels dropped from the start (DROPPED), so removing one does not either.
 // To get a different maze for a level, bump its entry in VARIANTS and run --only for it.
 
 import fs from 'node:fs';
@@ -14,9 +15,12 @@ import { parseLevel, levelDistances, normalizeLevelLines, LEVEL_DIRS } from '../
 import { PLANETS as LOOKS, PLANET_KEYS } from '../js/planets.js';
 import { LANDMARKS as LANDMARK_KINDS } from '../js/landmarks.js';
 import { mulberry32 } from '../js/random.js';
+import { DROPPED_LEVELS } from '../js/config.js';
 
 const SEED = 20261010;
-const LEVEL_COUNT = 40;
+// Steps on the difficulty curve, the dropped ones included.
+const STEP_COUNT = 40;
+const DROPPED = DROPPED_LEVELS;
 const LEVELS_PER_PLANET = 3;
 // Planets come in this order, LEVELS_PER_PLANET levels each. Those seen from the side are made by
 // hand, so only the ones seen from above take turns here.
@@ -31,20 +35,23 @@ const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // Hand-made levels (night, storm, meteor): the generator must not touch them.
-const LOCKED = [2, 3, 10, 11, 21, 24, 30, 32, 34];
+const LOCKED = [1, 2, 9, 10, 20, 23, 29, 31, 33];
 // level → variant number; changes that level's seed while keeping generation reproducible.
-const VARIANTS = { 27: 1 };
+const VARIANTS = { 26: 1 };
 // level → level whose difficulty it should get, keeping its own size; for levels that felt off in play
-// (3 is a night level, its rocket was too close).
-const DIFFICULTY_AS = { 3: 8, 5: 8 };
-// level → its own size instead of the one from levelSize(); 3 is a night level, roomier to explore.
-const SIZE = { 3: { cols: 8, rows: 5 } };
+// (2 is a night level, its rocket was too close).
+const DIFFICULTY_AS = { 2: 7, 4: 7 };
+// level → its own size instead of the one from levelSize(); 2 is a night level, roomier to explore.
+const SIZE = { 2: { cols: 8, rows: 5 } };
 
 // Game numbers of the levels seen from the side in levels.js, and the tables above keyed by step.
 let sides = [];
-const toStep = number => number - sides.filter(n => n < number).length;
+const toStep = number => number + DROPPED - sides.filter(n => n < number).length;
 const byStep = (table, value = v => v) => Object.fromEntries(Object.entries(table).map(([n, v]) => [toStep(Number(n)), value(v)]));
-let steps = { variants: VARIANTS, difficultyAs: DIFFICULTY_AS, size: SIZE };
+let steps;
+const keyBySteps = () => {
+  steps = { variants: byStep(VARIANTS), difficultyAs: byStep(DIFFICULTY_AS, toStep), size: byStep(SIZE) };
+};
 
 const OUT = new URL('../levels.js', import.meta.url);
 const OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
@@ -58,7 +65,7 @@ const unkey = k => { const [x, y] = k.split(',').map(Number); return { x, y }; }
 const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 // Difficulty curve, t = 0 on the first level and 1 on the last.
-const curve = level => ((steps.difficultyAs[level] ?? level) - 1) / (LEVEL_COUNT - 1);
+const curve = level => ((steps.difficultyAs[level] ?? level) - 1) / (STEP_COUNT - 1);
 const targetPath = level => Math.round(8 + 62 * curve(level));
 // Biggest dead-end region hanging off the route: tiny at first, large on the last levels.
 const maxTrap = level => Math.round(2 + 58 * curve(level) ** 1.5);
@@ -70,7 +77,7 @@ const MAX_DETOUR = 3;
 
 function levelSize(level) {
   if (steps.size[level]) return steps.size[level];
-  // Only the first three levels are the smallest size; then it grows every five levels.
+  // Only the first three steps are the smallest size; then it grows every five.
   const rows = level <= 3 ? 4 : Math.min(4 + Math.max(1, Math.floor((level - 1) / 5)), MAX_ROWS);
   const cols = Math.min(Math.round(rows * 16 / 9), MAX_COLS);
   return { cols, rows };
@@ -304,7 +311,7 @@ if (only) {
   }
   levels = Array.from(await readExisting(), l => ({ ...levelFlags(l), note: l.note, planet: l.planet, map: normalizeLevelLines(l.map).join('\n') }));
   sides = levels.flatMap((l, i) => (LOOKS[l.planet].side ? [i + 1] : []));
-  steps = { variants: byStep(VARIANTS), difficultyAs: byStep(DIFFICULTY_AS, toStep), size: byStep(SIZE) };
+  keyBySteps();
   for (const number of only) {
     if (!Number.isInteger(number) || number < 1 || number > levels.length) {
       console.error(`--only: нет уровня ${number}, всего ${levels.length}`);
@@ -315,11 +322,12 @@ if (only) {
       process.exit(1);
     }
     const prev = number > 1 ? describe(levels[number - 2], number - 1) : { spot: null, types: [] };
-    const result = makeLevel(toStep(number), prev);
+    const step = toStep(number);
+    const result = makeLevel(step, prev);
     // A night or a storm is a property of the level's place in the game, not of its maze; the note
     // described the old maze, so it goes.
     levels[number - 1] = { ...levelFlags(levels[number - 1]), ...result.level };
-    made.set(number, result);
+    made.set(number, { ...result, step });
   }
 } else {
   if (fs.existsSync(OUT) && !args.includes('--force')) {
@@ -330,12 +338,13 @@ if (only) {
     console.error(`уровни ${LOCKED.join(', ')} сделаны руками и заперты (LOCKED в gen-levels.mjs); --force стёр бы их. Перегенерируй остальные через --only`);
     process.exit(1);
   }
+  keyBySteps();
   levels = [];
   let prev = { spot: null, types: [] };
-  for (let level = 1; level <= LEVEL_COUNT; level++) {
-    prev = makeLevel(level, prev);
+  for (let step = DROPPED + 1; step <= STEP_COUNT; step++) {
+    prev = makeLevel(step, prev);
     levels.push(prev.level);
-    made.set(level, prev);
+    made.set(step - DROPPED, { ...prev, step });
   }
 }
 levels.forEach((level, i) => parseLevel(level, i + 1, PLANETS));
@@ -359,13 +368,13 @@ const tmp = new URL('../levels.js.tmp', import.meta.url);
 fs.writeFileSync(tmp, source);
 fs.renameSync(tmp, OUT);
 
-console.table([...made].map(([number, { level, metrics: m }]) => ({
+console.table([...made].map(([number, { level, step, metrics: m }]) => ({
   level: number,
   planet: level.planet,
-  size: `${levelSize(number).cols}x${levelSize(number).rows}`,
+  size: `${levelSize(step).cols}x${levelSize(step).rows}`,
   path: m.path,
-  target: targetPath(number),
-  naive: `${m.naive} (${(m.naive / m.path).toFixed(1)}x, цель ${targetNaiveRatio(number).toFixed(1)})`,
-  trap: `${m.trap} ≤ ${maxTrap(number)}`,
+  target: targetPath(step),
+  naive: `${m.naive} (${(m.naive / m.path).toFixed(1)}x, цель ${targetNaiveRatio(step).toFixed(1)})`,
+  trap: `${m.trap} ≤ ${maxTrap(step)}`,
   detour: m.detour.toFixed(1),
 })));

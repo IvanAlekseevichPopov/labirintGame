@@ -31,8 +31,8 @@ test('the fronts billow inside the storm cells and never over the cells outside'
   }
 });
 
-test('on level 24 the drawn storm and the cells that count as inside agree', () => {
-  const level = parseLevel(LEVELS[23], 24, PLANET_KEYS);
+test('on level 23 the drawn storm and the cells that count as inside agree', () => {
+  const level = parseLevel(LEVELS[22], 23, PLANET_KEYS);
   const area = { ...AREA, cols: level.maze.cols, w: level.maze.cols * CELL };
   for (const now of TIMES) {
     const { polygon, x1 } = stormOutline(level.storm, area, CELL, now);
@@ -43,7 +43,7 @@ test('on level 24 the drawn storm and the cells that count as inside agree', () 
 });
 
 test('the parser snaps a storm to cell columns and refuses one too narrow', () => {
-  const { map } = LEVELS[22];
+  const { map } = LEVELS[21];
   assert.deepEqual(parseLevel({ planet: 'mars', map, storm: { from: 0, to: 0.58 } }, 23, PLANET_KEYS).storm, { from: 0, to: 8 });
   assert.throws(() => parseLevel({ planet: 'mars', map, storm: { from: 0.5, to: 0.6 } }, 23, PLANET_KEYS), /буря уже/);
 });

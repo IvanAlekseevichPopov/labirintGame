@@ -79,7 +79,7 @@ test('--only keeps the notes of the other levels and drops the regenerated one\'
 test('--only keeps dark and storm flags, on the regenerated level too', async () => {
   const { source } = await readLevels();
   fs.writeFileSync(out, source
-    .replace("// 3\n  { planet: 'moon', map:", "// 3\n  { planet: 'moon', dark: true, map:")
+    .replace("// 3\n  { planet: 'mars', map:", "// 3\n  { planet: 'mars', dark: true, map:")
     .replace("// 5\n  { planet: 'mars', map:", "// 5\n  { planet: 'mars', storm: { from: 0, to: 0.5 }, map:"));
   execFileSync(process.execPath, [script, '--only', '3'], { stdio: 'pipe' });
   const after = (await readLevels()).levels;
@@ -91,7 +91,7 @@ test('--only keeps dark and storm flags, on the regenerated level too', async ()
 
 test('hand-made levels are locked: --only refuses them and --force refuses to run', () => {
   const before = fs.readFileSync(out, 'utf8');
-  const only = spawnSync(process.execPath, [locked, '--only', '21'], { encoding: 'utf8' });
+  const only = spawnSync(process.execPath, [locked, '--only', '20'], { encoding: 'utf8' });
   assert.equal(only.status, 1);
   assert.match(only.stderr, /заперт/);
   const force = spawnSync(process.execPath, [locked, '--force'], { encoding: 'utf8' });
@@ -107,8 +107,8 @@ test('on the real levels.js, --only refuses the levels made by hand and leaves t
   const real = fs.readFileSync(new URL('levels.js', ROOT), 'utf8');
   fs.writeFileSync(out, real);
   try {
-    // 19 is Enceladus, seen from the side; 21 is the night level, in LOCKED.
-    for (const number of ['19', '21']) {
+    // 18 is Enceladus, seen from the side; 20 is the night level, in LOCKED.
+    for (const number of ['18', '20']) {
       const run = spawnSync(process.execPath, [locked, '--only', number], { encoding: 'utf8' });
       assert.equal(run.status, 1, `--only ${number}`);
       assert.match(run.stderr, /сделан руками/);
@@ -119,16 +119,17 @@ test('on the real levels.js, --only refuses the levels made by hand and leaves t
   }
 });
 
-test('generates 40 valid levels cycling the planets seen from above in blocks of 3', async () => {
+// The first of the 40 steps was dropped from the game, so the Moon has only two levels at the start.
+test('generates 39 valid levels cycling the planets seen from above in blocks of 3', async () => {
   const { levels } = await readLevels();
   const above = PLANET_KEYS.filter(k => !PLANETS[k].side);
-  assert.equal(levels.length, 40);
+  assert.equal(levels.length, 39);
   levels.forEach((level, i) => {
     parseLevel(level, i + 1, PLANET_KEYS);
-    assert.equal(level.planet, above[Math.floor(i / 3) % above.length], `level ${i + 1}`);
+    assert.equal(level.planet, above[Math.floor((i + 1) / 3) % above.length], `level ${i + 1}`);
   });
-  const { maze } = parseLevel(levels[2], 3, PLANET_KEYS);
-  assert.deepEqual([maze.cols, maze.rows], [8, 5], 'level 3 has its own size (SIZE)');
+  const { maze } = parseLevel(levels[1], 2, PLANET_KEYS);
+  assert.deepEqual([maze.cols, maze.rows], [8, 5], 'level 2 has its own size (SIZE)');
 });
 
 test('routes get longer from the first levels to the last', async () => {
@@ -138,6 +139,6 @@ test('routes get longer from the first levels to the last', async () => {
     return levelDistances(maze, start).get(`${goal.x},${goal.y}`).dist;
   };
   const avg = idx => idx.reduce((sum, i) => sum + pathLength(i), 0) / idx.length;
-  assert.ok(avg([0, 1, 2, 3, 4]) <= 15);
-  assert.ok(avg([35, 36, 37, 38, 39]) >= 50);
+  assert.ok(avg([0, 1, 2, 3, 4]) <= 16);
+  assert.ok(avg([34, 35, 36, 37, 38]) >= 50);
 });

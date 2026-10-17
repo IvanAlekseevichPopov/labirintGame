@@ -2,7 +2,7 @@
 
 import { state, roverPos } from './game.js';
 import { PLANETS } from './planets.js';
-import { BUMP_MS, DIRS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
+import { BUMP_MS, DIRS, DROPPED_LEVELS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
@@ -78,13 +78,15 @@ function wallSegments({ cols, rows, cells }) {
 }
 
 // Seeded by level, so a level's decorations look the same every time — part of what makes it recognisable.
+const lookSeed = () => state.index + DROPPED_LEVELS;
+
 function makeDecor() {
   const { cols, rows } = state.maze;
-  const rand = mulberry32(state.index + 1);
+  const rand = mulberry32(lookSeed() + 1);
   return {
     ground: makeGround(state.planet, rand, cols, rows),
     walls: wallSegments(state.maze),
-    props: placeProps(state, state.index + 2000),
+    props: placeProps(state, lookSeed() + 2000),
   };
 }
 
@@ -161,10 +163,10 @@ function buildMazeLayer() {
   const frame = { x: ox - wall / 2, y: oy - wall / 2, w: cell * cols + wall, h: cell * rows + wall };
   const rockSide = ROCK_CELLS.side * cell;
   const crustBox = { x: frame.x - rockSide, w: frame.w + 2 * rockSide, top: oy - CRUST_CELLS * cell, bottom: oy + wall / 2 };
-  const cracks = p.side ? crustCracks(state.index, crustBox.x, crustBox.w, cell, ox + (state.goal.x + 0.5) * cell) : [];
+  const cracks = p.side ? crustCracks(lookSeed(), crustBox.x, crustBox.w, cell, ox + (state.goal.x + 0.5) * cell) : [];
   // Seen from the side, the walls are ice up under the crust and rock down by the floor.
   const paint = p.side ? wallPaint(g, p, oy, oy + cell * rows) : { base: p.wallBase, top: p.wallTop };
-  if (p.side) drawRockMass(g, p, { frame, side: rockSide, bottom: ROCK_CELLS.bottom * cell, cell, seed: state.index, paint });
+  if (p.side) drawRockMass(g, p, { frame, side: rockSide, bottom: ROCK_CELLS.bottom * cell, cell, seed: lookSeed(), paint });
   g.save();
   g.beginPath();
   g.roundRect(frame.x, frame.y, frame.w, frame.h, wall);
@@ -189,14 +191,14 @@ function buildMazeLayer() {
   const ragged = (halfWidth, amp, dx = 0, dy = 0) =>
     decor.walls.map(seg => {
       const frame = isFrame(seg, cols, rows);
-      return raggedWall(seg, halfWidth, (x, y) => amp * (frame ? 1 : 1 + 2 * blastAt([x, y], impacts)), state.index)
+      return raggedWall(seg, halfWidth, (x, y) => amp * (frame ? 1 : 1 + 2 * blastAt([x, y], impacts)), lookSeed())
         .map(([x, y]) => (frame ? [x + dx, y + dy] : blastDeform([x + dx, y + dy], impacts)))
         .map(([x, y]) => [ox + x * cell, oy + y * cell]);
     });
   const half = WALL_RATIO / 2;
   wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   const rough = p.wallRough ?? 1;
-  const details = { cell, ox, oy, half, seed: state.index + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
+  const details = { cell, ox, oy, half, seed: lookSeed() + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
   fillShapes(g, ragged(half, 0.03 * rough, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
   g.save();
   g.beginPath();
@@ -235,13 +237,13 @@ function buildMazeLayer() {
   }
   g.restore();
   if (p.side) {
-    drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: state.index });
+    drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: lookSeed() });
     const clear = (x, y) => state.smokers.some(s => s.x === x && s.y === y);
-    drawGrowths(g, p, decor.walls, { cell, ox, oy, cols, rows, half: wall / 2, seed: state.index, clear });
+    drawGrowths(g, p, decor.walls, { cell, ox, oy, cols, rows, half: wall / 2, seed: lookSeed(), clear });
     smokers = state.smokers.map((s, i) => ({ ...drawSmoker(g, p, { x: ox + (s.x + 0.5) * cell, line: oy + (s.y + 1) * cell, half: wall / 2, cell, white: s.white }), seed: i }));
     const pebblesOff = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
-    drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: state.index, clear: pebblesOff });
-    drawIceCrust(g, p, { ...crustBox, cell, seed: state.index, cracks, hole: ox + (state.goal.x + 0.5) * cell });
+    drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: lookSeed(), clear: pebblesOff });
+    drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole: ox + (state.goal.x + 0.5) * cell });
   }
 }
 

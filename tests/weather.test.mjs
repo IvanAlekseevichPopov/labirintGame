@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { createWeather, weatherIntensity, WEATHER_FROM_LEVEL } from '../js/weather.js';
 import { PLANET_KEYS } from '../js/planets.js';
 
-test('weather starts at level 21, light, and is full by the last level', () => {
-  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL - 1, 41), 0);
-  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL, 41), 0.3);
-  assert.equal(weatherIntensity(41, 41), 1);
+test('weather starts at level 20, light, and is full by the last level', () => {
+  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL - 1, 40), 0);
+  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL, 40), 0.3);
+  assert.equal(weatherIntensity(40, 40), 1);
   assert.equal(createWeather('mars', 0), null);
 });
 
