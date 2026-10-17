@@ -18,9 +18,10 @@ import { drawProps, placeProps } from './props.js';
 import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
-import { drawFront, drawProfile } from './profiles.js';
+import { drawDroneBeam, drawFront, drawProfile } from './profiles.js';
 import { createBubbles } from './bubbles.js';
-import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawRockMass, drawSeabed, drawSmoke, fillWater, smokerSpots, wallPaint } from './ocean.js';
+import { createSilt } from './silt.js';
+import { crustCracks, drawFrost, drawIceCrust, drawProbe, drawPebbles, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -77,8 +78,6 @@ function makeDecor() {
     ground: makeGround(state.planet, rand, cols, rows),
     walls: wallSegments(state.maze),
     props: placeProps(state, state.index + 2000),
-    // Worked out at the start, while the player still stands on S.
-    smokers: PLANETS[state.planet].side ? smokerSpots(state.maze.cells[rows - 1], state.player.x) : [],
   };
 }
 
@@ -86,6 +85,7 @@ export function levelChanged(levelCount) {
   decor = makeDecor();
   drone.last = null;
   bubbles.reset();
+  silt.reset();
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
   drawWeather = createWeather(state.planet, intensity);
@@ -212,7 +212,9 @@ function buildMazeLayer() {
   g.restore();
   if (p.side) {
     drawFrost(g, p, decor.walls, { cell, ox, oy, rows, seed: state.index });
-    smokers = drawSeabed(g, p, { x: ox, w: cell * cols, line: oy + cell * rows, half: wall / 2, cell, seed: state.index, spots: decor.smokers });
+    smokers = state.smokers.map(s => drawSmoker(g, p, { x: ox + (s.x + 0.5) * cell, line: oy + (s.y + 1) * cell, half: wall / 2, cell, white: s.white }));
+    const clear = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
+    drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: state.index, clear });
     drawIceCrust(g, p, { ...crustBox, cell, seed: state.index, cracks, hole: ox + (state.goal.x + 0.5) * cell });
   }
 }
@@ -427,8 +429,12 @@ export function render(now, { soundOff = false } = {}) {
   let rover = null;
   const d = planet.side ? followDrone(now, roverPos(now)) : null;
   if (d) {
-    const size = cell * DRONE_RATIO;
-    bubbles.update(now, { ...screwOf(d, now, size, cell), swimming: Math.hypot(d.vx, d.vy) > 0.3, active: shrink >= 1 });
+    const size = cell * DRONE_RATIO, { screw, back } = screwOf(d, now, size, cell);
+    const swimming = Math.hypot(d.vx, d.vy) > 0.3 && shrink >= 1;
+    const floor = ledgeUnder(screw.x, d.y + 0.5);
+    silt.update(now, { floor, wash: screw.x, back, stirring: swimming, ...siltColors(planet, floor) });
+    silt.draw(ctx, now, { cell, ox, oy });
+    bubbles.update(now, { screw, back, swimming, active: shrink >= 1 });
     bubbles.draw(ctx, now, { cell, ox, oy });
   }
   if (shrink > 0) {
@@ -475,6 +481,7 @@ export function render(now, { soundOff = false } = {}) {
 // turns round to face the way it goes, and bobs in place. Drawing only — the rules stay on the grid.
 const drone = { x: 0, y: 0, vx: 0, vy: 0, pitch: 0, facing: 1, turn: 1, prop: 0, last: null };
 const bubbles = createBubbles();
+const silt = createSilt();
 // At full speed it trails ~0.2 cell behind, and on stopping glides ~0.07 cell past and back.
 const SPRING = { k: 700, c: 24 };
 
@@ -503,11 +510,6 @@ function followDrone(now, target) {
   return drone;
 }
 
-// The bow lamp in the drone's own space (see PROFILES.drone), and its beam: it shows which way the
-// drone faces and that it is deep under water. Faint, so it never reads as a wall or a path.
-const LAMP = { x: 0.3, y: -0.15 };
-const BEAM = { length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
-
 // Turning round it narrows a little, then shows itself head-on for a moment and comes out facing
 // the other way; squeezed any thinner it would turn into a flat cut-out.
 const HEAD_ON = 0.35;
@@ -517,6 +519,23 @@ const SCREW = { x: -0.47, y: -0.27 };
 const headOn = d => Math.abs(d.turn) < HEAD_ON;
 const sideways = d => Math.sign(d.turn) * (0.7 + 0.3 * (Math.abs(d.turn) - HEAD_ON) / (1 - HEAD_ON));
 const bob = (now, size) => Math.sin(now / 700) * size * 0.03;
+
+// Silt takes the colour of the walls where it is stirred up: icy and pale up under the crust, dark
+// rock down by the sea floor. The murk sits between the walls' shade and their lit top, the grains
+// a touch lighter than the lit top so they catch the eye.
+function siltColors(p, floor) {
+  if (floor === null) return {};
+  const { base, top } = wallTint(p, floor / state.maze.rows);
+  const toward = (from, to, k) => from.map((v, i) => Math.round(v + (to[i] - v) * k)).join(', ');
+  return { murk: toward(base, top, 0.6), grain: toward(top, [255, 255, 255], 0.3) };
+}
+
+// The top of the floor under (x, y) in cells, if the cell there has a wall below it; else null.
+function ledgeUnder(x, y) {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  const c = state.maze.cells[cy]?.[cx];
+  return c?.bottom ? cy + 1 - WALL_RATIO / 2 : null;
+}
 
 // Where the propeller is, in cells, and which way it blows: the drawing's turn, pitch and bob
 // applied to SCREW. Head-on the screw is hidden behind the hull, so bubbles come from its middle.
@@ -539,29 +558,11 @@ function drawDrone({ x, y, size }, d, now) {
   ctx.scale(sideways(d), 1);
   ctx.rotate(d.pitch);
   ctx.translate(size * 0.06, size * 0.3);
-  drawBeam(LAMP.x * size, LAMP.y * size, size);
+  drawDroneBeam(ctx, 0, 0, size);
   drawProfile(ctx, 'drone', 0, 0, size, { rolled: d.prop });
   ctx.restore();
 }
 
-function drawBeam(lx, ly, size) {
-  const len = size * BEAM.length;
-  const end = side => [lx + Math.cos(BEAM.dip + side * BEAM.spread) * len, ly + Math.sin(BEAM.dip + side * BEAM.spread) * len];
-  const glow = ctx.createLinearGradient(lx, ly, lx + Math.cos(BEAM.dip) * len, ly + Math.sin(BEAM.dip) * len);
-  glow.addColorStop(0, `rgba(255, 243, 190, ${BEAM.alpha})`);
-  glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.moveTo(lx, ly - size * 0.02);
-  ctx.lineTo(...end(-1));
-  ctx.lineTo(...end(1));
-  ctx.lineTo(lx, ly + size * 0.02);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
 
 // Pause menu over the frozen game: large buttons, the selected one lit up yellow.
 export function renderPause(now, { items, selected }) {

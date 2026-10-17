@@ -30,16 +30,27 @@ function path(g, pts, close = true) {
 }
 
 // Fills for the walls from `top` to `bottom` px: ice in the upper part, rock in the lower.
+const ICE_TO_ROCK = [0.3, 0.62];
+
 export function wallPaint(g, p, top, bottom) {
   const paint = ([ice, rock]) => {
     const fill = g.createLinearGradient(0, top, 0, bottom);
     fill.addColorStop(0, ice);
-    fill.addColorStop(0.3, ice);
-    fill.addColorStop(0.62, rock);
+    fill.addColorStop(ICE_TO_ROCK[0], ice);
+    fill.addColorStop(ICE_TO_ROCK[1], rock);
     fill.addColorStop(1, rock);
     return fill;
   };
   return { base: paint([p.iceWall, p.wallBase]), top: paint([p.iceWallTop, p.wallTop]) };
+}
+
+// The walls' colours at `depth` (0 under the crust, 1 at the sea floor) as 'r, g, b', for what is
+// stirred off them: `base` and `top` as in wallPaint().
+export function wallTint(p, depth) {
+  const k = Math.max(0, Math.min(1, (depth - ICE_TO_ROCK[0]) / (ICE_TO_ROCK[1] - ICE_TO_ROCK[0])));
+  const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const mix = (ice, rock) => rgb(ice).map((v, i) => Math.round(v + (rgb(rock)[i] - v) * k));
+  return { base: mix(p.iceWall, p.wallBase), top: mix(p.iceWallTop, p.wallTop) };
 }
 
 // The rock around the maze, down the sides and under the sea floor; `frame` is the maze's outer
@@ -139,72 +150,59 @@ export function fillWater(g, p, { x, y, w, h, cell, surface, cracks }) {
   }
 }
 
-// Where the smokers stand, in cells along the bottom row: in the middle of the two longest
-// stretches of floor no wall comes down to (on a tie, the one farther from the start), so they
-// never crowd a wall. The one nearer the start is a white smoker, the cool kind that builds a
-// chalk-white chimney; the other is black.
-export function smokerSpots(row, startX) {
-  const stretches = [];
-  row.forEach((c, i) => (i && !c.left ? stretches[stretches.length - 1].push(i) : stretches.push([i])));
-  const spots = stretches
-    .filter(s => s.length >= 2)
-    .map(s => ({ at: (s[0] + s[s.length - 1] + 1) / 2, length: s.length }))
-    .sort((a, b) => b.length - a.length || Math.abs(b.at - startX) - Math.abs(a.at - startX))
-    .slice(0, 2)
-    .sort((a, b) => Math.abs(a.at - startX) - Math.abs(b.at - startX));
-  return spots.map((s, i) => ({ at: s.at, white: i === 0 }));
+// A smoker standing on the floor of its cell (W or B in the level): the floor itself swells into a
+// mound that narrows into a chimney, chalk-white or sooty black, low enough to stay below the drone.
+// `x` is the cell's middle and `line` the middle of the wall under it, `half` the wall's half-width.
+// Returns its mouth, for drawSmoke().
+const SMOKER = { span: 0.55, mound: 0.12, chimney: 0.1 };
+
+export function drawSmoker(g, p, { x: sx, line, half, cell, white }) {
+  const floor = line - half;
+  const SPAN = cell * SMOKER.span, MOUND = cell * SMOKER.mound, CHIMNEY = cell * SMOKER.chimney;
+  const bell = (d, reach) => (Math.abs(d) < reach ? (1 + Math.cos(Math.PI * d / reach)) / 2 : 0);
+  const rise = d => MOUND * bell(d, SPAN) + CHIMNEY * bell(d, cell * 0.14);
+  const profile = dy => Array.from({ length: 25 }, (_, k) => {
+    const px = sx - SPAN + (k / 24) * SPAN * 2;
+    return [px, dy - rise(px - sx)];
+  });
+  const mound = [...profile(floor), [sx + SPAN, line], [sx - SPAN, line]];
+  path(g, mound);
+  g.fillStyle = p.wallBase;
+  g.fill();
+  // The wall's lit top swells up into the mound, so the floor and the smoker are one piece.
+  const band = line - cell * 0.016, lit = half * 0.45;
+  path(g, [...profile(band - lit), [sx + SPAN, band + lit], [sx - SPAN, band + lit]]);
+  g.fillStyle = p.wallTop;
+  g.fill();
+  const top = floor - MOUND - CHIMNEY;
+  const [r, gr, b] = white ? [236, 242, 245] : [22, 25, 31];
+  const chimney = g.createLinearGradient(0, floor - MOUND * 0.5, 0, top);
+  chimney.addColorStop(0, `rgba(${r}, ${gr}, ${b}, 0)`);
+  chimney.addColorStop(1, `rgba(${r}, ${gr}, ${b}, 1)`);
+  path(g, mound);
+  g.fillStyle = chimney;
+  g.fill();
+  if (white) {
+    g.beginPath();
+    g.ellipse(sx, top + cell * 0.01, cell * 0.035, cell * 0.015, 0, 0, Math.PI * 2);
+    g.fillStyle = '#9fb3bf';
+    g.fill();
+  } else {
+    const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.1);
+    mouth.addColorStop(0, 'rgba(255, 190, 100, 0.9)');
+    mouth.addColorStop(1, 'rgba(255, 120, 40, 0)');
+    g.fillStyle = mouth;
+    g.fillRect(sx - cell * 0.1, top - cell * 0.1, cell * 0.2, cell * 0.2);
+  }
+  return { x: sx, y: top, white };
 }
 
-// On the sea floor: a few pebbles and the smokers, `spots` from smokerSpots(). `line` is the bottom
-// wall's middle in px and `half` its half-width, so the floor's top is `line - half`; the bottom row
-// starts at `x`. A smoker is the floor itself swelling into a mound that narrows into its chimney,
-// low enough to stay below the drone. Returns the smokers' mouths, for drawSmoke().
-export function drawSeabed(g, p, { x, w, line, half, cell, seed, spots: at }) {
+// A few pebbles on the sea floor (`floor` px, from `x` for `w` px), kept off the smokers at `clear`.
+export function drawPebbles(g, p, { x, w, floor, cell, seed, clear }) {
   const rand = mulberry32(seed + 3300);
-  const floor = line - half;
-  const spots = at.map(s => ({ ...s, x: x + s.at * cell }));
-  const smokers = spots.map(s => s.x);
-  const bell = (d, reach) => (Math.abs(d) < reach ? (1 + Math.cos(Math.PI * d / reach)) / 2 : 0);
-  const SPAN = cell * 0.55, MOUND = cell * 0.12, CHIMNEY = cell * 0.1;
-  const rise = d => MOUND * bell(d, SPAN) + CHIMNEY * bell(d, cell * 0.14);
-  for (const { x: sx, white } of spots) {
-    const profile = dy => Array.from({ length: 25 }, (_, k) => {
-      const px = sx - SPAN + (k / 24) * SPAN * 2;
-      return [px, dy - rise(px - sx)];
-    });
-    const mound = [...profile(floor), [sx + SPAN, line], [sx - SPAN, line]];
-    path(g, mound);
-    g.fillStyle = p.wallBase;
-    g.fill();
-    // The wall's lit top swells up into the mound, so the floor and the smoker are one piece.
-    const band = line - cell * 0.016, lit = half * 0.45;
-    path(g, [...profile(band - lit), [sx + SPAN, band + lit], [sx - SPAN, band + lit]]);
-    g.fillStyle = p.wallTop;
-    g.fill();
-    const top = floor - MOUND - CHIMNEY;
-    const [r, gr, b] = white ? [236, 242, 245] : [22, 25, 31];
-    const chimney = g.createLinearGradient(0, floor - MOUND * 0.5, 0, top);
-    chimney.addColorStop(0, `rgba(${r}, ${gr}, ${b}, 0)`);
-    chimney.addColorStop(1, `rgba(${r}, ${gr}, ${b}, 1)`);
-    path(g, mound);
-    g.fillStyle = chimney;
-    g.fill();
-    if (white) {
-      g.beginPath();
-      g.ellipse(sx, top + cell * 0.01, cell * 0.035, cell * 0.015, 0, 0, Math.PI * 2);
-      g.fillStyle = '#9fb3bf';
-      g.fill();
-    } else {
-      const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.1);
-      mouth.addColorStop(0, 'rgba(255, 190, 100, 0.9)');
-      mouth.addColorStop(1, 'rgba(255, 120, 40, 0)');
-      g.fillStyle = mouth;
-      g.fillRect(sx - cell * 0.1, top - cell * 0.1, cell * 0.2, cell * 0.2);
-    }
-  }
   for (let k = 0; k < 4; k++) {
     const px = x + w * (0.05 + rand() * 0.9), r = cell * (0.05 + rand() * 0.03);
-    if (smokers.some(sx => Math.abs(sx - px) < SPAN + r)) continue;
+    if (clear.some(sx => Math.abs(sx - px) < cell * SMOKER.span + r)) continue;
     g.beginPath();
     g.ellipse(px, floor - r * 0.4, r * 1.4, r, 0, 0, Math.PI * 2);
     g.fillStyle = p.wallBase;
@@ -214,7 +212,6 @@ export function drawSeabed(g, p, { x, w, line, half, cell, seed, spots: at }) {
     g.fillStyle = p.wallTop;
     g.fill();
   }
-  return spots.map(s => ({ x: s.x, y: floor - MOUND - CHIMNEY, white: s.white }));
 }
 
 // Smoke rolling up from the smokers, every frame, white or black like its chimney. Low down it is

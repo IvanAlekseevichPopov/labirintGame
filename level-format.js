@@ -4,8 +4,9 @@
 import { LANDMARK_BY_CHAR } from './js/landmarks.js';
 
 // M and T belong to a meteor event: it lands on M once the rover drives onto T, or soon after the
-// level starts when there is no T (see js/game.js).
-const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', T: 'trigger', ...LANDMARK_BY_CHAR };
+// level starts when there is no T (see js/game.js). W and B are a white and a black smoker on the
+// floor of the cell, for the oceans seen from the side: decoration, the cell stays open.
+const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', T: 'trigger', W: 'white', B: 'black', ...LANDMARK_BY_CHAR };
 // The rover must be at least this many steps from the impact when the meteor is set off.
 export const METEOR_MIN_DISTANCE = 3;
 const LEVEL_WALL_CHARS = ['#', ' '];
@@ -58,7 +59,7 @@ export function parseLevel(level, number, planets) {
     const isCell = row % 2 === 1 && col % 2 === 1;
     if (onFrame && ch !== '#') fail(`${at(row, col)}: дыра во внешней стене`);
     if (isCell && !(ch in LEVEL_CELL_CHARS)) {
-      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, T, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
+      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, T, W, B, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
     }
     if (!isCell && !LEVEL_WALL_CHARS.includes(ch)) {
       fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только # или пробел`);
@@ -68,7 +69,7 @@ export function parseLevel(level, number, planets) {
   const cols = (width - 1) / 2, rows = (lines.length - 1) / 2;
   const cells = [];
   const landmarks = [];
-  const starts = [], rockets = [], impacts = [], triggers = [];
+  const starts = [], rockets = [], impacts = [], triggers = [], smokers = [];
   for (let y = 0; y < rows; y++) {
     cells.push([]);
     for (let x = 0; x < cols; x++) {
@@ -82,6 +83,10 @@ export function parseLevel(level, number, planets) {
       else if (kind === 'rocket') rockets.push({ x, y });
       else if (kind === 'impact') impacts.push({ x, y });
       else if (kind === 'trigger') triggers.push({ x, y });
+      else if (kind === 'white' || kind === 'black') {
+        if (lines[row + 1][col] !== '#') fail(`${at(row, col)}: курильщик ${lines[row][col]} стоит на дне, а под ним нет стены`);
+        smokers.push({ x, y, white: kind === 'white' });
+      }
       else if (kind) landmarks.push({ type: kind, x, y });
     }
   }
@@ -110,7 +115,7 @@ export function parseLevel(level, number, planets) {
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, startDir: toGoal.first };
+  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, startDir: toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

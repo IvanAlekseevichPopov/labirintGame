@@ -136,3 +136,16 @@ test('a meteor is refused under a veil, and an unreachable M says so', () => {
   const pocket = LOOP.replace('#S   T     M   R#', '#S   T    #M#  R#');
   assert.throws(() => parseLevel({ planet: 'moon', map: pocket }, 1, PLANET_KEYS), /не доехать/);
 });
+
+test('smokers stand on the floor of their cell', () => {
+  const ocean = floor => `
+#######
+#S W B#
+${floor}
+#R    #
+#######
+`;
+  const level = parse(ocean('# #####'), 'enceladus');
+  assert.deepEqual(level.smokers, [{ x: 1, y: 0, white: true }, { x: 2, y: 0, white: false }]);
+  failsWith(ocean('# ### #'), /строка 2, символ 6: курильщик B стоит на дне, а под ним нет стены/, 'enceladus');
+});

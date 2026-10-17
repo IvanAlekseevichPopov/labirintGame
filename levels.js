@@ -5,6 +5,7 @@
 // `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
 // M and T: a meteor lands on M (walling the cell off) once the rover drives onto T, or right after
 // the start when there is no T.
+// W and B: a white and a black smoker on the floor of the cell (oceans seen from the side).
 export const LEVELS = [
   // 1
   { planet: 'moon', map: `
@@ -787,7 +788,7 @@ export const LEVELS = [
 # # ##### # ##### ### # #
 # #   #   # #     # #   #
 # ### # ### # ##### ### #
-#S#     #     #         #
+#S#     #  W  #    B    #
 #########################
 ` },
 ];

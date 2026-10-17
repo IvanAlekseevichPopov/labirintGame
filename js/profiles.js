@@ -23,6 +23,30 @@ export function drawFront(context, type, x, groundY, size) {
   drawIn(context, FRONTS[type], x, groundY, size);
 }
 
+// The drone's bow lamp (see PROFILES.drone) and its beam, in the same space as drawProfile(): it
+// shows which way the drone faces and that it is deep under water. Faint, so it never reads as a
+// wall or a path.
+const LAMP = { x: 0.3, y: -0.15, length: 1.4, spread: 0.2, dip: 0.12, alpha: 0.32 };
+
+export function drawDroneBeam(context, x, groundY, size) {
+  const lx = x + LAMP.x * size, ly = groundY + LAMP.y * size, len = size * LAMP.length;
+  const end = side => [lx + Math.cos(LAMP.dip + side * LAMP.spread) * len, ly + Math.sin(LAMP.dip + side * LAMP.spread) * len];
+  const glow = context.createLinearGradient(lx, ly, lx + Math.cos(LAMP.dip) * len, ly + Math.sin(LAMP.dip) * len);
+  glow.addColorStop(0, `rgba(255, 243, 190, ${LAMP.alpha})`);
+  glow.addColorStop(1, 'rgba(255, 243, 190, 0)');
+  context.save();
+  context.globalCompositeOperation = 'lighter';
+  context.fillStyle = glow;
+  context.beginPath();
+  context.moveTo(lx, ly - size * 0.02);
+  context.lineTo(...end(-1));
+  context.lineTo(...end(1));
+  context.lineTo(lx, ly + size * 0.02);
+  context.closePath();
+  context.fill();
+  context.restore();
+}
+
 function drawIn(context, draw, x, groundY, size, { rolled = 0, spokes: count = 3, ground = 0 } = {}) {
   c = context;
   travel = rolled;

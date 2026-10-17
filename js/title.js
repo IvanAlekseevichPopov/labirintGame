@@ -4,7 +4,7 @@
 // its ocean under the ice is shown cut open instead, the drone swimming in it over the turning core.
 
 import { crack, drawGlobe } from './art.js';
-import { drawProfile } from './profiles.js';
+import { drawDroneBeam, drawProfile } from './profiles.js';
 import { mulberry32 } from './random.js';
 
 // Milliseconds per radian of the globe's turn.
@@ -195,6 +195,7 @@ function drawCutaway(ctx, now, { cx, cy, radius, p }) {
   const size = radius * CUT.drone;
   ctx.save();
   ctx.translate(cx, cy - radius * CUT.swim + Math.sin(now / 700) * size * 0.04);
+  drawDroneBeam(ctx, size * 0.06, size * 0.3, size);
   drawProfile(ctx, p.rover, size * 0.06, size * 0.3, size, { rolled: now / 300 });
   ctx.restore();
 }
