@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
 import { levelDistances } from '../level-format.js';
-import { FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -443,4 +443,51 @@ test('under water a held direction swims on without stopping after the first cel
   assert.ok(state.moveStart - firstEnds < FRAME_MS, 'the second step starts as the first one ends');
   assert.equal(state.moveMs, STEP_MS);
   game.release('right', 'key');
+});
+
+// An ice wall between the second and the third cell of a corridor on Europa.
+const ICE = { planet: 'europa', map: `
+#########
+#S  I  R#
+#########
+` };
+const startIce = () => {
+  game.setLevels([ICE]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+};
+test('holding the way into ice drills through it and drives on without a new press', () => {
+  startIce();
+  game.press('right', 'key', now);
+  const drilling = run(FIRST_REPEAT_MS + FRAME_MS);
+  assert.equal(state.player.x, 1);
+  assert.ok(types(drilling).includes('drillStart'));
+  assert.ok(!types(drilling).includes('bump'), 'ice is drilled, not bumped into');
+  const through = run(DRILL_MS + STEP_MS);
+  game.release('right', 'key');
+  assert.ok(types(through).includes('iceBroken'));
+  assert.equal(state.player.x, 2);
+  assert.equal(state.ice.length, 0);
+});
+
+test('letting go keeps the drilling done so far, and restart brings the ice back', () => {
+  startIce();
+  tap('right');
+  run(STEP_MS);
+  game.press('right', 'key', now);
+  run(DRILL_MS / 2);
+  game.release('right', 'key');
+  assert.ok(types(run(FRAME_MS)).includes('drillStop'));
+  const done = state.ice[0].drilled;
+  assert.ok(done > 0 && done < DRILL_MS);
+  run(1000);
+  assert.equal(state.ice[0].drilled, done, 'nothing drills while let go');
+  game.press('right', 'key', now);
+  const rest = run(DRILL_MS - done + FRAME_MS * 2);
+  game.release('right', 'key');
+  assert.ok(types(rest).includes('iceBroken'));
+  game.restartLevel(now);
+  assert.equal(state.ice.length, 1);
+  assert.equal(state.ice[0].drilled, 0);
+  assert.ok(state.maze.cells[0][1].right);
 });

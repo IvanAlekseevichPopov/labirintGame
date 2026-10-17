@@ -10,7 +10,9 @@ import { PLANETS } from './js/planets.js';
 const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', T: 'trigger', W: 'white', B: 'black', ...LANDMARK_BY_CHAR };
 // The rover must be at least this many steps from the impact when the meteor is set off.
 export const METEOR_MIN_DISTANCE = 3;
-const LEVEL_WALL_CHARS = ['#', ' '];
+// I is a wall of ice the rover can drill through, on planets whose rover has a drill.
+const LEVEL_WALL_CHARS = ['#', ' ', 'I'];
+const isWall = ch => ch === '#' || ch === 'I';
 // Narrower and the storm's two billowing fronts would cross (see STORM.edge in js/storm.js).
 export const STORM_MIN_CELLS = 3;
 export const LEVEL_DIRS = [
@@ -63,22 +65,28 @@ export function parseLevel(level, number, planets) {
       fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, T, W, B, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
     }
     if (!isCell && !LEVEL_WALL_CHARS.includes(ch)) {
-      fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только # или пробел`);
+      fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только #, пробел или I`);
+    }
+    if (ch === 'I') {
+      if (!PLANETS[planet].drill) fail(`${at(row, col)}: ледяная стена I бывает только там, где у ровера есть бур (Европа)`);
+      if (row % 2 === 0 && col % 2 === 0) fail(`${at(row, col)}: ледяная стена I стоит на углу, а должна стоять между двумя клетками`);
     }
   }));
 
   const cols = (width - 1) / 2, rows = (lines.length - 1) / 2;
   const cells = [];
   const landmarks = [];
-  const starts = [], rockets = [], impacts = [], triggers = [], smokers = [];
+  const starts = [], rockets = [], impacts = [], triggers = [], smokers = [], ice = [];
   for (let y = 0; y < rows; y++) {
     cells.push([]);
     for (let x = 0; x < cols; x++) {
       const row = y * 2 + 1, col = x * 2 + 1;
       cells[y].push({
-        top: lines[row - 1][col] === '#', bottom: lines[row + 1][col] === '#',
-        left: lines[row][col - 1] === '#', right: lines[row][col + 1] === '#',
+        top: isWall(lines[row - 1][col]), bottom: isWall(lines[row + 1][col]),
+        left: isWall(lines[row][col - 1]), right: isWall(lines[row][col + 1]),
       });
+      if (lines[row][col + 1] === 'I') ice.push({ a: { x, y }, b: { x: x + 1, y } });
+      if (lines[row + 1][col] === 'I') ice.push({ a: { x, y }, b: { x, y: y + 1 } });
       const kind = LEVEL_CELL_CHARS[lines[row][col]];
       if (kind === 'start') starts.push({ x, y });
       else if (kind === 'rocket') rockets.push({ x, y });
@@ -112,7 +120,8 @@ export function parseLevel(level, number, planets) {
 
   const maze = { cols, rows, cells };
   const [start] = starts, [goal] = rockets;
-  const toGoal = levelDistances(maze, start).get(`${goal.x},${goal.y}`);
+  // Ice is only in the way until drilled.
+  const toGoal = levelDistances(ice.reduce(openWall, maze), start).get(`${goal.x},${goal.y}`);
   if (!toGoal) fail('до ракеты не доехать');
   let meteor = null;
   if (impacts.length || triggers.length) {
@@ -120,6 +129,7 @@ export function parseLevel(level, number, planets) {
     const [cell] = impacts, trigger = triggers[0] ?? null;
     const setOff = trigger ?? start;
     if (dark || storm) fail('метеорит на ночном уровне или в бурю не поддерживается: его не видно под пеленой, а фары не знают о кратере');
+    if (ice.length) fail('метеорит рядом с ледяными стенами не поддерживается: проверка пути не знает, что лёд пробурят');
     const fromTrigger = levelDistances(maze, setOff).get(`${cell.x},${cell.y}`);
     if (!fromTrigger) fail(`до метеорита M не доехать от ${trigger ? 'T' : 'старта'}`);
     if (fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${trigger ? 'T' : 'старта'}`);
@@ -132,7 +142,7 @@ export function parseLevel(level, number, planets) {
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, startDir: toGoal.first };
+  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, ice, startDir: toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,
@@ -154,6 +164,15 @@ export function levelDistances(maze, from) {
 }
 
 const OPPOSITE_WALL = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+
+// A copy of the maze with the wall between neighbouring cells `a` and `b` taken out.
+export function openWall(maze, { a, b }) {
+  const d = LEVEL_DIRS.find(d => a.x + d.dx === b.x && a.y + d.dy === b.y);
+  const cells = maze.cells.map(row => row.map(c => ({ ...c })));
+  cells[a.y][a.x][d.wall] = false;
+  cells[b.y][b.x][OPPOSITE_WALL[d.wall]] = false;
+  return { ...maze, cells };
+}
 
 // A copy of the maze with `cell` walled off on all sides, as a meteor crater leaves it.
 export function blockCell(maze, { x, y }) {

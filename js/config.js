@@ -16,6 +16,8 @@ export const LIGHTS_REARM_MS = 1000;
 // A level with M but no T sets its meteor off startMs after the level begins.
 export const METEOR = { warnMs: 900, shakeMs: 350, retryMs: 150, startMs: 1200 };
 export const BUMP_MS = 140;
+// Holding the way into an ice wall this long drills through it; letting go keeps the progress.
+export const DRILL_MS = 1500;
 export const WALL_RATIO = 0.26;
 export const ROVER_RATIO = 0.78;
 

@@ -2,7 +2,7 @@
 
 import { state, roverPos } from './game.js';
 import { PLANETS } from './planets.js';
-import { BUMP_MS, DIRS, DROPPED_LEVELS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
+import { BUMP_MS, DIRS, DRILL_MS, DROPPED_LEVELS, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { createNight } from './night.js';
@@ -77,6 +77,10 @@ function wallSegments({ cols, rows, cells }) {
   return segments;
 }
 
+// An ice wall's edge in grid units, as wallSegments gives it; `a` is the top or left cell.
+const iceSegment = ({ a, b }) => (a.x !== b.x ? [b.x, a.y, b.x, a.y + 1] : [a.x, b.y, a.x + 1, b.y]);
+const sameSegment = (s, t) => s.every((v, i) => v === t[i]);
+
 // Seeded by level, so a level's decorations look the same every time — part of what makes it recognisable.
 const lookSeed = () => state.index + DROPPED_LEVELS;
 
@@ -85,7 +89,8 @@ function makeDecor() {
   const rand = mulberry32(lookSeed() + 1);
   return {
     ground: makeGround(state.planet, rand, cols, rows),
-    walls: wallSegments(state.maze),
+    // Ice walls are drawn on their own, every frame, since drilling changes them.
+    walls: wallSegments(state.maze).filter(s => !state.ice.some(w => sameSegment(iceSegment(w), s))),
     props: placeProps(state, lookSeed() + 2000),
   };
 }
@@ -196,7 +201,7 @@ function buildMazeLayer() {
         .map(([x, y]) => [ox + x * cell, oy + y * cell]);
     });
   const half = WALL_RATIO / 2;
-  wallsPx = decor.walls.map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
+  wallsPx = [...decor.walls, ...state.ice.map(iceSegment)].map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   const rough = p.wallRough ?? 1;
   const details = { cell, ox, oy, half, seed: lookSeed() + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
   fillShapes(g, ragged(half, 0.03 * rough, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
@@ -244,6 +249,32 @@ function buildMazeLayer() {
     const pebblesOff = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
     drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: lookSeed(), clear: pebblesOff });
     drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole: ox + (state.goal.x + 0.5) * cell });
+  }
+}
+
+// A placeholder look: a pale blue block, cracking more the longer it has been drilled.
+function drawIce(cell, ox, oy) {
+  const thick = cell * WALL_RATIO * 1.4;
+  for (const w of state.ice) {
+    const [x0, y0, x1, y1] = iceSegment(w);
+    const along = x0 === x1 ? [0, 1] : [1, 0];
+    const cx = ox + (x0 + x1) / 2 * cell, cy = oy + (y0 + y1) / 2 * cell;
+    const [bw, bh] = along[0] ? [cell + thick * 0.4, thick] : [thick, cell + thick * 0.4];
+    ctx.fillStyle = 'rgba(170, 225, 250, 0.95)';
+    ctx.strokeStyle = '#2b78a8';
+    ctx.lineWidth = cell * 0.03;
+    ctx.beginPath();
+    ctx.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, thick * 0.3);
+    ctx.fill();
+    ctx.stroke();
+    const cracks = Math.ceil((w.drilled / DRILL_MS) * 6);
+    ctx.beginPath();
+    for (let k = 0; k < cracks; k++) {
+      const a = k * 2.4 + 0.5;
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * bw * 0.45, cy + Math.sin(a) * bh * 0.45);
+    }
+    ctx.stroke();
   }
 }
 
@@ -440,6 +471,7 @@ export function render(now, { soundOff = false } = {}) {
   } else {
     drawNewTracks(now);
     ctx.drawImage(trackLayer, 0, 0, w, h);
+    drawIce(cell, ox, oy);
   }
 
   for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {

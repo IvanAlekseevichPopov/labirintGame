@@ -1,10 +1,10 @@
 // Game rules without DOM: level state, input model, movement and winning.
 // Time (`now`, ms) and the on-screen cell size are passed in, so this runs under node tests too.
 
-import { blockCell, parseLevel } from '../level-format.js';
+import { blockCell, openWall, parseLevel } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 import {
-  DIRS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
+  DIRS, DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
 } from './config.js';
 
 let levels = [];
@@ -17,7 +17,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, ice, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -34,6 +34,10 @@ export function startLevel(index, now, { restart = false } = {}) {
     goal,
     landmarks,
     smokers,
+    // Ice walls still standing, each with how long it has been drilled (ms).
+    ice: ice.map(wall => ({ ...wall, drilled: 0 })),
+    // The ice wall being drilled and the direction held into it.
+    drilling: null,
     player: { ...start },
     from: { ...start },
     moveStart: -Infinity,
@@ -182,8 +186,37 @@ function flushTrack() {
   state.pendingTrack = null;
 }
 
+// The ice wall between the rover's cell and the next one in `dir`, if there is one.
+function iceAhead(dir) {
+  const a = state.player, b = { x: a.x + DIRS[dir].dx, y: a.y + DIRS[dir].dy };
+  const same = (p, q) => p.x === q.x && p.y === q.y;
+  return state.ice.find(w => (same(w.a, a) && same(w.b, b)) || (same(w.a, b) && same(w.b, a)));
+}
+
+// Drills on while the way into the ice is held. Returns true while that keeps the rover busy;
+// once through, the held direction drives on at once.
+function drill(now, dt) {
+  const { wall, dir } = state.drilling;
+  if (!input.held.includes(dir)) {
+    state.drilling = null;
+    events.push({ type: 'drillStop' });
+    return false;
+  }
+  input.fresh = null;
+  // A long frame (the tab was hidden) does not drill the wall through in one go.
+  wall.drilled += Math.min(dt, 100);
+  if (wall.drilled < DRILL_MS) return true;
+  state.drilling = null;
+  state.ice = state.ice.filter(w => w !== wall);
+  state.maze = openWall(state.maze, wall);
+  state.nextMoveAt = now;
+  events.push({ type: 'iceBroken' });
+  return false;
+}
+
 // Advances the game to `now`; returns what happened since the last call:
 // levelStart, move, bump, landmark, stop, lightsOn / lightsOff, meteorWarn / meteorImpact,
+// drillStart / drillStop / iceBroken,
 // the win sequence arrive → ignite → liftoff,
 // and finished after the last level's rocket has flown off.
 export function update(now, dt, cellPx) {
@@ -258,6 +291,8 @@ function step(now, dt, cellPx) {
   }
   if (now < state.inputFrom) { resetInput(); return; }
 
+  if (state.drilling && drill(now, dt)) return;
+
   if (input.buffered && now > input.buffered.until) input.buffered = null;
   const isFresh = input.fresh !== null;
   // Finish the current step first: cutting it short would slide the rover diagonally past a corner.
@@ -269,6 +304,14 @@ function step(now, dt, cellPx) {
   state.nextMoveAt = now + (isFresh ? FIRST_REPEAT_MS : stepMs(cellPx));
 
   const dir = wanted.find(isOpen);
+  const ice = !dir && input.held.includes(wanted[0]) && iceAhead(wanted[0]);
+  if (ice) {
+    state.targetAngle = DIRS[wanted[0]].angle;
+    state.blocked = false;
+    state.drilling = { wall: ice, dir: wanted[0] };
+    events.push({ type: 'drillStart' });
+    return;
+  }
   if (!dir) {
     state.targetAngle = DIRS[wanted[0]].angle;
     if (!state.blocked) {

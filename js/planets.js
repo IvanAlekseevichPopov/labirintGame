@@ -20,6 +20,8 @@ export const PLANETS = {
     floor: '#cfe2ec', speck: '#e3f0f6', crater: '#b4cddb', craterRim: '#f1f8fb', track: '#7f9fb3',
     wallBase: '#2e5570', wallTop: '#9ec7dd', polynya: '#2f5f80', crack: '#5d8aa6', patch: 'rgba(80, 130, 165, 0.1)',
     walls: 'ice', wallRough: 0.5,
+    // The icebreaker drills through the ice walls (I in the map).
+    drill: true,
   },
   // The ocean under the ice, seen from the side: `side` turns the maze into a cross-section with
   // the ice crust over the top row. `water` runs from just under the ice to the bottom; `floor`

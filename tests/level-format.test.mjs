@@ -165,3 +165,25 @@ test('under water the rocket is in the top row, and top-down things are refused'
   assert.equal(parse(ocean.replace('F', ' '), 'enceladus').goal.y, 0);
   failsWith(ocean.replace('F', 'W'), /курильщики W и B бывают только под водой/, 'moon');
 });
+
+const ICY = `
+#######
+#SI  R#
+#######
+`;
+
+test('ice walls stand between two cells on Europa and do not count as blocking the way', () => {
+  const level = parse(ICY, 'europa');
+  assert.deepEqual(level.ice, [{ a: { x: 0, y: 0 }, b: { x: 1, y: 0 } }]);
+  assert.equal(level.maze.cells[0][0].right, true);
+  assert.equal(level.startDir, 'right');
+  failsWith(ICY, /ледяная стена I бывает только там, где у ровера есть бур/, 'moon');
+  failsWith(ICY.replace('#######\n#S', '##I####\n#S'), /дыра во внешней стене/, 'europa');
+  failsWith(`
+#######
+#S   R#
+##I####
+#     #
+#######
+`, /стоит на углу/, 'europa');
+});

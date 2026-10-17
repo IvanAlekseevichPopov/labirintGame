@@ -5,7 +5,7 @@
 // the landmarks, seeded by level so a level always looks the same. Drawn upright, like the flag.
 
 import { OUTLINE } from './art.js';
-import { levelDistances } from '../level-format.js';
+import { levelDistances, openWall } from '../level-format.js';
 import { mulberry32 } from './random.js';
 
 // One prop per this many cells, never more than one of each kind and never more than MAX_PROPS:
@@ -24,12 +24,14 @@ const KINDS = {
 // like it blocks the way.
 const DEAD_END_ONLY = new Set(['wreck']);
 
-export function placeProps({ planet, maze, player, goal, landmarks, meteor }, seed) {
+export function placeProps({ planet, maze, player, goal, landmarks, meteor, ice }, seed) {
   const kinds = KINDS[planet];
   const count = Math.min(MAX_PROPS, kinds.length, Math.floor((maze.cols * maze.rows) / CELLS_PER_PROP));
   if (!count) return [];
   const rand = mulberry32(seed);
-  const fromStart = levelDistances(maze, player), fromGoal = levelDistances(maze, goal);
+  // Through the ice, as the rover can go: with it closed some cells would not be reachable at all.
+  const open = ice.reduce(openWall, maze);
+  const fromStart = levelDistances(open, player), fromGoal = levelDistances(open, goal);
   const route = fromStart.get(`${goal.x},${goal.y}`).dist;
   const taken = [player, goal, ...landmarks, ...(meteor ? [meteor.cell, meteor.trigger].filter(Boolean) : [])];
   const near = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < 2;

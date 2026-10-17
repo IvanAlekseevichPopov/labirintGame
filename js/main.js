@@ -181,6 +181,9 @@ function handle(event) {
       renderer.mazeChanged();
       audio.sfx(event.type);
       break;
+    case 'iceBroken':
+      renderer.mazeChanged();
+      break;
     case 'move':
       audio.setEngine(planet.rover);
       break;
