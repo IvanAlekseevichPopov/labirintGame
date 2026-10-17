@@ -1,7 +1,8 @@
 // Level text format, shared by the game, tools/gen-levels.mjs and the tests.
 // Cells sit at odd rows/columns; the characters between them are walls.
 
-import { LANDMARK_BY_CHAR } from './js/landmarks.js';
+import { LANDMARK_BY_CHAR, LANDMARKS } from './js/landmarks.js';
+import { PLANETS } from './js/planets.js';
 
 // M and T belong to a meteor event: it lands on M once the rover drives onto T, or soon after the
 // level starts when there is no T (see js/game.js). W and B are a white and a black smoker on the
@@ -87,11 +88,27 @@ export function parseLevel(level, number, planets) {
         if (lines[row + 1][col] !== '#') fail(`${at(row, col)}: курильщик ${lines[row][col]} стоит на дне, а под ним нет стены`);
         smokers.push({ x, y, white: kind === 'white' });
       }
-      else if (kind) landmarks.push({ type: kind, x, y });
+      else if (kind) {
+        if (LANDMARKS[kind].side && lines[row + 1][col] !== '#') fail(`${at(row, col)}: ${lines[row][col]} стоит на дне, а под ним нет стены`);
+        landmarks.push({ type: kind, x, y });
+      }
     }
   }
   if (starts.length !== 1) fail(`стартов S: ${starts.length}, а нужен ровно один`);
   if (rockets.length !== 1) fail(`ракет R: ${rockets.length}, а нужна ровно одна`);
+  // Seen from the side (an ocean under ice) the rocket stands on the ice and lets its probe down
+  // through the top row; what is drawn from above has no side view yet.
+  if (PLANETS[planet].side) {
+    if (rockets[0].y !== 0) fail('под водой ракета R стоит на льду: её место в верхнем ряду');
+    if (dark || storm) fail('под водой ночи и бури нет: их рисунок сделан для вида сверху');
+    if (impacts.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
+    const above = landmarks.filter(l => !LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
+    if (above.length) fail(`под водой ориентира ${above[0]} нет: его рисунок сделан для вида сверху`);
+  } else {
+    if (smokers.length) fail('курильщики W и B бывают только под водой');
+    const under = landmarks.filter(l => LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
+    if (under.length) fail(`ориентир ${under[0]} бывает только под водой`);
+  }
 
   const maze = { cols, rows, cells };
   const [start] = starts, [goal] = rockets;

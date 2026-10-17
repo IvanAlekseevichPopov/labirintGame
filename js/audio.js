@@ -448,6 +448,19 @@ export function createAudio() {
 
   // Each returns the source nodes to start; they connect themselves to `out`.
   const ENGINES = {
+    // A soft whirr of the propeller under water: a low hum with a quiet buzz over it, the buzz
+    // beating with the turning blades.
+    drone(out) {
+      const hum = tone('triangle', 0, 62);
+      const whirr = tone('pulse', 0.125, 124);
+      hum.connect(gain(0.8, out));
+      const blades = gain(0.12, out);
+      whirr.connect(blades);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 9;
+      lfo.connect(gain(0.1)).connect(blades.gain);
+      return [hum, whirr, lfo];
+    },
     lunokhod(out) {
       const low = tone('triangle', 0, 55);
       const buzz = tone('pulse', 0.125, 110);

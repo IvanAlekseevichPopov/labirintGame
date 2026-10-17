@@ -117,11 +117,26 @@ function saturn() {
     c.save();
     c.rotate(-0.42);
     c.scale(1, 0.26);
-    for (const [r, w, color] of [[1.42, 0.22, 'rgba(201, 173, 110, 0.9)'], [1.78, 0.3, 'rgba(232, 213, 163, 0.95)'], [2.1, 0.18, 'rgba(201, 173, 110, 0.8)']]) {
+    const from = half ? 0 : Math.PI, to = half ? Math.PI : Math.PI * 2;
+    for (const [r, w, color] of [[1.42, 0.22, 'rgba(201, 173, 110, 0.9)'], [1.76, 0.3, 'rgba(232, 213, 163, 0.95)'], [2.1, 0.22, 'rgba(201, 173, 110, 0.85)']]) {
       c.beginPath();
-      c.arc(0, 0, r, half ? 0 : Math.PI, half ? Math.PI : Math.PI * 2);
+      c.arc(0, 0, r, from, to);
       c.lineWidth = w;
       c.strokeStyle = color;
+      c.stroke();
+    }
+    // The Cassini division, a dark gap between the bright ring and the outer one.
+    c.beginPath();
+    c.arc(0, 0, 1.94, from, to);
+    c.lineWidth = 0.06;
+    c.strokeStyle = 'rgba(30, 24, 18, 0.75)';
+    c.stroke();
+    // The ball's shadow on the rings behind it, away from the light in the top left.
+    if (!half) {
+      c.beginPath();
+      c.arc(0, 0, 1.75, -0.75, -0.2);
+      c.lineWidth = 0.85;
+      c.strokeStyle = 'rgba(10, 8, 20, 0.55)';
       c.stroke();
     }
     c.restore();

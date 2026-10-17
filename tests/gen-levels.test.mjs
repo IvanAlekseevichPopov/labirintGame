@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseLevel, levelDistances } from '../level-format.js';
-import { PLANET_KEYS } from '../js/planets.js';
+import { PLANETS, PLANET_KEYS } from '../js/planets.js';
 
 const ROOT = new URL('../', import.meta.url);
 
@@ -91,7 +91,7 @@ test('--only keeps dark and storm flags, on the regenerated level too', async ()
 
 test('hand-made levels are locked: --only refuses them and --force refuses to run', () => {
   const before = fs.readFileSync(out, 'utf8');
-  const only = spawnSync(process.execPath, [locked, '--only', '20'], { encoding: 'utf8' });
+  const only = spawnSync(process.execPath, [locked, '--only', '21'], { encoding: 'utf8' });
   assert.equal(only.status, 1);
   assert.match(only.stderr, /заперт/);
   const force = spawnSync(process.execPath, [locked, '--force'], { encoding: 'utf8' });
@@ -102,12 +102,30 @@ test('hand-made levels are locked: --only refuses them and --force refuses to ru
   assert.equal(other.status, 0, other.stderr);
 });
 
-test('generates 40 valid levels cycling planets in blocks of 3', async () => {
+test('on the real levels.js, --only refuses the levels made by hand and leaves the file as it was', () => {
+  const generated = fs.readFileSync(out, 'utf8');
+  const real = fs.readFileSync(new URL('levels.js', ROOT), 'utf8');
+  fs.writeFileSync(out, real);
+  try {
+    // 19 is Enceladus, seen from the side; 21 is the night level, in LOCKED.
+    for (const number of ['19', '21']) {
+      const run = spawnSync(process.execPath, [locked, '--only', number], { encoding: 'utf8' });
+      assert.equal(run.status, 1, `--only ${number}`);
+      assert.match(run.stderr, /сделан руками/);
+      assert.equal(fs.readFileSync(out, 'utf8'), real);
+    }
+  } finally {
+    fs.writeFileSync(out, generated);
+  }
+});
+
+test('generates 40 valid levels cycling the planets seen from above in blocks of 3', async () => {
   const { levels } = await readLevels();
+  const above = PLANET_KEYS.filter(k => !PLANETS[k].side);
   assert.equal(levels.length, 40);
   levels.forEach((level, i) => {
     parseLevel(level, i + 1, PLANET_KEYS);
-    assert.equal(level.planet, PLANET_KEYS[Math.floor(i / 3) % PLANET_KEYS.length], `level ${i + 1}`);
+    assert.equal(level.planet, above[Math.floor(i / 3) % above.length], `level ${i + 1}`);
   });
   const { maze } = parseLevel(levels[2], 3, PLANET_KEYS);
   assert.deepEqual([maze.cols, maze.rows], [8, 5], 'level 3 has its own size (SIZE)');

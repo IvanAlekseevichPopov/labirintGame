@@ -5,6 +5,8 @@
 
 const SILT = { everyMs: 90, murkMs: 2800, grainMs: [2000, 4500] };
 
+import { softBlob } from './sprite.js';
+
 const ease = (t, from, to) => Math.max(0, Math.min(1, (t - from) / (to - from)));
 const out = t => 1 - (1 - t) ** 2;
 
@@ -54,6 +56,14 @@ export function createSilt() {
       }
       nextAt = now + SILT.everyMs * (0.6 + Math.random() * 0.8);
     },
+    // Where anything is, in px with room for the biggest puff, or null when there is nothing.
+    bounds({ cell, ox, oy }) {
+      const all = [...murk, ...grains];
+      if (!all.length) return null;
+      const xs = all.map(s => s.x), ys = all.map(s => s.y), pad = 0.9;
+      const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad, x1 = Math.max(...xs) + pad, y1 = Math.max(...ys) + 0.3;
+      return { x: ox + x0 * cell, y: oy + y0 * cell, w: (x1 - x0) * cell, h: (y1 - y0) * cell };
+    },
     draw(ctx, now, { cell, ox, oy }) {
       ctx.save();
       for (const m of murk) {
@@ -62,17 +72,8 @@ export function createSilt() {
         const x = ox + (m.x + m.drift * out(t)) * cell;
         const y = oy + (m.y - 0.08 * out(ease(t, 0, 0.35)) * (1 - 0.6 * ease(t, 0.35, 1))) * cell;
         const r = cell * (0.1 + 0.35 * out(t)) * m.size;
-        const a = 0.28 * ease(t, 0, 0.1) * (1 - ease(t, 0.3, 1));
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.scale(1, 0.45);
-        const blob = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-        blob.addColorStop(0, `rgba(${m.color}, ${a})`);
-        blob.addColorStop(0.5, `rgba(${m.color}, ${a * 0.6})`);
-        blob.addColorStop(1, `rgba(${m.color}, 0)`);
-        ctx.fillStyle = blob;
-        ctx.fillRect(-r, -r, r * 2, r * 2);
-        ctx.restore();
+        ctx.globalAlpha = 0.28 * ease(t, 0, 0.1) * (1 - ease(t, 0.3, 1));
+        ctx.drawImage(softBlob(m.color), x - r, y - r * 0.45, r * 2, r * 0.9);
       }
       for (const g of grains) {
         ctx.fillStyle = `rgb(${g.color})`;

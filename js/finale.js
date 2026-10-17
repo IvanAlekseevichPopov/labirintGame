@@ -25,7 +25,10 @@ export function drawMuseum(context, now, w, h) {
     spotlight(x, top, size, h, now, i);
     pedestal(x, top, size, h);
     // Engraved, so plain dark letters: the outlined game text looks blurry on brass.
+    // Shrunk to fit the plaque when the name is long or the exhibits stand close.
     c.font = `${h * 0.032}px ${FONT}`;
+    const fit = Math.min(1, (size * 1.25 * 0.64 * 0.88) / c.measureText(PLANETS[planet].name).width);
+    c.font = `${h * 0.032 * fit}px ${FONT}`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillStyle = '#4a3208';

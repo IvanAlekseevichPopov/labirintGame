@@ -6,12 +6,16 @@
 import { crack } from './art.js';
 import { drawCloud } from './launch.js';
 import { mulberry32 } from './random.js';
+import { softBlob } from './sprite.js';
 
-// Where cracks run right through the crust: the light shafts in the water start under them.
-export function crustCracks(seed, x, w, cell) {
+// Where cracks run right through the crust: the light shafts in the water start under them. None
+// near `hole`, the probe's shaft: a shaft of daylight slanting across the goal's own light would
+// muddle it.
+export function crustCracks(seed, x, w, cell, hole) {
   const rand = mulberry32(seed + 3100);
   const n = Math.max(2, Math.round(w / cell / 3.5));
-  return Array.from({ length: n }, (_, k) => x + ((k + 0.25 + rand() * 0.5) / n) * w);
+  return Array.from({ length: n }, (_, k) => x + ((k + 0.25 + rand() * 0.5) / n) * w)
+    .filter(cx => cx < hole - cell * 2 || cx > hole + cell * 0.7);
 }
 
 // Ragged edge from (x0, y0) to (x1, y1), pushed out along (nx, ny) by up to `amp` px.
@@ -105,9 +109,11 @@ export function drawFrost(g, p, segments, { cell, ox, oy, rows, seed }) {
     const chance = 0.85 * (1 - y / (rows * 0.55)), roll = rand(), size = rand(), lean = rand();
     if (roll >= chance) continue;
     const cx = ox + x * cell + (lean - 0.5) * cell * 0.06, cy = oy + y * cell + cell * 0.03, r = cell * (0.08 + size * 0.05);
-    softLump(g, cx, cy + r * 0.15, r, 'rgba(10, 50, 90, 0.3)');
-    softLump(g, cx, cy, r, p.iceShade);
-    softLump(g, cx - r * 0.2, cy - r * 0.25, r * 0.62, p.ice);
+    // The lump's wobble comes from its joint, in cells, so it is the same lump on any screen.
+    const wobble = x * 1.7 + y * 2.3;
+    softLump(g, cx, cy + r * 0.15, r, 'rgba(10, 50, 90, 0.3)', wobble);
+    softLump(g, cx, cy, r, p.iceShade, wobble);
+    softLump(g, cx - r * 0.2, cy - r * 0.25, r * 0.62, p.ice, wobble);
   }
 }
 
@@ -124,14 +130,15 @@ export function drawGrowths(g, p, segments, { cell, ox, oy, cols, rows, half, se
       // Under the wall, into the cell below it; the top frame's underside is the crust's.
       if (ice && y0 > 0 && y0 < rows) {
         for (let k = 0, n = rand() < 1 - depth * 1.8 ? 1 + Math.floor(rand() * 3) : 0; k < n; k++) {
-          icicle(g, p, ox + (x0 + 0.15 + rand() * 0.7) * cell, y + half - cell * 0.01, cell * (0.08 + rand() * 0.12), cell * (0.035 + rand() * 0.025));
+          const at = x0 + 0.15 + rand() * 0.7;
+          icicle(g, p, ox + at * cell, y + half - cell * 0.01, cell * (0.08 + rand() * 0.12), cell * (0.035 + rand() * 0.025), Math.sin(at * 7.1) * 0.15);
         }
       }
       // On top of the wall, in the cell above it.
       if (!ice && y0 > 0 && rand() < 0.35 && !clear(x0, y0 - 1)) {
-        const cx = ox + (x0 + 0.2 + rand() * 0.6) * cell;
+        const cx = ox + (x0 + 0.2 + rand() * 0.6) * cell, colors = CRYSTALS[Math.floor(rand() * CRYSTALS.length)];
         for (let k = 0, n = 2 + Math.floor(rand() * 3); k < n; k++) {
-          crystal(g, cx + (rand() - 0.5) * cell * 0.12, y - half + cell * 0.01, cell * (0.08 + rand() * 0.09), cell * (0.03 + rand() * 0.018), (rand() - 0.5) * 1.1);
+          crystal(g, cx + (rand() - 0.5) * cell * 0.12, y - half + cell * 0.01, cell * (0.08 + rand() * 0.09), cell * (0.03 + rand() * 0.018), (rand() - 0.5) * 1.1, colors);
         }
       }
     } else if (!ice) {
@@ -147,8 +154,9 @@ export function drawGrowths(g, p, segments, { cell, ox, oy, cols, rows, half, se
   }
 }
 
-function icicle(g, p, x, top, length, width) {
-  const lean = (Math.sin(x * 7.1) * 0.15) * length;
+// `lean` is how far the tip swings aside, in lengths.
+function icicle(g, p, x, top, length, width, lean) {
+  lean *= length;
   g.beginPath();
   g.moveTo(x - width / 2, top);
   g.quadraticCurveTo(x - width * 0.45, top + length * 0.5, x + lean, top + length);
@@ -167,8 +175,12 @@ function icicle(g, p, x, top, length, width) {
   g.stroke();
 }
 
-// A pointed prism of pale mineral standing up from a ledge, leaning by `lean` radians.
-function crystal(g, x, base, length, width, lean) {
+// Mineral colours for the crystals down in the rock, [lit face, shaded face]: violet and teal, so
+// they read as stone, not as the ice up top.
+const CRYSTALS = [['#c4b3ef', '#8a76c4'], ['#8fe6d6', '#4fae9f']];
+
+// A pointed prism of mineral standing up from a ledge, leaning by `lean` radians.
+function crystal(g, x, base, length, width, lean, [lit, shade]) {
   g.save();
   g.translate(x, base);
   g.rotate(lean);
@@ -178,7 +190,7 @@ function crystal(g, x, base, length, width, lean) {
   g.lineTo(0, -length);
   g.lineTo(0, 0);
   g.closePath();
-  g.fillStyle = '#cdeef0';
+  g.fillStyle = lit;
   g.fill();
   g.beginPath();
   g.moveTo(0, 0);
@@ -186,7 +198,7 @@ function crystal(g, x, base, length, width, lean) {
   g.lineTo(width / 2, -length * 0.78);
   g.lineTo(width / 2, 0);
   g.closePath();
-  g.fillStyle = '#86b9c2';
+  g.fillStyle = shade;
   g.fill();
   g.restore();
 }
@@ -204,10 +216,10 @@ function knob(g, p, x, y, side, r) {
   g.fill();
 }
 
-function softLump(g, cx, cy, r, fill) {
+function softLump(g, cx, cy, r, fill, wobble) {
   g.beginPath();
   for (let k = 0; k <= 7; k++) {
-    const a = (k / 7) * Math.PI * 2, rr = r * (0.85 + 0.15 * Math.sin(a * 3 + cx));
+    const a = (k / 7) * Math.PI * 2, rr = r * (0.85 + 0.15 * Math.sin(a * 3 + wobble));
     g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr * 1.15, cy + Math.sin(a) * rr);
   }
   g.closePath();
@@ -281,11 +293,12 @@ export function drawSmoker(g, p, { x: sx, line, half, cell, white }) {
     g.fillStyle = '#9fb3bf';
     g.fill();
   } else {
-    const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.1);
-    mouth.addColorStop(0, 'rgba(255, 190, 100, 0.9)');
+    // Barely a glow: any brighter and it reads as a campfire.
+    const mouth = g.createRadialGradient(sx, top, 0, sx, top, cell * 0.045);
+    mouth.addColorStop(0, 'rgba(255, 170, 90, 0.35)');
     mouth.addColorStop(1, 'rgba(255, 120, 40, 0)');
     g.fillStyle = mouth;
-    g.fillRect(sx - cell * 0.1, top - cell * 0.1, cell * 0.2, cell * 0.2);
+    g.fillRect(sx - cell * 0.045, top - cell * 0.045, cell * 0.09, cell * 0.09);
   }
   return { x: sx, y: top, white };
 }
@@ -332,22 +345,19 @@ export function drawSmoke(ctx, mouths, now, cell) {
     const first = Math.floor((now - SMOKE.lifeMs) / SMOKE.everyMs) + 1;
     for (let n = first; n * SMOKE.everyMs <= now; n++) {
       const t = (now - n * SMOKE.everyMs) / SMOKE.lifeMs;
-      const rand = mulberry32(n * 31 + i * 7);
+      const rand = mulberry32(n * 31 + (m.seed ?? i) * 7);
       const size = 0.8 + rand() * 0.4, side = rand() * 2 - 1;
       const x = m.x + t * cell * 0.08 + side * cell * 0.8 * ease(t, soft, 1) ** 1.5 + Math.sin(t * 4 + n) * cell * 0.02;
       const y = m.y - t * SMOKE.rise * cell;
       if (t < solid) column.push({ x, y, r: cell * (0.045 + 0.06 * t + 0.32 * t * t) * size * ease(t, 0, 0.12) });
       if (t > soft) haze.push({ x, y, r: cell * (0.09 + 0.4 * (t - soft)) * size, a: ease(t, soft, solid) * (1 - ease(t, solid, 1)) });
     }
+    const blob = softBlob(SMOKE_TINT[m.white ? 'white' : 'black'].haze);
     for (const h of haze) {
-      const blob = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r);
-      const tint = SMOKE_TINT[m.white ? 'white' : 'black'].haze;
-      blob.addColorStop(0, `rgba(${tint}, ${0.9 * h.a})`);
-      blob.addColorStop(0.6, `rgba(${tint}, ${0.5 * h.a})`);
-      blob.addColorStop(1, `rgba(${tint}, 0)`);
-      ctx.fillStyle = blob;
-      ctx.fillRect(h.x - h.r, h.y - h.r, h.r * 2, h.r * 2);
+      ctx.globalAlpha = SMOKE.alpha * 0.9 * h.a;
+      ctx.drawImage(blob, h.x - h.r, h.y - h.r, h.r * 2, h.r * 2);
     }
+    ctx.globalAlpha = SMOKE.alpha;
     drawColumn(ctx, column, m, cell, soft, solid);
   }
   ctx.restore();
@@ -425,13 +435,13 @@ export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole
   g.lineWidth = cell * 0.025;
   for (const f of [0.35, 0.55, 0.75]) {
     g.beginPath();
-    for (let px = x; px <= x + w; px += cell * 0.2) g.lineTo(px, top + thick * f + Math.sin(px / cell * 1.7 + f * 9) * cell * 0.025);
+    for (let px = x; px <= x + w; px += cell * 0.2) g.lineTo(px, top + thick * f + Math.sin((px - x) / cell * 1.7 + f * 9) * cell * 0.025);
     g.stroke();
   }
   g.fillStyle = p.speck;
   g.beginPath();
   surface.forEach(([px, py], k) => g[k ? 'lineTo' : 'moveTo'](px, py));
-  for (const [px, py] of [...surface].reverse()) g.lineTo(px, py + cell * (0.07 + 0.03 * Math.sin(px / cell * 2.3)));
+  for (const [px, py] of [...surface].reverse()) g.lineTo(px, py + cell * (0.07 + 0.03 * Math.sin((px - x) / cell * 2.3)));
   g.fill();
   // Cracks right through with light showing in them, a spur off each; short ones up from below.
   const fissure = (pts, width) => {
@@ -468,56 +478,109 @@ export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole
 }
 
 // The rocket's probe: a docking bell on a cable from the rocket's foot (`topY`), hanging over the
-// goal at (`x`, `y`). Its open bottom pulses yellow like the landing pads on the other planets:
-// that is where the drone goes in. `alpha` fades it out as it is reeled into the rocket.
+// goal at (`x`, `y`), white and orange with seams and rivets like the rocket, so it plainly belongs
+// to it. A beacon blinks on its top and its open bottom pulses yellow like the landing pads on the
+// other planets: that is where the drone goes in. No porthole, or it reads as a helmet. `alpha`
+// fades it out as it is reeled in.
+const BELL = { r: 0.22, skirt: 0.16, flare: 1.15, beam: 0.9 };
+
 export function drawProbe(ctx, x, y, topY, cell, now, alpha = 1) {
   if (alpha <= 0) return;
-  const r = cell * 0.22, skirt = cell * 0.16, pulse = 0.5 + 0.4 * Math.sin(now / 300);
+  const r = cell * BELL.r, top = y, mouth = y + cell * BELL.skirt;
+  const pulse = 0.5 + 0.4 * Math.sin(now / 300), blink = Math.floor(now / 500) % 2 === 0;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.beginPath();
   ctx.moveTo(x, topY);
-  ctx.lineTo(x, y - r - cell * 0.06);
+  ctx.lineTo(x, top - r - cell * 0.06);
   ctx.strokeStyle = '#2b2f38';
   ctx.lineWidth = cell * 0.03;
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(x, y - r - cell * 0.04, cell * 0.035, 0, Math.PI * 2);
-  ctx.strokeStyle = '#8d939e';
-  ctx.lineWidth = cell * 0.02;
-  ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(x, y, r, Math.PI, 0);
-  ctx.lineTo(x + r * 1.15, y + skirt);
-  ctx.lineTo(x - r * 1.15, y + skirt);
-  ctx.closePath();
-  ctx.fillStyle = '#eef1f5';
-  ctx.fill();
+  if (blink) {
+    const glow = ctx.createRadialGradient(x, top - r - cell * 0.03, 0, x, top - r - cell * 0.03, cell * 0.16);
+    glow.addColorStop(0, 'rgba(255, 243, 176, 0.9)');
+    glow.addColorStop(1, 'rgba(255, 214, 10, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - cell * 0.16, top - r - cell * 0.19, cell * 0.32, cell * 0.32);
+  }
   ctx.strokeStyle = '#1c1e26';
-  ctx.lineWidth = cell * 0.02;
-  ctx.stroke();
-  ctx.fillStyle = '#ff7a1a';
-  ctx.fillRect(x - r * 1.02, y + skirt * 0.05, r * 2.04, skirt * 0.4);
+  ctx.lineWidth = cell * 0.018;
   ctx.beginPath();
-  ctx.arc(x, y - r * 0.35, r * 0.32, 0, Math.PI * 2);
-  ctx.fillStyle = '#8fe3ff';
+  ctx.arc(x, top - r + cell * 0.005, cell * 0.035, Math.PI, 0);
+  ctx.closePath();
+  ctx.fillStyle = blink ? '#fff3b0' : '#c9a227';
   ctx.fill();
   ctx.stroke();
+
+  const hull = new Path2D();
+  hull.arc(x, top, r, Math.PI, 0);
+  hull.lineTo(x + r * BELL.flare, mouth);
+  hull.lineTo(x - r * BELL.flare, mouth);
+  hull.closePath();
+  const side = ctx.createLinearGradient(x - r * BELL.flare, 0, x + r * BELL.flare, 0);
+  side.addColorStop(0, '#ffffff');
+  side.addColorStop(1, '#c4ccd6');
+  ctx.fillStyle = side;
+  ctx.fill(hull);
+  ctx.save();
+  ctx.clip(hull);
+  const band = ctx.createLinearGradient(x - r * BELL.flare, 0, x + r * BELL.flare, 0);
+  band.addColorStop(0, '#ffa53d');
+  band.addColorStop(1, '#d9661a');
+  ctx.fillStyle = band;
+  ctx.fillRect(x - r * 1.3, top - r, r * 2.6, r * 0.45);
+  ctx.fillRect(x - r * 1.3, mouth - cell * 0.065, r * 2.6, cell * 0.045);
+  // A seam round the middle with a row of rivets under it, and two more on the dome's band.
+  const seam = top + (mouth - top) * 0.15;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.lineWidth = cell * 0.008;
   ctx.beginPath();
-  ctx.arc(x, y - r * 1.02, cell * 0.035, Math.PI, 0);
-  ctx.fillStyle = `rgba(255, 214, 10, ${0.6 + 0.4 * pulse})`;
+  ctx.moveTo(x - r * 1.3, seam);
+  ctx.lineTo(x + r * 1.3, seam);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  for (const [k, ry] of [[-2, seam + cell * 0.018], [-1, seam + cell * 0.018], [0, seam + cell * 0.018], [1, seam + cell * 0.018], [2, seam + cell * 0.018], [-1, top - r * 0.66], [1, top - r * 0.66]]) {
+    ctx.beginPath();
+    ctx.arc(x + k * r * 0.42, ry, cell * 0.009, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(x - r * 0.45, top - r * 0.2, r * 0.1, r * 0.35, 0.3, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+  ctx.stroke(hull);
 
   ctx.beginPath();
-  ctx.ellipse(x, y + skirt, r * 1.15, cell * 0.06, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, mouth, r * BELL.flare, cell * 0.055, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#1a2230';
   ctx.fill();
-  ctx.strokeStyle = `rgba(255, 214, 10, ${pulse})`;
-  ctx.lineWidth = cell * 0.04;
+  ctx.strokeStyle = `rgba(255, 236, 120, ${0.55 + 0.45 * pulse})`;
+  ctx.lineWidth = cell * 0.045;
   ctx.stroke();
   ctx.restore();
+}
+
+// The soft cone of light the capsule shines down from its open bottom, so it is seen from afar as
+// the place to go. Drawn in the water only (the caller masks it), behind the capsule.
+export function drawProbeLight(ctx, x, y, cell, now, alpha = 1) {
+  if (alpha <= 0) return;
+  const r = cell * BELL.r * BELL.flare, top = y + cell * BELL.skirt, len = cell * BELL.beam;
+  const pulse = 0.75 + 0.25 * Math.sin(now / 300);
+  const cone = ctx.createLinearGradient(0, top, 0, top + len);
+  cone.addColorStop(0, `rgba(255, 236, 140, ${0.35 * pulse * alpha})`);
+  cone.addColorStop(1, 'rgba(255, 236, 140, 0)');
+  ctx.fillStyle = cone;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.9, top);
+  ctx.lineTo(x + r * 0.9, top);
+  ctx.lineTo(x + r * 1.8, top + len);
+  ctx.lineTo(x - r * 1.8, top + len);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // Caustics: the net of bright ripples sunlight makes through the cracks in the ice, sliding over
@@ -526,13 +589,16 @@ export function drawProbe(ctx, x, y, topY, cell, now, alpha = 1) {
 // CSS-pixel resolution, soft enough not to need more.
 const CAUSTICS = { tile: 128, cells: 2.2, reach: 0.4, alpha: 0.14, drift: [[0.12, 0.05], [-0.08, 0.1]] };
 
+let tile = null;
+
 function causticTile() {
+  if (tile) return tile;
   const size = CAUSTICS.tile, n = 4, rand = mulberry32(5150);
   const points = [];
   for (let gy = 0; gy < n; gy++) {
     for (let gx = 0; gx < n; gx++) points.push([(gx + rand()) * size / n, (gy + rand()) * size / n]);
   }
-  const tile = document.createElement('canvas');
+  tile = document.createElement('canvas');
   tile.width = tile.height = size;
   const g = tile.getContext('2d');
   const img = g.createImageData(size, size);
@@ -560,43 +626,53 @@ function causticTile() {
 
 export function createCaustics() {
   const layer = document.createElement('canvas');
+  const shape = document.createElement('canvas');
   let pattern = null;
-  // `x` and `w` span the water in px, `surface` is where the ice's underside hangs, `h` how deep it
-  // goes; `mask` covers all that is not open water (at the device pixel ratio), so the light plays
-  // on the water only.
-  return (ctx, now, { x, w, surface, h, cell, mask }) => {
-    const lh = Math.ceil(h * CAUSTICS.reach), lw = Math.ceil(w);
-    if (!lw || !lh) return;
-    if (layer.width !== lw || layer.height !== lh) {
-      layer.width = lw;
-      layer.height = lh;
+  let area = null;
+  return {
+    // Once per maze layer: where the light plays (`x` and `w` span the water in px, `surface` is
+    // where the ice's underside hangs, `h` how deep the water goes) and how strongly, fading with
+    // depth and cut away wherever `mask` (all that is not open water, at the device pixel ratio)
+    // covers it.
+    shape({ x, w, surface, h }, mask) {
+      area = { x, y: surface, w: Math.ceil(w), h: Math.ceil(h * CAUSTICS.reach) };
+      if (!area.w || !area.h) return;
+      for (const c of [layer, shape]) {
+        c.width = area.w;
+        c.height = area.h;
+      }
       pattern = null;
-    }
-    const g = layer.getContext('2d');
-    pattern ??= g.createPattern(causticTile(), 'repeat');
-    g.globalCompositeOperation = 'source-over';
-    g.clearRect(0, 0, lw, lh);
-    const scale = (cell * CAUSTICS.cells) / CAUSTICS.tile;
-    for (const [vx, vy] of CAUSTICS.drift) {
-      pattern.setTransform(new DOMMatrix().translate(vx * cell * now / 1000, vy * cell * now / 1000).scale(scale));
+      const g = shape.getContext('2d');
+      const fade = g.createLinearGradient(0, 0, 0, area.h);
+      fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = fade;
+      g.fillRect(0, 0, area.w, area.h);
+      const dpr = devicePixelRatio || 1;
+      g.globalCompositeOperation = 'destination-out';
+      g.drawImage(mask, area.x * dpr, area.y * dpr, area.w * dpr, area.h * dpr, 0, 0, area.w, area.h);
+    },
+    draw(ctx, now, cell) {
+      if (!area?.w || !area.h) return;
+      const g = layer.getContext('2d');
+      pattern ??= g.createPattern(causticTile(), 'repeat');
+      g.globalCompositeOperation = 'source-over';
+      g.clearRect(0, 0, area.w, area.h);
+      const scale = (cell * CAUSTICS.cells) / CAUSTICS.tile;
       g.globalAlpha = 0.6;
       g.fillStyle = pattern;
-      g.fillRect(0, 0, lw, lh);
-    }
-    g.globalAlpha = 1;
-    g.globalCompositeOperation = 'destination-in';
-    const fade = g.createLinearGradient(0, 0, 0, lh);
-    fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
-    fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    g.fillStyle = fade;
-    g.fillRect(0, 0, lw, lh);
-    const dpr = devicePixelRatio || 1;
-    g.globalCompositeOperation = 'destination-out';
-    g.drawImage(mask, x * dpr, surface * dpr, lw * dpr, lh * dpr, 0, 0, lw, lh);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = CAUSTICS.alpha;
-    ctx.drawImage(layer, x, surface, lw, lh);
-    ctx.restore();
+      for (const [vx, vy] of CAUSTICS.drift) {
+        pattern.setTransform(new DOMMatrix().translate(vx * cell * now / 1000, vy * cell * now / 1000).scale(scale));
+        g.fillRect(0, 0, area.w, area.h);
+      }
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'destination-in';
+      g.drawImage(shape, 0, 0);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = CAUSTICS.alpha;
+      ctx.drawImage(layer, area.x, area.y, area.w, area.h);
+      ctx.restore();
+    },
   };
 }

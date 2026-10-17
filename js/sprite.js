@@ -26,3 +26,24 @@ export function drawSprite(ctx, key, x, y, w, h, draw) {
   const snap = v => Math.round(v * dpr) / dpr;
   ctx.drawImage(entry.canvas, snap(x), snap(y), entry.canvas.width / dpr, entry.canvas.height / dpr);
 }
+
+// A soft round blob of colour 'r, g, b', opaque in the middle and gone at the edge: drawn scaled
+// with globalAlpha in place of a fresh radial gradient for every puff of every frame.
+const blobs = new Map();
+
+export function softBlob(rgb) {
+  let blob = blobs.get(rgb);
+  if (!blob) {
+    blob = document.createElement('canvas');
+    blob.width = blob.height = 64;
+    const g = blob.getContext('2d');
+    const fill = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    fill.addColorStop(0, `rgba(${rgb}, 1)`);
+    fill.addColorStop(0.5, `rgba(${rgb}, 0.6)`);
+    fill.addColorStop(1, `rgba(${rgb}, 0)`);
+    g.fillStyle = fill;
+    g.fillRect(0, 0, 64, 64);
+    blobs.set(rgb, blob);
+  }
+  return blob;
+}

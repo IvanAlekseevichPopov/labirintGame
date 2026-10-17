@@ -1,7 +1,8 @@
 // Atmosphere on the later levels: meteors on the Moon, a dust storm on Mars, a snowstorm on Europa.
 // Purely decorative, drawn over the whole scene and kept translucent, so the way stays visible.
 
-export const WEATHER_FROM_LEVEL = 20;
+// 21, not 20: Enceladus came in at 19 and every level after it moved up one.
+export const WEATHER_FROM_LEVEL = 21;
 
 // 0 before WEATHER_FROM_LEVEL, then from light to full by the last level.
 export function weatherIntensity(levelNumber, levelCount) {

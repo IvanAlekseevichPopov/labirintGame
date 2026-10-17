@@ -140,12 +140,28 @@ test('a meteor is refused under a veil, and an unreachable M says so', () => {
 test('smokers stand on the floor of their cell', () => {
   const ocean = floor => `
 #######
-#S W B#
+#R W B#
 ${floor}
-#R    #
+#S    #
 #######
 `;
   const level = parse(ocean('# #####'), 'enceladus');
   assert.deepEqual(level.smokers, [{ x: 1, y: 0, white: true }, { x: 2, y: 0, white: false }]);
   failsWith(ocean('# ### #'), /строка 2, символ 6: курильщик B стоит на дне, а под ним нет стены/, 'enceladus');
+});
+
+test('under water the rocket is in the top row, and top-down things are refused', () => {
+  const ocean = `
+#######
+#    R#
+# #####
+#S F  #
+#######
+`;
+  failsWith(ocean.replace('F', ' ').replace('R', ' ').replace('#S  ', '#S R'), /ракета R стоит на льду/, 'enceladus');
+  failsWith(ocean, /под водой ориентира F нет/, 'enceladus');
+  assert.equal(parse(ocean.replace('F', 'Z'), 'enceladus').landmarks[0].type, 'station');
+  failsWith(ocean.replace('F', 'Z'), /ориентир Z бывает только под водой/, 'moon');
+  assert.equal(parse(ocean.replace('F', ' '), 'enceladus').goal.y, 0);
+  failsWith(ocean.replace('F', 'W'), /курильщики W и B бывают только под водой/, 'moon');
 });

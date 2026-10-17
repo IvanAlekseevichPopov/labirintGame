@@ -267,6 +267,38 @@ export function drawAntenna(cx, baseY, size, now) {
   });
 }
 
+// A little science station standing on an underwater ledge, seen from the side: a white box with an
+// orange stripe on short legs, a dish looking up and a whip antenna with a blinking lamp. People left
+// it there, so it chimes like the flag and the antenna.
+export function drawStation(cx, baseY, size, now) {
+  withUprightSpace(cx, baseY, size, () => {
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 0.035;
+    for (const x of [-0.28, 0.28]) outlinedLine([[x * 0.8, -0.18], [x, 0]], '#8d939e', 0.045);
+    ctx.beginPath();
+    ctx.roundRect(-0.36, -0.52, 0.72, 0.36, 0.06);
+    ctx.fillStyle = '#eef1f5';
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ff9f1c';
+    ctx.fillRect(-0.34, -0.33, 0.68, 0.07);
+    for (const x of [-0.22, -0.06]) dot(x, -0.43, 0.035, '#1d3557');
+    outlinedLine([[0.16, -0.52], [0.16, -0.62]], '#9aa1ad', 0.04);
+    ctx.save();
+    ctx.translate(0.16, -0.66);
+    ctx.rotate(-0.5);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.2, 0.09, 0, 0, Math.PI);
+    ctx.closePath();
+    ctx.fillStyle = '#f1f3f6';
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    outlinedLine([[-0.26, -0.52], [-0.3, -0.86]], '#6f7682', 0.025);
+    dot(-0.3, -0.89, 0.05, Math.floor(now / 600) % 2 ? '#ff3b30' : '#7a1d18');
+  });
+}
+
 // Shape helpers take their context: floor marks draw into the cached maze layer, not the shared one.
 function disc(g, cx, cy, cr, fill) {
   g.beginPath();

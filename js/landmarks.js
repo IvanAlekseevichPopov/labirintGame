@@ -4,10 +4,12 @@
 // those chime and glow; a crater or a polynya is just ground.
 //
 // upright: drawn on the main canvas each frame in side view, draw(cx, baseY, size, now, palette).
+// side: belongs to the oceans seen from the side, where it stands on the floor of its cell; the
+// others belong to the planets seen from above.
 // Otherwise it is part of the ground, drawn once into the maze layer, draw(g, x, y, r, palette).
 // light(now): { r (cells), strength 0..1, color 'r,g,b' } or null.
 
-import { drawAntenna, drawBigCrater, drawFlag, drawImpactCrater } from './art.js';
+import { drawAntenna, drawBigCrater, drawFlag, drawImpactCrater, drawStation } from './art.js';
 
 export const LANDMARKS = {
   flag: {
@@ -20,6 +22,10 @@ export const LANDMARKS = {
     light: now => ({ r: 0.8, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, color: '255,70,50' }),
   },
   crater: { char: 'C', chime: false, upright: false, draw: drawBigCrater, light: null },
+  station: {
+    char: 'Z', chime: true, upright: true, side: true, draw: drawStation,
+    light: now => ({ r: 0.7, strength: Math.floor(now / 600) % 2 ? 0.85 : 0.3, color: '255,70,50' }),
+  },
   // Left by a meteor during play (game.js), so it has no letter of its own in a level.
   // Fills its cell wall to wall (size is the radius in cells), so it reads as blocked without new walls.
   impact: { char: null, chime: false, upright: false, draw: drawImpactCrater, size: 0.5, light: null },

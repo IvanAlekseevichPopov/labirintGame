@@ -36,6 +36,13 @@ export function createBubbles() {
       });
       nextAt = now + BUBBLES.everyMs * (0.6 + Math.random() * 0.8);
     },
+    // Where the bubbles are, in px with room to wobble and grow, or null when there are none.
+    bounds({ cell, ox, oy }) {
+      if (!list.length) return null;
+      const xs = list.map(b => b.x), ys = list.map(b => b.y), pad = 0.15;
+      const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad, x1 = Math.max(...xs) + pad, y1 = Math.max(...ys) + pad;
+      return { x: ox + x0 * cell, y: oy + y0 * cell, w: (x1 - x0) * cell, h: (y1 - y0) * cell };
+    },
     draw(ctx, now, { cell, ox, oy }) {
       ctx.save();
       for (const b of list) {
