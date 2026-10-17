@@ -42,12 +42,12 @@ function disc(r, fill) {
 }
 
 // Day side to the top left, night side to the bottom right.
-function shade(dark = 0.6) {
+function shade(dark = 0.6, size = 1) {
   const g = c.createRadialGradient(-0.45, -0.45, 0.2, -0.15, -0.15, 1.3);
   g.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
   g.addColorStop(0.45, 'rgba(0, 0, 0, 0)');
   g.addColorStop(1, `rgba(4, 6, 20, ${dark})`);
-  disc(1, g);
+  disc(size, g);
 }
 
 function glow(color) {
@@ -159,8 +159,17 @@ function saturn() {
   rings(true);
 }
 
-function moonlet(seed) {
-  softBlob(c, 0, 0, 1, '#8c7b6a', seed, 0.18);
+// A small potato-shaped moon: only gently lumpy, so it still reads as a moon and not a rock.
+function moonlet(seed, lumps) {
+  c.beginPath();
+  for (let k = 0; k <= 64; k++) {
+    const a = (k / 64) * Math.PI * 2;
+    const rr = 1 + lumps * (0.7 * Math.sin(a * 2 + seed) + 0.3 * Math.sin(a * 3 + seed * 2));
+    c[k ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  c.closePath();
+  c.fillStyle = '#8c7b6a';
+  c.fill();
   c.save();
   c.clip();
   for (const [x, y, r] of [[-0.3, -0.2, 0.25], [0.35, 0.1, 0.18], [0, 0.45, 0.14]]) {
@@ -169,15 +178,16 @@ function moonlet(seed) {
     c.fillStyle = 'rgba(40, 30, 25, 0.35)';
     c.fill();
   }
-  shade(0.6);
+  // Past the unit circle too, or the lumps that stick out stay unshaded.
+  shade(0.6, 1 + lumps);
   c.restore();
 }
 
 function phobos() {
-  c.scale(1.3, 1);
-  moonlet(2);
+  c.scale(1.25, 1);
+  moonlet(2, 0.07);
 }
 
 function deimos() {
-  moonlet(5);
+  moonlet(5, 0.05);
 }
