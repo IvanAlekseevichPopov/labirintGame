@@ -202,8 +202,10 @@ function iceAhead(dir) {
 // once through, the held direction drives on at once.
 function drill(now, dt) {
   const { wall, dir } = state.drilling;
-  if (!input.held.includes(dir) && !introPlaying()) {
+  // Letting go stops it, and so does pressing another way: the newest press wins, as when driving.
+  if (input.held.at(-1) !== dir && !introPlaying()) {
     state.drilling = null;
+    if (input.held.length) state.nextMoveAt = now;
     events.push({ type: 'drillStop' });
     return false;
   }
@@ -231,6 +233,8 @@ const PLAY_INTRO = {
 function endIntro(now) {
   state.intro.endedAt = now;
   state.inputFrom = now;
+  // The intro kept dropping input; a direction held all through it drives on now.
+  for (const dir of [...input.bySource.key, ...input.bySource.pad]) if (!input.held.includes(dir)) input.held.push(dir);
   events.push({ type: 'introEnd' });
 }
 
@@ -345,12 +349,14 @@ function step(now, dt, cellPx) {
   state.nextMoveAt = now + (isFresh ? FIRST_REPEAT_MS : stepMs(cellPx));
 
   const dir = wanted.find(isOpen);
-  const ice = !dir && input.held.includes(wanted[0]) && iceAhead(wanted[0]);
+  // Even a tap too short to be held for a frame drills a little: ice never knocks back like a wall.
+  const ice = !dir && (isFresh || input.held.includes(wanted[0])) && iceAhead(wanted[0]);
   if (ice) {
     state.targetAngle = DIRS[wanted[0]].angle;
     state.blocked = false;
     state.drilling = { wall: ice, dir: wanted[0] };
     ice.from = { ...state.player };
+    ice.drilled += Math.min(dt, 100);
     events.push({ type: 'drillStart' });
     return;
   }

@@ -195,4 +195,5 @@ test('the drill intro needs exactly one ice wall at the start and faces it', () 
   assert.equal(parse(ICY, 'europa').intro, null);
   assert.throws(() => parseLevel({ planet: 'europa', intro: 'drill', map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
   assert.throws(() => parseLevel({ planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS), /intro может быть только: 'drill'/);
+  assert.throws(() => parseLevel({ planet: 'europa', intro: 'drill', map: '\n#####\n#SIR#\n#####\n' }, 7, PLANET_KEYS), /сразу ракета/);
 });

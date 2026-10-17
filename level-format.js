@@ -17,11 +17,12 @@ const isWall = ch => ch === '#' || ch === 'I';
 // what it needs and returns what the game plays it with.
 const INTROS = {
   // The rover drills the ice wall next to the start by itself and drives through: `dir` is its wall.
-  drill({ start, ice, fail }) {
+  drill({ start, goal, ice, fail }) {
     const next = ice.filter(w => [w.a, w.b].some(c => c.x === start.x && c.y === start.y));
     if (next.length !== 1) fail(`показ бура intro: 'drill': у старта должна быть ровно одна ледяная стена I, а их ${next.length}`);
     const [{ a, b }] = next;
     const other = a.x === start.x && a.y === start.y ? b : a;
+    if (other.x === goal.x && other.y === goal.y) fail("показ бура intro: 'drill': за ледяной стеной у старта сразу ракета, показ въедет в неё без победы");
     return { dir: LEVEL_DIRS.find(d => start.x + d.dx === other.x && start.y + d.dy === other.y).wall };
   },
 };
@@ -152,7 +153,8 @@ export function parseLevel(level, number, planets) {
     }
     meteor = { cell, trigger };
   }
-  const scene = intro && { kind: intro, ...INTROS[intro]({ start, ice, fail }) };
+  if (intro && (dark || storm)) fail('показ intro на ночном уровне или в бурю не поддерживается: он идёт раньше, чем включатся фары');
+  const scene = intro && { kind: intro, ...INTROS[intro]({ start, goal, ice, fail }) };
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);

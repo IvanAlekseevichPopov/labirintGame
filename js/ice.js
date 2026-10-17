@@ -295,7 +295,7 @@ export function drawIceRemains(g, wall, { cell, ox, oy, walls }) {
     if (!meets(x, y)) continue;
     const length = 0.11 + rand() * 0.06;
     const jagged = [0, 1, 2, 3, 4].map(k => [end * (hl - length + (rand() - 0.5) * 0.06), ht * 0.85 - (k / 4) * ht * 1.7]);
-    const stub = [[end * hl, -ht * 0.8], [end * hl, ht * 0.8], ...jagged.reverse()];
+    const stub = [[end * hl, -ht * 0.8], [end * hl, ht * 0.8], ...jagged];
     path(g, stub, 0.03, 0.03);
     g.fillStyle = COLORS.shadow;
     g.fill();
@@ -382,6 +382,10 @@ export function createChips() {
       list = [];
       nextAt = 0;
       last = null;
+    },
+    // Whether there are any shards (true) or crumbs (false) out to draw.
+    any(shards) {
+      return list.some(c => c.shard === shards);
     },
     update(now, drillingWall) {
       const dt = last === null ? 0 : Math.min(0.05, Math.max(0, (now - last) / 1000));

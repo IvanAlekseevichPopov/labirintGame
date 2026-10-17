@@ -105,6 +105,8 @@ function closePause(now) {
   pausedAt = null;
   scene = 'playing';
   audio.unduckMusic();
+  // The pause silenced the drill; the intro drills on by itself, with no new drillStart.
+  if (game.state.drilling && game.state.intro?.endedAt === null) audio.setDrill(PLANETS[game.state.planet].rover);
 }
 
 function choosePauseItem(now) {
@@ -184,6 +186,8 @@ function handle(event) {
       audio.sfx(event.type);
       break;
     case 'drillStart':
+      // Only the drill is heard while drilling, however the rover came up to the ice.
+      audio.setEngine(null);
       audio.setDrill(planet.rover);
       break;
     case 'drillStop':

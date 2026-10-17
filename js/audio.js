@@ -102,7 +102,7 @@ export function createAudio() {
   const noiseBuffers = new Map();
   const parsed = new Map();
   // Remembered while the context is locked, so unlock() can start what the game already asked for.
-  const wanted = { planet: null, rover: null, musicOn: true, muted: false };
+  const wanted = { planet: null, rover: null, drill: null, musicOn: true, muted: false };
   let music = null;
   // The sounds that run until replaced: the engine's hum and the drill's grind.
   const loops = { engine: null, drill: null };
@@ -123,6 +123,7 @@ export function createAudio() {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     if (wanted.planet) playMusic(wanted.planet);
     if (wanted.rover) setEngine(wanted.rover);
+    if (wanted.drill) setDrill(wanted.drill);
   }
 
   const gain = (value, to) => {
@@ -504,6 +505,11 @@ export function createAudio() {
     setLoop('engine', rover);
   }
 
+  function setDrill(rover) {
+    wanted.drill = rover;
+    setLoop('drill', rover);
+  }
+
   return {
     unlock,
     playMusic,
@@ -514,7 +520,7 @@ export function createAudio() {
     duckMusic,
     unduckMusic,
     setEngine,
-    setDrill: rover => setLoop('drill', rover),
+    setDrill,
     sfx,
     get unlocked() {
       return ctx !== null;

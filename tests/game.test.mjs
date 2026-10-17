@@ -463,7 +463,7 @@ test('holding the way into ice drills through it and drives on without a new pre
   assert.equal(state.player.x, 1);
   assert.ok(types(drilling).includes('drillStart'));
   assert.ok(!types(drilling).includes('bump'), 'ice is drilled, not bumped into');
-  const through = run(DRILL_MS + STEP_MS);
+  const through = run(DRILL_MS + STEP_MS / 2);
   game.release('right', 'key');
   assert.ok(types(through).includes('iceBroken'));
   assert.equal(state.player.x, 2);
@@ -504,12 +504,46 @@ test('the intro drills the ice next to the start by itself, then hands over', ()
   game.startLevel(0, now);
   assert.equal(state.angle, 0, 'faces the ice');
   game.press('down', 'key', now);
-  const events = run(INTRO.leadMs + DRILL_MS + STEP_MS + INTRO.holdMs + FRAME_MS * 3);
-  game.release('down', 'key');
-  assert.deepEqual(types(events).filter(t => t !== 'levelStart' && t !== 'move' && t !== 'stop'), ['drillStart', 'iceBroken', 'introEnd']);
+  const events = run(INTRO.leadMs + DRILL_MS + STEP_MS + INTRO.holdMs - FRAME_MS * 3);
+  assert.deepEqual(types(events).filter(t => t !== 'levelStart' && t !== 'move' && t !== 'stop'), ['drillStart', 'iceBroken']);
   assert.deepEqual(state.player, { x: 1, y: 0 }, 'drove one cell through, ignoring the held key');
-  tap('right');
-  assert.equal(state.player.x, 2, 'the player drives once it is over');
+  game.release('down', 'key');
+  game.press('right', 'key', now);
+  const after = run(FRAME_MS * 6 + STEP_MS);
+  assert.ok(types(after).includes('introEnd'));
+  assert.ok(state.player.x > 1, 'a direction held through the end of it drives on without a new press');
+  game.release('right', 'key');
   game.restartLevel(now);
   assert.equal(state.intro.endedAt, null, 'restart plays it again');
+});
+
+test('pressing another way while drilling stops the drill and drives that way', () => {
+  game.setLevels([{ planet: 'europa', map: `
+#########
+#SI     #
+# ##### #
+#R      #
+#########
+` }]);
+  game.startLevel(0, now);
+  run(INPUT_LOCK_MS);
+  game.press('right', 'key', now);
+  assert.ok(types(run(FRAME_MS * 3)).includes('drillStart'));
+  game.press('down', 'key', now);
+  const events = run(STEP_MS + FRAME_MS);
+  assert.ok(types(events).includes('drillStop'));
+  assert.deepEqual(state.player, { x: 0, y: 1 });
+  game.release('down', 'key');
+  game.release('right', 'key');
+});
+
+test('a tap into ice too short to be held drills a little and never bumps', () => {
+  startIce();
+  tap('right');
+  run(STEP_MS);
+  game.press('right', 'key', now);
+  game.release('right', 'key');
+  const events = run(FRAME_MS * 2);
+  assert.ok(!types(events).includes('bump'));
+  assert.ok(state.ice[0].drilled > 0);
 });

@@ -240,7 +240,6 @@ function buildMazeLayer() {
   }
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
-  for (const w of state.brokenIce) drawIceRemains(g, w, { cell, ox, oy, walls: decor.walls });
   // Rays and rubble stay on the ground, never on the sky.
   g.save();
   g.beginPath();
@@ -465,6 +464,8 @@ export function render(now, { soundOff = false } = {}) {
   } else {
     drawNewTracks(now);
     ctx.drawImage(trackLayer, 0, 0, w, h);
+    // Over the tracks: a stub frozen to a pillar is not something the rover drove over.
+    for (const w of state.brokenIce) drawIceRemains(ctx, w, { cell, ox, oy, walls: decor.walls });
     for (const w of state.ice) drawIceWall(ctx, w, { cell, ox, oy, now, drilling: state.drilling?.wall === w });
   }
 
@@ -521,7 +522,7 @@ export function render(now, { soundOff = false } = {}) {
   if (!planet.side) {
     for (const wall of bursts.splice(0)) chips.burst(now, wall);
     chips.update(now, state.drilling?.wall ?? null);
-    onGround(() => chips.draw(ctx, now, { cell, ox, oy }, true));
+    if (chips.any(true)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, true));
   }
   if (shrink > 0) {
     const [rx, ry] = toPx(roverPos(now));
@@ -533,14 +534,15 @@ export function render(now, { soundOff = false } = {}) {
       rover.draw = () => drawDrone(rover, d, now);
     } else {
       // Drilling shakes the rover and turns its drill.
-      const judder = () => (state.drilling ? (Math.random() - 0.5) * cell * 0.025 : 0);
+      // From the game clock, so it stands still under the pause menu like everything else.
+      const judder = k => (state.drilling ? Math.sin(now * (0.9 + k * 0.37)) * cell * 0.0125 : 0);
       const spin = state.drilling ? (now / 90) % 1 : 0;
-      rover = { x: rx + dx * nudge + judder(), y: ry + dy * nudge + judder(), angle: state.angle, size: cell * ROVER_RATIO * shrink };
+      rover = { x: rx + dx * nudge + judder(0), y: ry + dy * nudge + judder(1), angle: state.angle, size: cell * ROVER_RATIO * shrink };
       rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size, spin);
     }
     rover.draw();
   }
-  if (!planet.side) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
+  if (!planet.side && chips.any(false)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
 
   drawMeteor(ctx, state.meteor, now, cell, toPx);
   // The shake stops here: the veil, the weather and the title stay put (the lights drift from the
@@ -568,6 +570,8 @@ export function render(now, { soundOff = false } = {}) {
     if (planet.side) drawInWater(area, g => drawWeather(g, now, { w, h }, area));
     else drawWeather(ctx, now, { w, h }, area);
   }
+  // Under the bars, like the title: the intro is a scene, not play.
+  if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
   if (bars > 0) {
     // Thin enough to leave the maze's bottom row clear; the level title fades out under them.
     const bar = h * 0.07 * bars;
@@ -575,7 +579,6 @@ export function render(now, { soundOff = false } = {}) {
     ctx.fillRect(0, 0, w, bar);
     ctx.fillRect(0, h - bar, w, bar);
   }
-  if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);
 }
 
 // Black bars, as in the cinema, while the player only watches the intro: 0 (none) to 1, eased.
