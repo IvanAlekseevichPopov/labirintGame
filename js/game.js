@@ -17,11 +17,12 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, look, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, schools, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
     planet,
+    look,
     // Under water the first step from rest takes the whole hold delay, so a held direction goes on
     // without the rover's pause after the first cell: the drone eases off instead of stopping.
     swims: Boolean(PLANETS[planet].side),
@@ -40,6 +41,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     dusk,
     // Cells of the jellyfish when the level sets them, else null.
     jellies,
+    // Rows the fish schools swim along ({ y, from, to }) when the level sets them, else null.
+    schools,
     // Ice walls still standing, each with how long it has been drilled (ms) and from which cell.
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.

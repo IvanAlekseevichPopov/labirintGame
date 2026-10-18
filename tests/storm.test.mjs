@@ -44,8 +44,8 @@ test('on level 23 the drawn storm and the cells that count as inside agree', () 
 
 test('the parser snaps a storm to cell columns and refuses one too narrow', () => {
   const { map } = LEVELS[21];
-  assert.deepEqual(parseLevel({ planet: 'mars', map, storm: { from: 0, to: 0.58 } }, 23, PLANET_KEYS).storm, { from: 0, to: 8 });
-  assert.throws(() => parseLevel({ planet: 'mars', map, storm: { from: 0.5, to: 0.6 } }, 23, PLANET_KEYS), /буря уже/);
+  assert.deepEqual(parseLevel({ look: 0, planet: 'mars', map, storm: { from: 0, to: 0.58 } }, 23, PLANET_KEYS).storm, { from: 0, to: 8 });
+  assert.throws(() => parseLevel({ look: 0, planet: 'mars', map, storm: { from: 0.5, to: 0.6 } }, 23, PLANET_KEYS), /буря уже/);
 });
 
 test('the veil clock starts at zero and caps a long gap', () => {

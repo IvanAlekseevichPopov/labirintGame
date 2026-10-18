@@ -579,20 +579,35 @@ function drawWreck(g, p, cx, cy, cell, rand) {
   g.lineWidth = 0.018;
   g.stroke();
   g.lineWidth = 0.02;
-  // Nose with a dead, cracked camera eye and a stump of an aerial.
+  // A robot, not a boat: a square camera box with a dead, cracked lens at the nose and two thin
+  // feelers, nothing round like a porthole someone could have looked out of.
+  for (const [x1, y1] of [[0.47, -0.12], [0.46, 0.1]]) {
+    g.beginPath();
+    g.moveTo(0.34, y1 * 0.4);
+    g.lineTo(x1, y1);
+    g.strokeStyle = '#4a525d';
+    g.lineWidth = 0.012;
+    g.stroke();
+    g.beginPath();
+    g.arc(x1, y1, 0.014, 0, Math.PI * 2);
+    g.fillStyle = '#5d6672';
+    g.fill();
+  }
+  g.strokeStyle = OUTLINE;
+  g.lineWidth = 0.02;
+  blob(0.25, -0.055, 0.11, 0.11, 0.015, '#5d6672');
   g.beginPath();
-  g.arc(0.31, 0, 0.055, 0, Math.PI * 2);
+  g.roundRect(0.285, -0.03, 0.06, 0.06, 0.01);
   g.fillStyle = '#26303b';
   g.fill();
-  g.stroke();
   g.beginPath();
-  g.moveTo(0.28, -0.03);
-  g.lineTo(0.315, 0.005);
-  g.lineTo(0.3, 0.035);
-  g.moveTo(0.315, 0.005);
-  g.lineTo(0.345, -0.015);
+  g.moveTo(0.29, -0.02);
+  g.lineTo(0.315, 0.004);
+  g.lineTo(0.305, 0.026);
+  g.moveTo(0.315, 0.004);
+  g.lineTo(0.338, -0.012);
   g.strokeStyle = 'rgba(220, 235, 245, 0.8)';
-  g.lineWidth = 0.008;
+  g.lineWidth = 0.007;
   g.stroke();
   g.beginPath();
   g.moveTo(-0.02, -0.09);
@@ -603,13 +618,13 @@ function drawWreck(g, p, cx, cy, cell, rand) {
   g.stroke();
   g.restore();
 
-  // The ice over it: a pale film, air bubbles caught round it and a crack from the blow.
+  // The ice over it: a pale film and air bubbles caught round it.
   g.save();
   g.fillStyle = p.ice;
-  const k = cell * WRECK.size;
+  const span = cell * WRECK.size;
   g.globalAlpha = 0.22;
   g.beginPath();
-  g.ellipse(cx - k * 0.05, cy, k * 0.62, k * 0.16, WRECK.tilt, 0, Math.PI * 2);
+  g.ellipse(cx - span * 0.05, cy, span * 0.62, span * 0.16, WRECK.tilt, 0, Math.PI * 2);
   g.fill();
   g.globalAlpha = 0.85;
   g.strokeStyle = 'rgba(240, 250, 255, 0.9)';
@@ -617,7 +632,7 @@ function drawWreck(g, p, cx, cy, cell, rand) {
   for (let k = 0; k < 9; k++) {
     const a = rand() * Math.PI * 2, d = 0.3 + rand() * 0.3;
     g.beginPath();
-    g.arc(cx + Math.cos(a) * d * k, cy + Math.sin(a) * d * k * 0.3, cell * (0.012 + rand() * 0.018), 0, Math.PI * 2);
+    g.arc(cx + Math.cos(a) * d * span, cy + Math.sin(a) * d * span * 0.3, cell * (0.012 + rand() * 0.018), 0, Math.PI * 2);
     g.stroke();
   }
   g.restore();

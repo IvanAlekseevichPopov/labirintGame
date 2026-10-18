@@ -6,9 +6,9 @@ import { PLANET_KEYS, PLANETS } from '../js/planets.js';
 const TOP_DOWN = PLANET_KEYS.filter(p => !PLANETS[p].side);
 
 test('weather starts at level 20, light, and is full by the last level', () => {
-  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL - 1, 40), 0);
-  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL, 40), 0.3);
-  assert.equal(weatherIntensity(40, 40), 1);
+  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL - 1), 0);
+  assert.equal(weatherIntensity(WEATHER_FROM_LEVEL), 0.3);
+  assert.equal(weatherIntensity(40), 1);
   assert.equal(createWeather('mars', 0), null);
   assert.equal(createWeather('enceladus', 1), null);
 });

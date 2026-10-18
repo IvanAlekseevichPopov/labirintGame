@@ -20,7 +20,7 @@ import { drawNeighbours } from './sky.js';
 import { drawTitleScene } from './title.js';
 import { drawMuseum } from './finale.js';
 import { drawProfile } from './profiles.js';
-import { beamPolygon } from './headlights.js';
+import { beamPolygon, nearby } from './headlights.js';
 import { createBubbles } from './bubbles.js';
 import { createChips, drawIceRemains, drawIceWall, iceSegment } from './ice.js';
 import { createSilt } from './silt.js';
@@ -39,6 +39,7 @@ const veilLayer = document.createElement('canvas');
 // Seen from the side: everything that is not open water, so the drone's beam stops at the walls.
 const wallMask = document.createElement('canvas');
 const waterLayer = document.createElement('canvas');
+const droneLayer = document.createElement('canvas');
 let drawnTracks = 0;
 // The track being laid under the rover and how many of its marks are already on the layer.
 let laying = { seg: null, marks: 0 };
@@ -49,6 +50,9 @@ let wallsPx = [];
 // Under water, the outlines of the walls as drawn (thick, past their ends): lights cast shadows off
 // these, so a shadow starts where a wall is seen to end, not at its middle line.
 let wallEdgesPx = [];
+// Under dusk, the light of each jellyfish and of each landmark with a lamp, drawn once per layout:
+// { canvas, x, y, r } in px, with `light` for a lamp that blinks (its strength now, from landmarks.js).
+let glows = [];
 let smokers = [];
 let stars = [];
 
@@ -67,9 +71,19 @@ const ROCK_KEPT = 0.3;
 const DRONE_RATIO = 0.82;
 // How much a jellyfish lights the water round it at the darkest of the dusk.
 const JELLY_LIGHT = 0.55;
+// A landmark's lamp under dusk: its light at full strength, how far it reaches (shares of its own
+// `r` in landmarks.js), and its strength in landmarks.js when fully on.
+const LAMP_LIGHT = 0.7;
+const LAMP_REACH = 1.6;
+const LAMP_FULL = 0.85;
 const DRONE_GLOW = { reach: 0.8, color: '150, 200, 225', strength: 0.3 };
 // Points round a light its shadows are cast from, as shares of a cell.
-const SOFT_SHADOW = { spread: 0.2, from: [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]] };
+// A jellyfish's light is drawn once, so it can afford more of them than the moving drone's.
+const SOFT_SHADOW = {
+  spread: 0.2,
+  baked: { from: [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]], rays: 48 },
+  live: { from: [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]], rays: 32 },
+};
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -90,8 +104,9 @@ function wallSegments({ cols, rows, cells }) {
 
 const sameSegment = (s, t) => s.every((v, i) => v === t[i]);
 
-// Seeded by level, so a level's decorations look the same every time — part of what makes it recognisable.
-const lookSeed = () => state.index + DROPPED_LEVELS;
+// Seeded by the level's own `look`, so its decorations look the same every time — part of what
+// makes it recognisable — wherever it stands in the list.
+const lookSeed = () => state.look;
 
 function makeDecor() {
   const { cols, rows } = state.maze;
@@ -105,7 +120,7 @@ function makeDecor() {
   };
 }
 
-export function levelChanged(levelCount) {
+export function levelChanged() {
   decor = makeDecor();
   drone.last = null;
   bubbles.reset();
@@ -113,7 +128,7 @@ export function levelChanged(levelCount) {
   bursts.length = 0;
   silt.reset();
   // A storm level gets the full weather and then some, whatever its number.
-  const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.index + 1, levelCount);
+  const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.look + 1 - DROPPED_LEVELS);
   drawWeather = createWeather(state.planet, intensity);
   drawVeil = state.dark ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
   sizeVeilLayer();
@@ -252,6 +267,7 @@ function buildMazeLayer() {
     // Nothing reads it away from the water; on a 4K screen it would hold on to ~30 MB.
     wallMask.width = wallMask.height = 0;
   }
+  bakeGlows(cell, ox, oy);
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
   // Rays and rubble stay on the ground, never on the sky.
@@ -274,6 +290,77 @@ function buildMazeLayer() {
     drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole, wreck });
   }
 }
+
+// Where the dusk darkens, in px: from a third of the way down the maze to the rock under it.
+function duskBox(cell, ox, oy) {
+  const { cols, rows } = state.maze, wall = cell * WALL_RATIO, rock = ROCK_CELLS.side * cell;
+  return { x: ox - wall / 2 - rock, w: cell * cols + wall + 2 * rock, from: oy + cell * rows * 0.3, to: oy + cell * rows + wall / 2 + ROCK_CELLS.bottom * cell };
+}
+
+// Light `l` ({ x, y, r, color } px) at `strength`, cast against the walls as drawn, so none shows
+// in the next corridor. Cast from a few points round it, not one: one gave a hard-edged shadow off
+// a wall's end, these blend into a soft one. The shapes add up into how much of the light reaches
+// each spot, then the light goes on once through that: drawn faintly once per shape, it lost so
+// much precision it showed in bands.
+function paintLight(g, l, strength, { from, rays }, cell) {
+  const spread = cell * SOFT_SHADOW.spread;
+  const walls = nearby(wallEdgesPx, l.x, l.y, l.r + spread);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  g.globalAlpha = 1 / from.length;
+  g.fillStyle = '#fff';
+  for (const [dx, dy] of from) {
+    const reach = beamPolygon(l.x + dx * spread, l.y + dy * spread, 0, l.r, walls, { rays, halfAngle: Math.PI });
+    g.beginPath();
+    reach.forEach(([px, py], i) => i && g[i > 1 ? 'lineTo' : 'moveTo'](px, py));
+    g.closePath();
+    g.fill();
+  }
+  g.globalCompositeOperation = 'source-in';
+  g.globalAlpha = strength;
+  g.drawImage(softBlob(l.color), l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+  g.restore();
+}
+
+// Lights under dusk, drawn once: each jellyfish's where it hangs on average (it bobs too little
+// for the light to show it), and each landmark's lamp, at full strength, dimmed as it blinks.
+// Drawing them once spares tracing them every frame.
+function bakeGlows(cell, ox, oy) {
+  glows = [];
+  if (!state.dusk) return;
+  const dpr = devicePixelRatio || 1, dusk = duskBox(cell, ox, oy);
+  const lights = decor.life ? jellyLights(decor.life, null, { cell, ox, oy }).map(l => ({ ...l, strength: JELLY_LIGHT })) : [];
+  for (const l of state.landmarks) {
+    const kind = LANDMARKS[l.type];
+    if (!kind.side || !kind.light) continue;
+    const { r, color } = kind.light(0);
+    const [x, y] = landmarkLamp(l, cell, ox, oy);
+    lights.push({ x, y, r: cell * r * LAMP_REACH, color, strength: LAMP_LIGHT, light: kind.light });
+  }
+  for (const l of lights) {
+    const strength = l.strength * duskAt(l.y, dusk);
+    if (strength <= 0) continue;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = Math.ceil(l.r * 2 * dpr);
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, (l.r - l.x) * dpr, (l.r - l.y) * dpr);
+    paintLight(g, l, strength, SOFT_SHADOW.baked, cell);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    g.drawImage(wallMask, (l.x - l.r) * dpr, (l.y - l.r) * dpr, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+    glows.push({ canvas, x: l.x, y: l.y, r: l.r, light: l.light });
+  }
+}
+
+// Seen from the side a landmark stands on the floor of its cell, kept low enough to swim over.
+const SIDE_LANDMARK = 0.45;
+const sideFloor = (l, cell, oy) => oy + (l.y + 1 - WALL_RATIO / 2) * cell;
+function drawSideLandmark(l, cell, ox, oy, now, planet) {
+  LANDMARKS[l.type].draw(ox + (l.x + 0.5) * cell, sideFloor(l, cell, oy), cell * SIDE_LANDMARK, now, planet);
+}
+
+// Where the lamp on a side landmark's mast is, in px (see drawStation in art.js).
+const landmarkLamp = (l, cell, ox, oy) => [ox + (l.x + 0.5 - 0.3 * SIDE_LANDMARK) * cell, sideFloor(l, cell, oy) - 0.89 * SIDE_LANDMARK * cell];
 
 // The four sides of a wall segment `half` px thick, reaching `half` past each end as it is drawn.
 function wallOutline([x0, y0, x1, y1], half) {
@@ -492,10 +579,10 @@ export function render(now, { soundOff = false } = {}) {
     for (const w of state.ice) drawIceWall(ctx, w, { cell, ox, oy, now, drilling: state.drilling?.wall === w });
   }
 
-  for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright)) {
+  const litUnderDusk = state.dusk ? state.landmarks.filter(l => LANDMARKS[l.type].side && LANDMARKS[l.type].light) : [];
+  for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright && !litUnderDusk.includes(l))) {
     const [lx, ly] = toPx(l);
-    // Seen from the side it stands on the floor of its cell, kept low enough to swim over.
-    if (planet.side) LANDMARKS[l.type].draw(lx, oy + (l.y + 1 - WALL_RATIO / 2) * cell, cell * 0.45, now, planet);
+    if (planet.side) drawSideLandmark(l, cell, ox, oy, now, planet);
     else LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
   drawProps(ctx, decor.props, toPx, cell, now, planet);
@@ -565,44 +652,29 @@ export function render(now, { soundOff = false } = {}) {
       rover = { x: rx + dx * nudge + judder(0), y: ry + dy * nudge + judder(1), angle: state.angle, size: cell * ROVER_RATIO * shrink };
       rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size, spin);
     }
-    rover.draw();
+    if (!(d && state.dusk)) rover.draw();
   }
   if (state.dusk) {
     const { cols, rows } = state.maze, wall = cell * WALL_RATIO, rock = ROCK_CELLS.side * cell;
-    const dusk = { x: ox - wall / 2 - rock, w: cell * cols + wall + 2 * rock, from: oy + cell * rows * 0.3, to: oy + cell * rows + wall / 2 + ROCK_CELLS.bottom * cell };
+    const dusk = duskBox(cell, ox, oy);
     drawDusk(ctx, dusk);
     // A jellyfish lights the water round it, the more the darker it is there; walls stop the light.
     // The drone keeps a faint glow round itself, as the rover does at night, only weaker.
-    const lights = decor.life ? jellyLights(decor.life, now, { cell, ox, oy }).map(l => ({ ...l, strength: JELLY_LIGHT })) : [];
-    if (rover) lights.push({ x: rover.x, y: rover.y, r: cell * DRONE_GLOW.reach, color: DRONE_GLOW.color, strength: DRONE_GLOW.strength });
-    for (const l of lights) {
-      const strength = l.strength * duskAt(l.y, dusk);
-      if (strength <= 0) continue;
-      // Cast against the walls like the headlights, so no light shows in the next corridor. Cast
-      // from a few points round the light, not one: one point gave a hard-edged shadow off a
-      // wall's end, these blend into a soft one.
-      const spread = cell * SOFT_SHADOW.spread;
-      // The shapes add up into how much of the light reaches each spot, then the light goes on once
-      // through that: drawn faintly once per shape, it lost so much precision it showed in bands.
-      drawInWater({ x: l.x - l.r, y: l.y - l.r, w: l.r * 2, h: l.r * 2 }, g => {
-        g.save();
-        g.globalCompositeOperation = 'lighter';
-        g.globalAlpha = 1 / SOFT_SHADOW.from.length;
-        g.fillStyle = '#fff';
-        for (const [dx, dy] of SOFT_SHADOW.from) {
-          const reach = beamPolygon(l.x + dx * spread, l.y + dy * spread, 0, l.r, wallEdgesPx, { rays: 48, halfAngle: Math.PI });
-          g.beginPath();
-          reach.slice(1).forEach(([px, py], i) => g[i ? 'lineTo' : 'moveTo'](px, py));
-          g.closePath();
-          g.fill();
-        }
-        g.globalCompositeOperation = 'source-in';
-        g.globalAlpha = strength;
-        g.drawImage(softBlob(l.color), l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
-        g.restore();
-      }, 'lighter');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const l of glows) {
+      ctx.globalAlpha = l.light ? l.light(now).strength / LAMP_FULL : 1;
+      ctx.drawImage(l.canvas, l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
     }
+    ctx.restore();
+    // A landmark with a lamp was made by people: it stays lit over the dusk, as its lamp does.
+    for (const l of litUnderDusk) drawSideLandmark(l, cell, ox, oy, now, planet);
     if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
+    if (rover && d) drawDroneInDusk(rover, d, now, dusk);
+    // The drone keeps a faint glow round itself, as the rover does at night, only weaker.
+    const glow = rover && { x: rover.x, y: rover.y, r: cell * DRONE_GLOW.reach, color: DRONE_GLOW.color };
+    const strength = glow ? DRONE_GLOW.strength * duskAt(glow.y, dusk) : 0;
+    if (strength > 0) drawInWater({ x: glow.x - glow.r, y: glow.y - glow.r, w: glow.r * 2, h: glow.r * 2 }, g => paintLight(g, glow, strength, SOFT_SHADOW.live, cell), 'lighter');
     if (d && shrink > 0 && !headOn(d)) drawLampBeam(d, rover.x, rover.y + bob(now, rover.size), rover.size);
   }
   if (!planet.side && chips.any(false)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
@@ -727,23 +799,44 @@ function screwOf(d, now, size, cell) {
   return { screw: { x: d.x + 0.5 + wx / cell, y: d.y + 0.5 + wy / cell }, back: -Math.sign(d.turn) || -1 };
 }
 
-function drawDrone({ x, y, size }, d, now) {
+function drawDrone({ x, y, size }, d, now, g = ctx) {
   if (size <= 0) return;
   y += bob(now, size);
   // Under dusk the beam goes on after it, over the dark.
   if (!headOn(d) && !state.dusk) drawLampBeam(d, x, y, size);
-  ctx.save();
-  ctx.translate(x, y);
+  g.save();
+  g.translate(x, y);
   if (headOn(d)) {
-    drawProfile(ctx, swimmer().front, 0, size * 0.3, size);
-    ctx.restore();
+    drawProfile(g, swimmer().front, 0, size * 0.3, size);
+    g.restore();
     return;
   }
-  ctx.scale(sideways(d), 1);
-  ctx.rotate(d.pitch);
-  ctx.translate(size * 0.06, size * 0.3);
-  drawProfile(ctx, swimmer().profile, 0, 0, size, { rolled: d.prop });
-  ctx.restore();
+  g.scale(sideways(d), 1);
+  g.rotate(d.pitch);
+  g.translate(size * 0.06, size * 0.3);
+  drawProfile(g, swimmer().profile, 0, 0, size, { rolled: d.prop });
+  g.restore();
+}
+
+// Under dusk the drone goes on over the jellyfish, so one never covers it, yet darkened as it
+// would be under the dusk: drawn on its own into a scratch layer that the dusk tints.
+function drawDroneInDusk(rover, d, now, dusk) {
+  const dpr = devicePixelRatio || 1, half = rover.size * 1.2;
+  const box = { x: rover.x - half, y: rover.y - half, w: half * 2, h: half * 2 };
+  const pw = Math.ceil(box.w * dpr), ph = Math.ceil(box.h * dpr);
+  if (droneLayer.width < pw || droneLayer.height < ph) {
+    droneLayer.width = Math.max(droneLayer.width, pw);
+    droneLayer.height = Math.max(droneLayer.height, ph);
+  }
+  const g = droneLayer.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, pw, ph);
+  g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
+  drawDrone(rover, d, now, g);
+  g.globalCompositeOperation = 'source-atop';
+  drawDusk(g, dusk);
+  ctx.drawImage(droneLayer, 0, 0, pw, ph, box.x, box.y, box.w, box.h);
 }
 
 // The bow lamp's beam, cast against the walls like the headlights at night and then cut by the
@@ -755,7 +848,7 @@ function drawLampBeam(d, x, y, size) {
   const lx = x + k * (px * c - py * s), ly = y + px * s + py * c;
   const angle = Math.atan2(Math.sin(lamp.dip + d.pitch), Math.sign(k) * Math.cos(lamp.dip + d.pitch));
   const len = size * lamp.length;
-  const pts = beamPolygon(lx, ly, angle, len, wallEdgesPx, { rays: 24, halfAngle: lamp.spread });
+  const pts = beamPolygon(lx, ly, angle, len, nearby(wallEdgesPx, lx, ly, len), { rays: 24, halfAngle: lamp.spread });
   drawInWater({ x: lx - len, y: ly - len, w: len * 2, h: len * 2 }, g => {
     const glow = g.createLinearGradient(lx, ly, lx + Math.cos(angle) * len, ly + Math.sin(angle) * len);
     glow.addColorStop(0, `rgba(255, 243, 190, ${lamp.alpha})`);

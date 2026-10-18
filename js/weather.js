@@ -3,11 +3,13 @@
 // Purely decorative, drawn over the whole scene and kept translucent, so the way stays visible.
 
 export const WEATHER_FROM_LEVEL = 20;
+export const WEATHER_FULL_LEVEL = 40;
 
-// 0 before WEATHER_FROM_LEVEL, then from light to full by the last level.
-export function weatherIntensity(levelNumber, levelCount) {
+// 0 before WEATHER_FROM_LEVEL, then from light to full by WEATHER_FULL_LEVEL. `levelNumber` comes
+// from the level's `look`, not its place in the list, so putting a level in does not change it.
+export function weatherIntensity(levelNumber) {
   if (levelNumber < WEATHER_FROM_LEVEL) return 0;
-  return 0.3 + 0.7 * Math.min(1, (levelNumber - WEATHER_FROM_LEVEL) / Math.max(1, levelCount - WEATHER_FROM_LEVEL));
+  return 0.3 + 0.7 * Math.min(1, (levelNumber - WEATHER_FROM_LEVEL) / (WEATHER_FULL_LEVEL - WEATHER_FROM_LEVEL));
 }
 
 const rnd = (min, max) => min + Math.random() * (max - min);

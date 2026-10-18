@@ -8,6 +8,7 @@ import { LEVELS } from '../levels.js';
 import { PLANETS, PLANET_KEYS } from '../js/planets.js';
 import { LANDMARKS } from '../js/landmarks.js';
 import { WEATHER_FROM_LEVEL } from '../js/weather.js';
+import { DROPPED_LEVELS } from '../js/config.js';
 
 const OUT = new URL('../FEATURES.md', import.meta.url);
 
@@ -28,7 +29,6 @@ const steps = (maze, from, to) => levelDistances(maze, from).get(key(to))?.dist;
 export function featuresDoc(levels = LEVELS) {
   const parsed = levels.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) }));
   const where = test => parsed.filter(test).map(l => l.n);
-  const last = parsed.length;
 
   const meteors = parsed.filter(l => l.meteor).map(({ n, meteor, maze, start, goal }) => {
     const from = meteor.trigger ?? start;
@@ -48,7 +48,7 @@ export function featuresDoc(levels = LEVELS) {
     ['Ледяные стены', 'карта: `I` (в скобках — сколько; «обяз.» — без бурения до ракеты не доехать)', ice.join('; ') || '—', '`ice.js`, `game.js`'],
     ['Показ бура', "карта: `intro: 'drill'`", ranges(where(l => l.intro?.kind === 'drill')), '`game.js` (`PLAY_INTRO`), `render.js` (полосы)'],
     ['Вид сбоку, подо льдом', 'планета с `side: true`', ranges(where(l => PLANETS[l.planet].side)), '`ocean.js`, `bubbles.js`, `silt.js`, `render.js`'],
-    ['Атмосфера', '`WEATHER_FROM_LEVEL`', `${WEATHER_FROM_LEVEL}–${last}`, '`weather.js`'],
+    ['Атмосфера', '`WEATHER_FROM_LEVEL` по `look` уровня', ranges(where(l => !PLANETS[l.planet].side && l.look + 1 - DROPPED_LEVELS >= WEATHER_FROM_LEVEL)), '`weather.js`'],
     ['Курильщики', 'карта: `W`, `B`', ranges(where(l => l.smokers.length)), '`ocean.js`'],
   ];
   const planets = PLANET_KEYS.map(p => `| ${PLANETS[p].name} | \`${PLANETS[p].rover}\` | ${ranges(where(l => l.planet === p))} |`);

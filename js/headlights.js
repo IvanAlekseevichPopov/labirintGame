@@ -97,7 +97,7 @@ export function radial(g, x, y, r, alpha, rgb = '0,0,0') {
 }
 
 // Walls near the lamp are the only ones a beam can hit.
-function nearby(walls, x, y, reach) {
+export function nearby(walls, x, y, reach) {
   return walls.filter(([ax, ay, bx, by]) =>
     Math.max(ax, bx) >= x - reach && Math.min(ax, bx) <= x + reach &&
     Math.max(ay, by) >= y - reach && Math.min(ay, by) <= y + reach);

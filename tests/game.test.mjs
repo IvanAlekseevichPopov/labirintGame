@@ -8,6 +8,7 @@ const { state, input } = game;
 
 // Corridor from S to the right; at x=2 a dead end with a flag goes up, at x=4 it turns down and right to R.
 const CORRIDOR = {
+  look: 0,
   planet: 'moon',
   map: `
 #############
@@ -360,6 +361,7 @@ test('restarting from inside the storm puts the lights out quietly', () => {
 
 // A loop: top corridor S → T → M → R, bottom corridor back round. Driving onto T sets the meteor off.
 const LOOP = {
+  look: 0,
   planet: 'moon',
   map: `
 #################
@@ -437,7 +439,7 @@ test('under water a held direction swims on without stopping after the first cel
 #S          #
 #############
 `;
-  game.setLevels([{ planet: 'enceladus', map }]);
+  game.setLevels([{ look: 0, planet: 'enceladus', map }]);
   game.startLevel(0, now);
   run(INPUT_LOCK_MS);
   game.press('right', 'key', now);
@@ -452,7 +454,7 @@ test('under water a held direction swims on without stopping after the first cel
 });
 
 // An ice wall between the second and the third cell of a corridor on Europa.
-const ICE = { planet: 'europa', map: `
+const ICE = { look: 0, planet: 'europa', map: `
 #########
 #S  I  R#
 #########
@@ -500,7 +502,7 @@ test('letting go keeps the drilling done so far, and restart brings the ice back
 });
 
 test('the intro drills the ice next to the start by itself, then hands over', () => {
-  game.setLevels([{ planet: 'europa', intro: 'drill', map: `
+  game.setLevels([{ look: 0, planet: 'europa', intro: 'drill', map: `
 #########
 #SI     #
 ####### #
@@ -524,7 +526,7 @@ test('the intro drills the ice next to the start by itself, then hands over', ()
 });
 
 test('pressing another way while drilling stops the drill and drives that way', () => {
-  game.setLevels([{ planet: 'europa', map: `
+  game.setLevels([{ look: 0, planet: 'europa', map: `
 #########
 #SI     #
 # ##### #

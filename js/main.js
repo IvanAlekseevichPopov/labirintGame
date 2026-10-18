@@ -168,7 +168,7 @@ function handle(event) {
   const planet = PLANETS[game.state.planet];
   switch (event.type) {
     case 'levelStart':
-      renderer.levelChanged(levels.length);
+      renderer.levelChanged();
       rememberLevelInUrl(event.index);
       audio.setEngine(null);
       audio.setDrill(null);

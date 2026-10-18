@@ -50,10 +50,13 @@ export function parseLevel(level, number, planets) {
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
   if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
-  const { planet, map, dark = false, storm = null, intro = null, wreck = null, dusk = false, jellies = null } = level;
+  const { planet, map, look, dark = false, storm = null, intro = null, wreck = null, dusk = false, jellies = null, schools = null } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');
+  // The seed of everything random in how it looks, kept in the level so that putting a level in
+  // before it does not change how it looks.
+  if (!Number.isInteger(look) || look < 0) fail('look — сид украшений уровня, целое число от 0: у каждого уровня свой, чтобы уровень всегда выглядел одинаково');
   if (typeof dark !== 'boolean') fail('dark может быть только true или false');
   if (typeof dusk !== 'boolean') fail('dusk может быть только true или false');
   if (intro !== null && !Object.hasOwn(INTROS, intro)) fail(`intro может быть только: ${Object.keys(INTROS).map(k => `'${k}'`).join(', ')}`);
@@ -125,10 +128,34 @@ export function parseLevel(level, number, planets) {
     if (rockets[0].y !== 0) fail('под водой ракета R стоит на льду: её место в верхнем ряду');
     // The bell's light shines down through the cell below; a floor there would let it through a wall.
     if (cells[0][rockets[0].x].bottom) fail(`${at(1, rockets[0].x * 2 + 1)}: под колоколом ракеты R пол, а нужен проход вниз`);
-    if (wreck !== null && !(Number.isInteger(wreck) && wreck >= 0 && wreck < cols)) fail(`wreck — номер столбца клеток от 0 до ${cols - 1}, над которым во льду вмёрз дрон`);
+    // The drone is longer than a cell: at the edge its tail sticks out of the crust, and next to
+    // the rocket it would be under it and over the bell's shaft.
+    if (wreck !== null) {
+      if (!(Number.isInteger(wreck) && wreck >= 1 && wreck <= cols - 2)) fail(`wreck — номер столбца клеток от 1 до ${cols - 2}, над которым во льду вмёрз дрон`);
+      if (Math.abs(wreck - rockets[0].x) < 2) fail(`wreck: дрон во льду над столбцом ${wreck} задевает ракету, она над столбцом ${rockets[0].x}; нужно хотя бы через одну клетку`);
+    }
     if (jellies !== null) {
-      const ok = Array.isArray(jellies) && jellies.every(c => Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1]) && c[0] >= 0 && c[0] < cols && c[1] >= 0 && c[1] < rows);
-      if (!ok) fail(`jellies — список клеток медуз [x, y], x от 0 до ${cols - 1}, y от 0 до ${rows - 1}`);
+      const ok = Array.isArray(jellies) && jellies.length && jellies.every(c => Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1]) && c[0] >= 0 && c[0] < cols && c[1] >= 0 && c[1] < rows);
+      if (!ok) fail(`jellies — непустой список клеток медуз [x, y], x от 0 до ${cols - 1}, y от 0 до ${rows - 1}`);
+      // A jellyfish would cover what sits in the cell, or hang in the smoke over a smoker.
+      const taken = [
+        [starts[0], 'старт S'], [rockets[0], 'колокол ракеты R'],
+        ...landmarks.map(l => [l, `ориентир ${LANDMARKS[l.type].char}`]),
+        ...smokers.flatMap(m => [[m, `курильщик ${m.white ? 'W' : 'B'}`], [{ x: m.x, y: m.y - 1 }, `дым курильщика ${m.white ? 'W' : 'B'}`]]),
+      ];
+      jellies.forEach(([x, y], i) => {
+        const hit = taken.find(([c]) => c.x === x && c.y === y);
+        if (hit) fail(`jellies: медуза [${x}, ${y}] стоит на клетке, где ${hit[1]}`);
+        if (jellies.findIndex(([x2, y2]) => x2 === x && y2 === y) !== i) fail(`jellies: клетка [${x}, ${y}] указана дважды`);
+      });
+    }
+    // A school swims to and fro along a row of cells open to each other.
+    if (schools !== null) {
+      const ok = Array.isArray(schools) && schools.length && schools.every(s => s && [s.y, s.from, s.to].every(Number.isInteger) && s.y >= 0 && s.y < rows && s.from >= 0 && s.to < cols && s.to - s.from >= 2);
+      if (!ok) fail(`schools — непустой список стаек рыб { y, from, to }: ряд y от 0 до ${rows - 1}, клетки from..to от 0 до ${cols - 1}, не короче трёх`);
+      for (const { y, from, to } of schools) {
+        for (let x = from; x < to; x++) if (cells[y][x].right) fail(`schools: стайке в ряду ${y} от ${from} до ${to} мешает стена между клетками ${x} и ${x + 1}`);
+      }
     }
     if (dark || storm) fail('под водой ночи и бури нет: их рисунок сделан для вида сверху');
     if (impacts.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
@@ -139,6 +166,7 @@ export function parseLevel(level, number, planets) {
     if (wreck !== null) fail('вмёрзший дрон wreck бывает только под водой');
     if (dusk) fail('сумерки в глубине dusk бывают только под водой');
     if (jellies !== null) fail('медузы jellies бывают только под водой');
+    if (schools !== null) fail('стайки рыб schools бывают только под водой');
     const under = landmarks.filter(l => LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
     if (under.length) fail(`ориентир ${under[0]} бывает только под водой`);
   }
@@ -169,7 +197,7 @@ export function parseLevel(level, number, planets) {
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
+  return { planet, look, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), schools, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

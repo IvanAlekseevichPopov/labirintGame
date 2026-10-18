@@ -80,13 +80,15 @@ test('--only keeps the notes of the other levels and drops the regenerated one\'
 test('--only keeps dark and storm flags, on the regenerated level too', async () => {
   const { source } = await readLevels();
   fs.writeFileSync(out, source
-    .replace("// 3\n  { planet: 'mars', map:", "// 3\n  { planet: 'mars', dark: true, map:")
-    .replace("// 5\n  { planet: 'mars', map:", "// 5\n  { planet: 'mars', storm: { from: 0, to: 0.5 }, map:"));
+    .replace(/(\/\/ 3\n  \{ planet: 'mars', look: \d+, )map:/, '$1dark: true, map:')
+    .replace(/(\/\/ 5\n  \{ planet: 'mars', look: \d+, )map:/, '$1storm: { from: 0, to: 0.5 }, map:'));
   execFileSync(process.execPath, [script, '--only', '3'], { stdio: 'pipe' });
   const after = (await readLevels()).levels;
   assert.equal(after[2].dark, true);
   assert.deepEqual(after[4].storm, { from: 0, to: 0.5 });
   assert.equal(after[0].dark, undefined);
+  // The look seed stays with the level, regenerated or not, and counts the dropped levels.
+  assert.deepEqual(after.map(l => l.look), after.map((_, i) => i + 1));
   execFileSync(process.execPath, [script, '--force'], { stdio: 'pipe' });
 });
 

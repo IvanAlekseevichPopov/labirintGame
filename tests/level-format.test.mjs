@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { blockCell, parseLevel, levelDistances } from '../level-format.js';
 import { PLANET_KEYS } from '../js/planets.js';
 
-const parse = (map, planet = 'moon') => parseLevel({ planet, map }, 7, PLANET_KEYS);
+const parse = (map, planet = 'moon') => parseLevel({ look: 0, planet, map }, 7, PLANET_KEYS);
 const failsWith = (map, pattern, planet) => assert.throws(() => parse(map, planet), pattern);
 
 const SMALL = `
@@ -80,11 +80,11 @@ test('dark and storm are optional and checked', () => {
   const level = parse(SMALL);
   assert.equal(level.dark, false);
   assert.equal(level.storm, null);
-  assert.equal(parseLevel({ planet: 'moon', map: SMALL, dark: true }, 1, PLANET_KEYS).dark, true);
-  assert.deepEqual(parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS).storm, { from: 0, to: 3 }, 'in cell columns');
-  assert.throws(() => parseLevel({ planet: 'moon', map: SMALL, dark: 'yes' }, 1, PLANET_KEYS), /dark/);
-  assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: 0.5 }, 1, PLANET_KEYS), /storm/);
-  assert.throws(() => parseLevel({ planet: 'mars', map: SMALL, storm: { from: 0.7, to: 0.2 } }, 1, PLANET_KEYS), /storm/);
+  assert.equal(parseLevel({ look: 0, planet: 'moon', map: SMALL, dark: true }, 1, PLANET_KEYS).dark, true);
+  assert.deepEqual(parseLevel({ look: 0, planet: 'mars', map: SMALL, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS).storm, { from: 0, to: 3 }, 'in cell columns');
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: SMALL, dark: 'yes' }, 1, PLANET_KEYS), /dark/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'mars', map: SMALL, storm: 0.5 }, 1, PLANET_KEYS), /storm/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'mars', map: SMALL, storm: { from: 0.7, to: 0.2 } }, 1, PLANET_KEYS), /storm/);
 });
 
 test('landmark letters come from the registry and are unique', async () => {
@@ -110,10 +110,10 @@ const LOOP = `
 `;
 
 test('a meteor needs one M and one T, far enough apart, with a way round', () => {
-  const level = parseLevel({ planet: 'moon', map: LOOP }, 1, PLANET_KEYS);
+  const level = parseLevel({ look: 0, planet: 'moon', map: LOOP }, 1, PLANET_KEYS);
   assert.deepEqual(level.meteor, { cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } });
   assert.equal(parse(SMALL).meteor, null);
-  const atStart = parseLevel({ planet: 'moon', map: LOOP.replace('T', ' ') }, 1, PLANET_KEYS);
+  const atStart = parseLevel({ look: 0, planet: 'moon', map: LOOP.replace('T', ' ') }, 1, PLANET_KEYS);
   assert.deepEqual(atStart.meteor, { cell: { x: 5, y: 0 }, trigger: null }, 'no T: goes off at the start');
   failsWith(LOOP.replace('M', ' '), /ровно одна M/);
   failsWith(LOOP.replace('T', ' ').replace('S   ', 'S M ').replace('   M', '    '), /от старта/);
@@ -130,11 +130,11 @@ test('blockCell walls a cell off from both sides', () => {
 });
 
 test('a meteor is refused under a veil, and an unreachable M says so', () => {
-  assert.throws(() => parseLevel({ planet: 'moon', map: LOOP, dark: true }, 1, PLANET_KEYS), /ночном уровне/);
-  assert.throws(() => parseLevel({ planet: 'mars', map: LOOP, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS), /бурю/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: LOOP, dark: true }, 1, PLANET_KEYS), /ночном уровне/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'mars', map: LOOP, storm: { from: 0, to: 1 } }, 1, PLANET_KEYS), /бурю/);
   // M in a pocket of its own: the parser must not call it "too close".
   const pocket = LOOP.replace('#S   T     M   R#', '#S   T    #M#  R#');
-  assert.throws(() => parseLevel({ planet: 'moon', map: pocket }, 1, PLANET_KEYS), /не доехать/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: pocket }, 1, PLANET_KEYS), /не доехать/);
 });
 
 test('smokers stand on the floor of their cell', () => {
@@ -167,26 +167,40 @@ test('under water the rocket is in the top row, and top-down things are refused'
   failsWith(ocean.replace('F', 'W'), /курильщики W и B бывают только под водой/, 'moon');
 });
 
-test('a drone frozen into the ice (wreck) and dusk in the deep are for under water only', () => {
+test('a drone frozen into the ice (wreck), dusk, jellyfish and fish schools are for under water only', () => {
   const map = `
-#######
-#    R#
-# ### #
-#S    #
-#######
+###########
+#S       R#
+# ####### #
+#  W Z    #
+###########
 `;
-  const withWreck = (planet, wreck) => parseLevel({ planet, map, wreck }, 7, PLANET_KEYS);
-  assert.equal(withWreck('enceladus', 0).wreck, 0);
-  assert.equal(parseLevel({ planet: 'enceladus', map }, 7, PLANET_KEYS).wreck, null);
-  assert.throws(() => withWreck('enceladus', 3), /wreck — номер столбца клеток от 0 до 2/);
-  assert.throws(() => withWreck('enceladus', 0.5), /wreck — номер столбца/);
-  assert.throws(() => withWreck('moon', 0), /вмёрзший дрон wreck бывает только под водой/);
-  assert.equal(parseLevel({ planet: 'enceladus', map, dusk: true }, 7, PLANET_KEYS).dusk, true);
-  assert.equal(parseLevel({ planet: 'enceladus', map }, 7, PLANET_KEYS).dusk, false);
-  assert.throws(() => parseLevel({ planet: 'moon', map, dusk: true }, 7, PLANET_KEYS), /сумерки в глубине dusk бывают только под водой/);
-  assert.deepEqual(parseLevel({ planet: 'enceladus', map, jellies: [[2, 0]] }, 7, PLANET_KEYS).jellies, [{ x: 2, y: 0 }]);
-  assert.throws(() => parseLevel({ planet: 'enceladus', map, jellies: [[3, 0]] }, 7, PLANET_KEYS), /jellies — список клеток медуз/);
-  assert.throws(() => parseLevel({ planet: 'moon', map, jellies: [[0, 0]] }, 7, PLANET_KEYS), /медузы jellies бывают только под водой/);
+  const parse = extra => parseLevel({ look: 0, planet: 'enceladus', map, ...extra }, 7, PLANET_KEYS);
+  assert.equal(parse({ wreck: 2 }).wreck, 2);
+  assert.equal(parse({}).wreck, null);
+  assert.throws(() => parse({ wreck: 0 }), /wreck — номер столбца клеток от 1 до 3/);
+  assert.throws(() => parse({ wreck: 1.5 }), /wreck — номер столбца/);
+  assert.throws(() => parse({ wreck: 3 }), /wreck: дрон во льду над столбцом 3 задевает ракету, она над столбцом 4/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), wreck: 2 }, 7, PLANET_KEYS), /вмёрзший дрон wreck бывает только под водой/);
+  assert.equal(parse({ dusk: true }).dusk, true);
+  assert.equal(parse({}).dusk, false);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), dusk: true }, 7, PLANET_KEYS), /сумерки в глубине dusk бывают только под водой/);
+  assert.deepEqual(parse({ jellies: [[2, 0], [3, 1]] }).jellies, [{ x: 2, y: 0 }, { x: 3, y: 1 }]);
+  assert.throws(() => parse({ jellies: [[5, 0]] }), /jellies — непустой список клеток медуз/);
+  assert.throws(() => parse({ jellies: [] }), /jellies — непустой список/);
+  assert.throws(() => parse({ jellies: [[0, 0]] }), /медуза \[0, 0\] стоит на клетке, где старт S/);
+  assert.throws(() => parse({ jellies: [[4, 0]] }), /где колокол ракеты R/);
+  assert.throws(() => parse({ jellies: [[2, 1]] }), /где ориентир Z/);
+  assert.throws(() => parse({ jellies: [[1, 1]] }), /где курильщик W/);
+  assert.throws(() => parse({ jellies: [[1, 0]] }), /где дым курильщика W/);
+  assert.throws(() => parse({ jellies: [[3, 1], [3, 1]] }), /клетка \[3, 1\] указана дважды/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), jellies: [[3, 1]] }, 7, PLANET_KEYS), /медузы jellies бывают только под водой/);
+  assert.deepEqual(parse({ schools: [{ y: 0, from: 0, to: 4 }] }).schools, [{ y: 0, from: 0, to: 4 }]);
+  assert.throws(() => parse({ schools: [] }), /schools — непустой список стаек/);
+  assert.throws(() => parse({ schools: [{ y: 2, from: 0, to: 4 }] }), /ряд y от 0 до 1/);
+  assert.throws(() => parse({ schools: [{ y: 0, from: 3, to: 4 }] }), /не короче трёх/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'enceladus', map: map.replace('#  W Z    #', '#  W Z#   #'), schools: [{ y: 1, from: 1, to: 4 }] }, 7, PLANET_KEYS), /стайке в ряду 1 от 1 до 4 мешает стена между клетками 2 и 3/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), schools: [{ y: 0, from: 0, to: 4 }] }, 7, PLANET_KEYS), /стайки рыб schools бывают только под водой/);
 });
 
 const ICY = `
@@ -212,11 +226,11 @@ test('ice walls stand between two cells on Europa and do not count as blocking t
 });
 
 test('the drill intro needs exactly one ice wall at the start and faces it', () => {
-  const level = parseLevel({ planet: 'europa', intro: 'drill', map: ICY }, 7, PLANET_KEYS);
+  const level = parseLevel({ look: 0, planet: 'europa', intro: 'drill', map: ICY }, 7, PLANET_KEYS);
   assert.deepEqual(level.intro, { kind: 'drill', dir: 'right' });
   assert.equal(level.startDir, 'right');
   assert.equal(parse(ICY, 'europa').intro, null);
-  assert.throws(() => parseLevel({ planet: 'europa', intro: 'drill', map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
-  assert.throws(() => parseLevel({ planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS), /intro может быть только: 'drill'/);
-  assert.throws(() => parseLevel({ planet: 'europa', intro: 'drill', map: '\n#####\n#SIR#\n#####\n' }, 7, PLANET_KEYS), /сразу ракета/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'europa', intro: 'drill', map: ICY.replace('#SI  R#', '#S  IR#') }, 7, PLANET_KEYS), /ровно одна ледяная стена/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'europa', intro: true, map: ICY }, 7, PLANET_KEYS), /intro может быть только: 'drill'/);
+  assert.throws(() => parseLevel({ look: 0, planet: 'europa', intro: 'drill', map: '\n#####\n#SIR#\n#####\n' }, 7, PLANET_KEYS), /сразу ракета/);
 });

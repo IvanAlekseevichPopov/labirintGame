@@ -13,12 +13,15 @@ import { softBlob } from './sprite.js';
 // `reach` is how far (cells) its light goes in the dark.
 const JELLY = { size: 0.3, bob: 0.07, cellsEach: 45, max: 3, apart: 4, glow: 0.18, reach: 1.1 };
 const SCHOOL = { minRun: 3, max: 2, fish: [5, 8], length: 0.11, speed: 0.6 };
-const JELLY_COLORS = [['205, 180, 255', '240, 225, 255'], ['255, 190, 225', '255, 228, 242'], ['165, 245, 195', '225, 255, 236']];
+// [body, rim, how solid the body is]. Pink is pale against the light water near the ice, so it is
+// warmer and more solid than the rest.
+const JELLY_COLORS = [['205, 180, 255', '240, 225, 255', 0.5], ['255, 150, 200', '255, 222, 238', 0.68], ['165, 245, 195', '225, 255, 236', 0.5]];
 
 const key = (x, y) => `${x},${y}`;
 
-// A level can set its jellyfish cells itself (`jellies`); the rest is still up to the seed.
-export function placeLife({ maze, start, goal, smokers, landmarks, jellies: pinned = null }, seed) {
+// A level sets its jellyfish cells (`jellies`) and its schools' rows (`schools`) itself; what it
+// leaves out is up to the seed. The seed still gives each its colour, beat and fish.
+export function placeLife({ maze, start, goal, smokers, landmarks, jellies: pinned = null, schools: pinnedSchools = null }, seed) {
   const rand = mulberry32(seed + 4000);
   const { cols, rows, cells } = maze;
   const fromStart = levelDistances(maze, start), fromGoal = levelDistances(maze, goal);
@@ -36,8 +39,8 @@ export function placeLife({ maze, start, goal, smokers, landmarks, jellies: pinn
   for (const c of pinned ?? shuffled) {
     if (!pinned && jellies.length === want) break;
     if (!pinned && jellies.some(j => Math.abs(j.x - c.x) + Math.abs(j.y - c.y) < JELLY.apart)) continue;
-    const [body, rim] = JELLY_COLORS[Math.floor(rand() * JELLY_COLORS.length)];
-    jellies.push({ ...c, body, rim, periodMs: 1500 + rand() * 700, bobMs: 5000 + rand() * 3000, phase: rand() * Math.PI * 2 });
+    const [body, rim, solid] = JELLY_COLORS[Math.floor(rand() * JELLY_COLORS.length)];
+    jellies.push({ ...c, body, rim, solid, periodMs: 1500 + rand() * 700, bobMs: 5000 + rand() * 3000, phase: rand() * Math.PI * 2 });
   }
 
   // Runs of cells open to each other left to right, the fewer on the way and the longer the better.
@@ -52,11 +55,12 @@ export function placeLife({ maze, start, goal, smokers, landmarks, jellies: pinn
   }
   const crowded = r => Array.from({ length: r.x1 - r.x0 + 1 }, (_, k) => r.x0 + k)
     .filter(x => onRoute(x, r.y) || jellies.some(j => j.x === x && j.y === r.y)).length / (r.x1 - r.x0 + 1);
-  const schools = runs
+  // Scored even when the level sets its schools, so the seed goes on to the same fish.
+  const chosen = runs
     .map(r => ({ ...r, score: crowded(r) - (r.x1 - r.x0) * 0.02 + rand() * 0.1 }))
     .sort((a, b) => a.score - b.score)
-    .filter((r, i, all) => all.slice(0, i).every(o => Math.abs(o.y - r.y) > 1))
-    .slice(0, SCHOOL.max)
+    .reduce((taken, r) => (taken.length < SCHOOL.max && taken.every(o => Math.abs(o.y - r.y) > 1) ? [...taken, r] : taken), []);
+  const schools = (pinnedSchools ? pinnedSchools.map(({ y, from, to }) => ({ y, x0: from, x1: to })) : chosen)
     .map(r => {
       const [lo, hi] = SCHOOL.fish;
       const n = lo + Math.floor(rand() * (hi - lo + 1));
@@ -75,13 +79,15 @@ export function drawSchools(ctx, { schools }, now, { cell, ox, oy }) {
   for (const s of schools) drawSchool(ctx, s, now, cell, ox, oy);
 }
 
-// Where each jellyfish is now, in px, with its colour: what lights the water round it.
+// Where each jellyfish is now, in px, with its colour: what lights the water round it. With `now`
+// null, where it hangs on average.
 export function jellyLights({ jellies }, now, { cell, ox, oy }) {
   return jellies.map(j => ({ ...jellyAt(j, now, cell, ox, oy), color: j.body, r: cell * JELLY.reach }));
 }
 
 function jellyAt(j, now, cell, ox, oy) {
-  return { x: ox + (j.x + 0.5) * cell, y: oy + (j.y + 0.38 + Math.sin(now / j.bobMs * Math.PI * 2 + j.phase) * JELLY.bob) * cell };
+  const bob = now === null ? 0 : Math.sin(now / j.bobMs * Math.PI * 2 + j.phase) * JELLY.bob;
+  return { x: ox + (j.x + 0.5) * cell, y: oy + (j.y + 0.38 + bob) * cell };
 }
 
 export function drawJellies(ctx, { jellies }, now, { cell, ox, oy }) {
@@ -163,7 +169,7 @@ function drawJelly(ctx, j, now, cell, ox, oy) {
   ctx.bezierCurveTo(cx - w / 2, cy - h * 1.3, cx + w / 2, cy - h * 1.3, cx + w / 2, cy);
   for (let k = 4; k >= 0; k--) ctx.quadraticCurveTo(cx + ((k + 0.5) / 5 - 0.5) * w, cy + h * 0.14, cx + (k / 5 - 0.5) * w, cy);
   ctx.closePath();
-  ctx.fillStyle = `rgba(${j.body}, 0.5)`;
+  ctx.fillStyle = `rgba(${j.body}, ${j.solid})`;
   ctx.fill();
   ctx.strokeStyle = `rgba(${j.rim}, 0.75)`;
   ctx.lineWidth = s * 0.04;
