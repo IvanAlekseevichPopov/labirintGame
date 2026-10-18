@@ -151,6 +151,7 @@ test('every level made by hand in levels.js (night, storm, meteor, ice) is in LO
   const source = fs.readFileSync(new URL('tools/gen-levels.mjs', ROOT), 'utf8');
   const locked = JSON.parse(source.match(/const LOCKED = (\[[^\]]*\]);/)[1]);
   const byHand = LEVELS.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) }))
-    .filter(l => l.dark || l.storm || l.meteor || l.ice.length).map(l => l.n);
+    // Levels seen from the side are never regenerated anyway, LOCKED or not.
+    .filter(l => !PLANETS[l.planet].side && (l.dark || l.storm || l.meteor || l.ice.length)).map(l => l.n);
   assert.deepEqual(byHand.filter(n => !locked.includes(n)), []);
 });

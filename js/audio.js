@@ -419,6 +419,13 @@ export function createAudio() {
       sweep({ src: tone('pulse', 0.125, 900), from: 900, to: 2200, t0: t0 + 0.03, points: [[0.005, 0.12], [0.09, 0]], out: bus.sfx });
       return 0.13;
     },
+    // Sonar under the ice at night: a quick drop bubbling up, and a smaller one after it.
+    sonar() {
+      const t0 = ctx.currentTime + 0.005;
+      sweep({ src: tone('triangle', 0, 784), from: 784, to: 1047, t0, points: [[0.012, 0.2], [0.06, 0.13], [0.16, 0]], out: bus.sfx });
+      sweep({ src: tone('triangle', 0, 784), from: 784, to: 1047, t0: t0 + 0.32, points: [[0.012, 0.067], [0.12, 0]], out: bus.sfx });
+      return 0.5;
+    },
     lightsOff() {
       const t0 = ctx.currentTime + 0.005;
       sweep({ src: noise('short', 5), t0, points: [[0.003, 0.25], [0.025, 0]], out: bus.sfx });

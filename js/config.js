@@ -8,6 +8,10 @@ export const INPUT_LOCK_MS = 400;
 // On a dark level the headlights come on this long after the level starts, then flicker for
 // LIGHTS_FLICKER_MS before they hold; the rover cannot move until they do.
 export const LIGHTS_ON_MS = 500;
+// At night under water the drone pings its sonar by itself: the first ping this long after the
+// lights come on, then one every SONAR_EVERY_MS (render.js and deep.js draw it).
+export const SONAR_FIRST_MS = 1500;
+export const SONAR_EVERY_MS = 6000;
 export const LIGHTS_FLICKER_MS = 300;
 // Back into the storm sooner than this after leaving it and the lights just stay on: no new flicker or click.
 export const LIGHTS_REARM_MS = 1000;

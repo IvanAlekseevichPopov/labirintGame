@@ -157,7 +157,8 @@ export function parseLevel(level, number, planets) {
         for (let x = from; x < to; x++) if (cells[y][x].right) fail(`schools: стайке в ряду ${y} от ${from} до ${to} мешает стена между клетками ${x} и ${x + 1}`);
       }
     }
-    if (dark || storm) fail('под водой ночи и бури нет: их рисунок сделан для вида сверху');
+    if (storm) fail('под водой бури нет: её рисунок сделан для вида сверху');
+    if (dark && dusk) fail('под водой ночь dark и сумерки dusk вместе не бывают: ночью и так темно');
     if (impacts.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
     const above = landmarks.filter(l => !LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
     if (above.length) fail(`под водой ориентира ${above[0]} нет: его рисунок сделан для вида сверху`);

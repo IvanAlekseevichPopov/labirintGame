@@ -208,16 +208,18 @@ const EUROPA_WIND = [
 const ripple = (a, b, c, d) => `${a}/12 ${b}/12 ${c}/12 ${d}/12 ${c}/12 ${b}/12`;
 const arp12 = (a, b, c, d) => `${ripple(a, b, c, d)} ${ripple(a, b, c, d)}`;
 const halves = (root, fifth) => `${root}/2 ${fifth}/2`;
+// The night's quiet heartbeat in the bass.
+const heartbeat = (root, fifth) => `${root}/4 ${root}/4 ${fifth}/4 ${root}/4`;
 
 // F Lydian: G over an F bass gives the raised fourth (B) that makes it float.
 const ENCELADUS_CHORDS = {
-  F: { arp: arp12('F4', 'A4', 'C5', 'E5'), bass: halves('F2', 'C3') },
-  'G/F': { arp: arp12('F4', 'G4', 'B4', 'D5'), bass: halves('F2', 'D3') },
-  Am: { arp: arp12('E4', 'A4', 'C5', 'E5'), bass: halves('A2', 'E3') },
-  G: { arp: arp12('D4', 'G4', 'B4', 'D5'), bass: halves('G2', 'D3') },
-  Dm: { arp: arp12('D4', 'F4', 'A4', 'C5'), bass: halves('D2', 'A2') },
-  Em: { arp: arp12('E4', 'G4', 'B4', 'D5'), bass: halves('E2', 'B2') },
-  C: { arp: arp12('E4', 'G4', 'C5', 'E5'), bass: halves('C3', 'G2') },
+  F: { arp: arp12('F4', 'A4', 'C5', 'E5'), bass: halves('F2', 'C3'), beat: heartbeat('F2', 'C3') },
+  'G/F': { arp: arp12('F4', 'G4', 'B4', 'D5'), bass: halves('F2', 'D3'), beat: heartbeat('F2', 'D3') },
+  Am: { arp: arp12('E4', 'A4', 'C5', 'E5'), bass: halves('A2', 'E3'), beat: heartbeat('A2', 'E3') },
+  G: { arp: arp12('D4', 'G4', 'B4', 'D5'), bass: halves('G2', 'D3'), beat: heartbeat('G2', 'D3') },
+  Dm: { arp: arp12('D4', 'F4', 'A4', 'C5'), bass: halves('D2', 'A2'), beat: heartbeat('D2', 'A2') },
+  Em: { arp: arp12('E4', 'G4', 'B4', 'D5'), bass: halves('E2', 'B2'), beat: heartbeat('E2', 'B2') },
+  C: { arp: arp12('E4', 'G4', 'C5', 'E5'), bass: halves('C3', 'G2'), beat: heartbeat('C3', 'G2') },
 };
 const ENCELADUS_PROGRESSION = ['F', 'G/F', 'F', 'G/F', 'F', 'G/F', 'Am', 'G', 'Dm', 'Em', 'F', 'G', 'Dm', 'Em', 'C', 'C'];
 const ENCELADUS_LEAD = [
@@ -226,10 +228,16 @@ const ENCELADUS_LEAD = [
   'A5/4. F5/8 D5/4 F5/4', 'G5/4. E5/8 B4/4 E5/4', 'A5/4 C6/4 F6/4 E6/4', 'D6/2 B5/2',
   'A5/4. F5/8 D5/4 A5/4', 'B5/4. G5/8 E5/4 B5/4', 'C6/4 B5/4 G5/4 E5/4', 'G5/2. -/4',
 ].join(' | ');
+// The night under the ice: the day ripple over a heartbeat, the tune surfacing two bars at a time an
+// octave down, and minor chords where the day has F and C, so it sounds darker but stays the same tune.
+const ENCELADUS_NIGHT_PROGRESSION = ['Dm', 'G/F', 'F', 'G/F', 'Dm', 'G/F', 'Am', 'G', 'Dm', 'Em', 'F', 'G', 'Dm', 'Em', 'Am', 'Am'];
+const ENCELADUS_FRAGMENTS = octaveDown(ENCELADUS_LEAD.split(' | ')
+  .map((bar, i) => ([0, 1, 6, 7, 10, 11, 14, 15].includes(i) ? bar : '-/1'))
+  .join(' | '));
 
 // Looped per planet. Lengths: Moon 16 bars at 84 bpm (~46 s), Mars 24 bars at 120 (48 s),
 // Europa 12 bars at 72 (~40 s), the dark Moon 16 bars at 72 (~53 s), the Mars storm 24 bars at 108 (~53 s),
-// Enceladus 16 bars at 88 (~44 s).
+// Enceladus 16 bars at 88 (~44 s), its night 16 bars at 76 (~51 s).
 export const SONGS = {
   moon: {
     bpm: 84,
@@ -294,6 +302,15 @@ export const SONGS = {
       pulse2: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_PROGRESSION, 'arp'), duty: 0.125, env: 'pluck', decay: 12, vol: 0.3 },
       triangle: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_PROGRESSION, 'bass'), env: 'soft', vol: 0.8 },
       noise: { notes: repeat('K/4 -/12 H/12 H/12 -/4 -/12 H/12 H/12', 16), vol: 0.22 },
+    },
+  },
+  enceladusNight: {
+    bpm: 76,
+    channels: {
+      pulse1: { notes: ENCELADUS_FRAGMENTS, duty: 0.125, env: 'soft', vol: 0.4, vibrato: { hz: 5, cents: 10, delay: 12 } },
+      pulse2: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_NIGHT_PROGRESSION, 'arp'), duty: 0.125, env: 'pluck', decay: 20, vol: 0.22 },
+      triangle: { notes: follow(ENCELADUS_CHORDS, ENCELADUS_NIGHT_PROGRESSION, 'beat'), env: 'soft', vol: 0.6 },
+      noise: { notes: repeat('-/1 | -/2. -/12 H/12 H/12', 8), vol: 0.12 },
     },
   },
 };

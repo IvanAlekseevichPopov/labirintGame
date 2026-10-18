@@ -4,8 +4,7 @@
 import { blockCell, openWall, parseLevel } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 import {
-  DIRS, DRILL_MS, FIRST_REPEAT_MS, INTRO, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, TURN_BUFFER_MS, WIN,
-} from './config.js';
+  DIRS, DRILL_MS, FIRST_REPEAT_MS, INTRO, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, SONAR_EVERY_MS, SONAR_FIRST_MS, TURN_BUFFER_MS, WIN } from './config.js';
 
 let levels = [];
 export const state = {};
@@ -68,6 +67,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     inputFrom: now + INPUT_LOCK_MS,
     lightsAt: Infinity,
     lightsOn: false,
+    // The last sonar ping (`at`, `from` in cells) and when the next goes.
+    sonar: { at: -Infinity, from: null, next: Infinity },
     lightsOffAt: null,
     lightsOutAt: -Infinity,
     tracks: [],
@@ -309,7 +310,14 @@ function step(now, dt, cellPx) {
   if (state.phase === 'finished') return;
   if (!state.lightsOn && now >= state.lightsAt) {
     state.lightsOn = true;
+    state.sonar.next = now + SONAR_FIRST_MS;
     events.push({ type: 'lightsOn' });
+  }
+  // At night under water the drone pings its sonar now and then, from where it is.
+  if (state.swims && state.dark && state.lightsOn && now >= state.sonar.next) {
+    const at = roverPos(now);
+    state.sonar = { at: now, from: { x: at.x, y: at.y }, next: now + SONAR_EVERY_MS };
+    events.push({ type: 'sonar' });
   }
   const { meteor } = state;
   if (meteor?.phase === 'waiting' && !meteor.trigger && now >= meteor.at) setMeteorOff(now);

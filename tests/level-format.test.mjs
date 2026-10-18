@@ -183,6 +183,8 @@ test('a drone frozen into the ice (wreck), dusk, jellyfish and fish schools are 
   assert.throws(() => parse({ wreck: 3 }), /wreck: дрон во льду над столбцом 3 задевает ракету, она над столбцом 4/);
   assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), wreck: 2 }, 7, PLANET_KEYS), /вмёрзший дрон wreck бывает только под водой/);
   assert.equal(parse({ dusk: true }).dusk, true);
+  assert.equal(parse({ dark: true }).dark, true);
+  assert.throws(() => parse({ dark: true, dusk: true }), /ночь dark и сумерки dusk вместе не бывают/);
   assert.equal(parse({}).dusk, false);
   assert.throws(() => parseLevel({ look: 0, planet: 'moon', map: map.replace(/[WZ]/g, ' '), dusk: true }, 7, PLANET_KEYS), /сумерки в глубине dusk бывают только под водой/);
   assert.deepEqual(parse({ jellies: [[2, 0], [3, 1]] }).jellies, [{ x: 2, y: 0 }, { x: 3, y: 1 }]);

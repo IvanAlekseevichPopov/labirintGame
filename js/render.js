@@ -5,7 +5,8 @@ import { PLANETS } from './planets.js';
 import { BUMP_MS, DIRS, DROPPED_LEVELS, INTRO, ROVER_RATIO, WALL_RATIO, WIN } from './config.js';
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
-import { createNight } from './night.js';
+import { brightness, createNight } from './night.js';
+import { buildDeep, drawDeep } from './deep.js';
 import { createStorm } from './storm.js';
 import { FONT, drawPad, drawSoundOff, drawText, useContext } from './art.js';
 import { ROVERS } from './rovers.js';
@@ -46,6 +47,8 @@ let laying = { seg: null, marks: 0 };
 let decor = null;
 let drawWeather = null;
 let drawVeil = null;
+// A night under water has its own veil and the sonar (deep.js).
+let deep = false;
 let wallsPx = [];
 // Under water, the outlines of the walls as drawn (thick, past their ends): lights cast shadows off
 // these, so a shadow starts where a wall is seen to end, not at its middle line.
@@ -76,6 +79,9 @@ const JELLY_LIGHT = 0.55;
 const LAMP_LIGHT = 0.7;
 const LAMP_REACH = 1.6;
 const LAMP_FULL = 0.85;
+// How far the lights that do not move reach at night under water, cells: a lamp people left is the
+// brightest thing down there, brighter than any jellyfish.
+const DEEP_LIGHTS = { jelly: 1.8, bell: 1.3, lamp: 2.6, lampGlow: 2.2 };
 const DRONE_GLOW = { reach: 0.8, color: '150, 200, 225', strength: 0.3 };
 // Points round a light its shadows are cast from, as shares of a cell.
 // A jellyfish's light is drawn once, so it can afford more of them than the moving drone's.
@@ -130,7 +136,8 @@ export function levelChanged() {
   // A storm level gets the full weather and then some, whatever its number.
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.look + 1 - DROPPED_LEVELS);
   drawWeather = createWeather(state.planet, intensity);
-  drawVeil = state.dark ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
+  deep = Boolean(PLANETS[state.planet].side && state.dark);
+  drawVeil = state.dark && !deep ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
   sizeVeilLayer();
   buildMazeLayer();
   buildTrackLayer();
@@ -138,10 +145,11 @@ export function levelChanged() {
 
 // The night/storm overlay needs a full-screen layer; plain levels do not pay for it.
 function sizeVeilLayer() {
-  const want = drawVeil ? canvas.width : 0;
-  if (veilLayer.width === want && veilLayer.height === (drawVeil ? canvas.height : 0)) return;
+  const on = drawVeil || deep;
+  const want = on ? canvas.width : 0;
+  if (veilLayer.width === want && veilLayer.height === (on ? canvas.height : 0)) return;
   veilLayer.width = want;
-  veilLayer.height = drawVeil ? canvas.height : 0;
+  veilLayer.height = on ? canvas.height : 0;
 }
 
 // Walls the drill broke through since the last frame: their shards fly at the next one.
@@ -268,6 +276,7 @@ function buildMazeLayer() {
     wallMask.width = wallMask.height = 0;
   }
   bakeGlows(cell, ox, oy);
+  if (deep) buildDeep({ shapes: ragged(half, 0.03 * rough), walls: wallsPx, cell, ...deepLights(cell, ox, oy) });
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
   // Rays and rubble stay on the ground, never on the sky.
@@ -350,6 +359,31 @@ function bakeGlows(cell, ox, oy) {
     g.drawImage(wallMask, (l.x - l.r) * dpr, (l.y - l.r) * dpr, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
     glows.push({ canvas, x: l.x, y: l.y, r: l.r, light: l.light });
   }
+}
+
+// At night under water: the dark water from under the ice down, and the ice and rock round it
+// that the sky lights a little (px).
+function deepBox(cell, ox, oy, h) {
+  const { cols } = state.maze, wall = cell * WALL_RATIO;
+  const x = ox - wall / 2 - (ROCK_CELLS.side + 0.3) * cell, w = cell * cols + wall + 2 * (ROCK_CELLS.side + 0.3) * cell;
+  const top = oy - (CRUST_CELLS + 0.1) * cell, surface = oy + wall / 2;
+  return { crust: { x, y: top, w, h: h - top }, water: { x, y: surface, w, h: h - surface } };
+}
+
+// The lights at night under water that do not move, drawn once (deep.js): each jellyfish where it
+// hangs on average, the bell, and a landmark's lamp, which also sheds its blinking colour.
+function deepLights(cell, ox, oy) {
+  const holes = decor.life ? jellyLights(decor.life, null, { cell, ox, oy }).map(l => ({ ...l, r: cell * DEEP_LIGHTS.jelly, strength: 0.95 })) : [];
+  holes.push({ x: ox + (state.goal.x + 0.5) * cell, y: oy + (state.goal.y + 0.75) * cell, r: cell * DEEP_LIGHTS.bell, strength: 0.85 });
+  const glows = [];
+  for (const l of state.landmarks) {
+    const kind = LANDMARKS[l.type];
+    if (!kind.side || !kind.light) continue;
+    const x = ox + (l.x + 0.5) * cell, y = oy + (l.y + 0.6) * cell;
+    holes.push({ x, y, r: cell * DEEP_LIGHTS.lamp, strength: 1 });
+    glows.push({ x, y, r: cell * DEEP_LIGHTS.lampGlow, strength: 0.75, color: kind.light(0).color, light: kind.light, full: LAMP_FULL });
+  }
+  return { holes, glows };
 }
 
 // Seen from the side a landmark stands on the floor of its cell, kept low enough to swim over.
@@ -579,15 +613,16 @@ export function render(now, { soundOff = false } = {}) {
     for (const w of state.ice) drawIceWall(ctx, w, { cell, ox, oy, now, drilling: state.drilling?.wall === w });
   }
 
-  const litUnderDusk = state.dusk ? state.landmarks.filter(l => LANDMARKS[l.type].side && LANDMARKS[l.type].light) : [];
-  for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright && !litUnderDusk.includes(l))) {
+  // A landmark with a lamp was made by people: under dusk or the dark it stays lit, as its lamp does.
+  const litOverDark = state.dusk || deep ? state.landmarks.filter(l => LANDMARKS[l.type].side && LANDMARKS[l.type].light) : [];
+  for (const l of state.landmarks.filter(l => LANDMARKS[l.type].upright && !litOverDark.includes(l))) {
     const [lx, ly] = toPx(l);
     if (planet.side) drawSideLandmark(l, cell, ox, oy, now, planet);
     else LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
   drawProps(ctx, decor.props, toPx, cell, now, planet);
   if (decor.life) drawSchools(ctx, decor.life, now, { cell, ox, oy });
-  if (decor.life && !state.dusk) drawJellies(ctx, decor.life, now, { cell, ox, oy });
+  if (decor.life && !state.dusk && !deep) drawJellies(ctx, decor.life, now, { cell, ox, oy });
 
   const [gx, gy] = toPx(state.goal);
   // Seen from the side the rocket stands on the ice, and lets a probe down to the goal on a cable.
@@ -652,7 +687,7 @@ export function render(now, { soundOff = false } = {}) {
       rover = { x: rx + dx * nudge + judder(0), y: ry + dy * nudge + judder(1), angle: state.angle, size: cell * ROVER_RATIO * shrink };
       rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size, spin);
     }
-    if (!(d && state.dusk)) rover.draw();
+    if (!(d && (state.dusk || deep))) rover.draw();
   }
   if (state.dusk) {
     const { cols, rows } = state.maze, wall = cell * WALL_RATIO, rock = ROCK_CELLS.side * cell;
@@ -667,8 +702,7 @@ export function render(now, { soundOff = false } = {}) {
       ctx.drawImage(l.canvas, l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
     }
     ctx.restore();
-    // A landmark with a lamp was made by people: it stays lit over the dusk, as its lamp does.
-    for (const l of litUnderDusk) drawSideLandmark(l, cell, ox, oy, now, planet);
+    for (const l of litOverDark) drawSideLandmark(l, cell, ox, oy, now, planet);
     if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
     if (rover && d) drawDroneInDusk(rover, d, now, dusk);
     // The drone keeps a faint glow round itself, as the rover does at night, only weaker.
@@ -676,6 +710,22 @@ export function render(now, { soundOff = false } = {}) {
     const strength = glow ? DRONE_GLOW.strength * duskAt(glow.y, dusk) : 0;
     if (strength > 0) drawInWater({ x: glow.x - glow.r, y: glow.y - glow.r, w: glow.r * 2, h: glow.r * 2 }, g => paintLight(g, glow, strength, SOFT_SHADOW.live, cell), 'lighter');
     if (d && shrink > 0 && !headOn(d)) drawLampBeam(d, rover.x, rover.y + bob(now, rover.size), rover.size);
+  }
+  if (deep) {
+    const b = brightness(now - state.lightsAt, now);
+    const lamp = d && shrink > 0 && !headOn(d) && b > 0 ? lampAt(d, rover.x, rover.y + bob(now, rover.size), rover.size) : null;
+    const from = state.sonar.from;
+    drawDeep(ctx, veilLayer, now, {
+      w, h, cell, walls: wallsPx, ...deepBox(cell, ox, oy, h),
+      drone: rover && d && b > 0 ? { x: rover.x, y: rover.y, strength: b } : null,
+      lamp: lamp && { ...lamp, strength: b },
+      sonar: { at: state.sonar.at, from: from && { x: ox + (from.x + 0.5) * cell, y: oy + (from.y + 0.5) * cell } },
+      goal: { x: gx, y: gy + cell * 0.1 },
+    });
+    for (const l of litOverDark) drawSideLandmark(l, cell, ox, oy, now, planet);
+    if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
+    // At full colour over the dark: the player must never lose the drone.
+    if (rover && d) rover.draw();
   }
   if (!planet.side && chips.any(false)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
 
@@ -802,8 +852,8 @@ function screwOf(d, now, size, cell) {
 function drawDrone({ x, y, size }, d, now, g = ctx) {
   if (size <= 0) return;
   y += bob(now, size);
-  // Under dusk the beam goes on after it, over the dark.
-  if (!headOn(d) && !state.dusk) drawLampBeam(d, x, y, size);
+  // Under dusk or the dark the beam goes on after it, over the dark.
+  if (!headOn(d) && !state.dusk && !deep) drawLampBeam(d, x, y, size);
   g.save();
   g.translate(x, y);
   if (headOn(d)) {
@@ -841,13 +891,21 @@ function drawDroneInDusk(rover, d, now, dusk) {
 
 // The bow lamp's beam, cast against the walls like the headlights at night and then cut by the
 // wall mask, so it lights the water up to a wall and never shows on or past it.
-function drawLampBeam(d, x, y, size) {
+// Where the bow lamp is and which way it points, px: { x, y, angle, len, spread }.
+function lampAt(d, x, y, size) {
   const lamp = swimmer().beam;
   const k = sideways(d), c = Math.cos(d.pitch), s = Math.sin(d.pitch);
   const px = (0.06 + lamp.x) * size, py = (0.3 + lamp.y) * size;
-  const lx = x + k * (px * c - py * s), ly = y + px * s + py * c;
-  const angle = Math.atan2(Math.sin(lamp.dip + d.pitch), Math.sign(k) * Math.cos(lamp.dip + d.pitch));
-  const len = size * lamp.length;
+  return {
+    x: x + k * (px * c - py * s), y: y + px * s + py * c,
+    angle: Math.atan2(Math.sin(lamp.dip + d.pitch), Math.sign(k) * Math.cos(lamp.dip + d.pitch)),
+    len: size * lamp.length, spread: lamp.spread,
+  };
+}
+
+function drawLampBeam(d, x, y, size) {
+  const lamp = swimmer().beam;
+  const { x: lx, y: ly, angle, len } = lampAt(d, x, y, size);
   const pts = beamPolygon(lx, ly, angle, len, nearby(wallEdgesPx, lx, ly, len), { rays: 24, halfAngle: lamp.spread });
   drawInWater({ x: lx - len, y: ly - len, w: len * 2, h: len * 2 }, g => {
     const glow = g.createLinearGradient(lx, ly, lx + Math.cos(angle) * len, ly + Math.sin(angle) * len);

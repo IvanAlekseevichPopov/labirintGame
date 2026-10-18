@@ -1,7 +1,9 @@
 // The start screen's scene: the rover of the next level in profile on top of its planet, the
 // globe turning under it so it looks like the rover drives round it. Before a night level the
 // globe is lit from below and the rover drives on the dark side with its lights on. A planet with
-// its ocean under the ice is shown cut open instead, the drone swimming in it over the turning core.
+// its ocean under the ice is shown cut open instead, the drone swimming in it over the turning core;
+// before a night under the ice the cut is dark but for the drone, its lamp, a few jellyfish and
+// now and then a sonar ring.
 
 import { crack, drawGlobe } from './art.js';
 import { drawBeam, drawProfile } from './profiles.js';
@@ -17,7 +19,7 @@ const shade = document.createElement('canvas');
 
 export function drawTitleScene(ctx, now, { cx, cy, radius, size, planet, p, night }) {
   if (p.side) {
-    drawCutaway(ctx, now, { cx, cy, radius, p });
+    drawCutaway(ctx, now, { cx, cy, radius, p, night });
     return;
   }
   const turn = -now / TURN_MS;
@@ -130,7 +132,7 @@ function shapeShell(rand) {
   return { surface, cracks };
 }
 
-function drawCutaway(ctx, now, { cx, cy, radius, p }) {
+function drawCutaway(ctx, now, { cx, cy, radius, p, night }) {
   const turn = -now / TURN_MS;
   const at = (a, r) => [cx + Math.cos(a + turn) * r * radius, cy + Math.sin(a + turn) * r * radius];
   const disc = (r, fill) => {
@@ -187,9 +189,45 @@ function drawCutaway(ctx, now, { cx, cy, radius, p }) {
 
   // The drone keeps to the top, swimming on the spot while the planet turns under it.
   const size = radius * CUT.drone;
+  const droneY = cy - radius * CUT.swim + Math.sin(now / 700) * size * 0.04;
+  if (night) drawCutawayNight(ctx, now, { cx, cy, radius, at, shell, droneY, size });
   ctx.save();
-  ctx.translate(cx, cy - radius * CUT.swim + Math.sin(now / 700) * size * 0.04);
-  drawBeam(ctx, ROVERS[p.rover].beam, size * 0.06, size * 0.3, size);
+  ctx.translate(cx, droneY);
+  // At night the lamp shines twice as bright.
+  for (let k = night ? 2 : 1; k > 0; k--) drawBeam(ctx, ROVERS[p.rover].beam, size * 0.06, size * 0.3, size);
   drawProfile(ctx, ROVERS[p.rover].profile, size * 0.06, size * 0.3, size, { rolled: now / 300 });
+  ctx.restore();
+}
+
+// Jellyfish glowing in the ocean at night: [angle, radius] in the turning globe, and colour.
+const NIGHT_JELLIES = [[0.6, 0.62, '205, 180, 255'], [2.3, 0.72, '165, 245, 195'], [4.1, 0.6, '255, 150, 200']];
+const NIGHT_SONAR_MS = 6000;
+
+// Night under the ice: the ice dimmed, the ocean dark, a glow round the drone, the jellyfish, and
+// a sonar ring spreading from the drone through the ocean every NIGHT_SONAR_MS.
+function drawCutawayNight(ctx, now, { cx, cy, radius, at, shell, droneY, size }) {
+  ctx.save();
+  shell();
+  ctx.fillStyle = 'rgba(2, 5, 14, 0.6)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * CUT.ocean, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(2, 5, 14, 0.8)';
+  ctx.fill();
+  ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  glow(ctx, cx, droneY, size * 0.5, '60, 90, 120');
+  for (const [a, r, rgb] of NIGHT_JELLIES) {
+    const [x, y] = at(a, r);
+    glow(ctx, x, y, radius * 0.035, rgb);
+  }
+  const t = (now % NIGHT_SONAR_MS) / 1500;
+  if (t < 1) {
+    ctx.strokeStyle = `rgba(110, 250, 225, ${(0.6 * (1 - t)).toFixed(3)})`;
+    ctx.lineWidth = radius * 0.012;
+    ctx.beginPath();
+    ctx.arc(cx, droneY, radius * 0.8 * t, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }

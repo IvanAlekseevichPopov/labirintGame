@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as game from '../js/game.js';
 import { levelDistances } from '../level-format.js';
-import { DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, INTRO, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, TURN_BUFFER_MS, WIN } from '../js/config.js';
+import { DRILL_MS, FIRST_REPEAT_MS, INPUT_LOCK_MS, INTRO, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, MAX_STEP_MS, METEOR, SONAR_EVERY_MS, SONAR_FIRST_MS, TURN_BUFFER_MS, WIN } from '../js/config.js';
 
 const { state, input } = game;
 
@@ -451,6 +451,29 @@ test('under water a held direction swims on without stopping after the first cel
   assert.ok(state.moveStart - firstEnds < FRAME_MS, 'the second step starts as the first one ends');
   assert.equal(state.moveMs, STEP_MS);
   game.release('right', 'key');
+});
+
+test('at night under water the sonar pings after the lights, then every SONAR_EVERY_MS, from the drone', () => {
+  const map = `
+#############
+# # # # # #R#
+########### #
+#S          #
+#############
+`;
+  const pings = events => events.filter(e => e.type === 'sonar').length;
+  game.setLevels([{ look: 0, planet: 'enceladus', dark: true, map }]);
+  game.startLevel(0, now);
+  const lit = run(LIGHTS_ON_MS + FRAME_MS);
+  assert.ok(lit.some(e => e.type === 'lightsOn'));
+  assert.equal(pings(run(SONAR_FIRST_MS - 2 * FRAME_MS)), 0);
+  assert.equal(pings(run(2 * FRAME_MS)), 1);
+  assert.deepEqual(state.sonar.from, { x: 0, y: 1 });
+  assert.equal(pings(run(SONAR_EVERY_MS)), 1);
+  // By day, no sonar.
+  game.setLevels([{ look: 0, planet: 'enceladus', map }]);
+  game.startLevel(0, now);
+  assert.equal(pings(run(SONAR_FIRST_MS + 2 * SONAR_EVERY_MS)), 0);
 });
 
 // An ice wall between the second and the third cell of a corridor on Europa.

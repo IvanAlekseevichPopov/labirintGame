@@ -161,7 +161,7 @@ function onInput(action) {
 }
 
 // Night and storm levels have their own tunes.
-const songFor = ({ planet, dark, storm }) => (dark ? 'moonNight' : storm ? 'marsStorm' : planet);
+const songFor = ({ planet, dark, storm }) => (dark ? (planet === 'enceladus' ? 'enceladusNight' : 'moonNight') : storm ? 'marsStorm' : planet);
 
 // Game events drive the picture and the sound.
 function handle(event) {
@@ -176,6 +176,7 @@ function handle(event) {
       if (event.restart) audio.cutSweeps();
       audio.sfx(event.restart ? 'restart' : 'levelStart');
       break;
+    case 'sonar':
     case 'lightsOn':
     case 'lightsOff':
     case 'meteorWarn':
