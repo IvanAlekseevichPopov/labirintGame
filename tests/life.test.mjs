@@ -8,12 +8,13 @@ import { placeLife } from '../js/life.js';
 const oceans = LEVELS.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) })).filter(l => PLANETS[l.planet].side);
 
 for (const level of oceans) {
-  test(`level ${level.n}: jellyfish keep off the way, schools swim along open corridors`, () => {
+  test(`level ${level.n}: jellyfish placed by the seed keep off the way, schools swim along open corridors`, () => {
     const { jellies, schools } = placeLife(level, level.n);
     const from = levelDistances(level.maze, level.start), to = levelDistances(level.maze, level.goal);
     const path = from.get(`${level.goal.x},${level.goal.y}`).dist;
     assert.ok(jellies.length >= 1);
-    for (const j of jellies) {
+    // Cells a level sets itself in `jellies` are the parent's call.
+    for (const j of level.jellies ? [] : jellies) {
       const k = `${j.x},${j.y}`;
       assert.notEqual(from.get(k).dist + to.get(k).dist, path, `jellyfish at ${k} is on the way`);
       assert.ok(!level.smokers.some(s => s.x === j.x && (s.y === j.y || s.y - 1 === j.y)), `jellyfish at ${k} is in the smoke`);

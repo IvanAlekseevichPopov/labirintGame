@@ -10,13 +10,15 @@ import { softBlob } from './sprite.js';
 
 // `glow` is how strongly a jellyfish lights the water round it: a hint here, for a night under
 // water it would go up.
-const JELLY = { size: 0.3, bob: 0.07, cellsEach: 45, max: 3, apart: 4, glow: 0.18 };
+// `reach` is how far (cells) its light goes in the dark.
+const JELLY = { size: 0.3, bob: 0.07, cellsEach: 45, max: 3, apart: 4, glow: 0.18, reach: 1.1 };
 const SCHOOL = { minRun: 3, max: 2, fish: [5, 8], length: 0.11, speed: 0.6 };
 const JELLY_COLORS = [['205, 180, 255', '240, 225, 255'], ['255, 190, 225', '255, 228, 242'], ['165, 245, 195', '225, 255, 236']];
 
 const key = (x, y) => `${x},${y}`;
 
-export function placeLife({ maze, start, goal, smokers, landmarks }, seed) {
+// A level can set its jellyfish cells itself (`jellies`); the rest is still up to the seed.
+export function placeLife({ maze, start, goal, smokers, landmarks, jellies: pinned = null }, seed) {
   const rand = mulberry32(seed + 4000);
   const { cols, rows, cells } = maze;
   const fromStart = levelDistances(maze, start), fromGoal = levelDistances(maze, goal);
@@ -30,9 +32,10 @@ export function placeLife({ maze, start, goal, smokers, landmarks }, seed) {
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (!busy.has(key(x, y)) && !onRoute(x, y)) free.push({ x, y });
   const jellies = [];
   const want = Math.min(JELLY.max, Math.max(1, Math.round((cols * rows) / JELLY.cellsEach)));
-  for (const c of free.map(c => [rand(), c]).sort((a, b) => a[0] - b[0]).map(([, c]) => c)) {
-    if (jellies.length === want) break;
-    if (jellies.some(j => Math.abs(j.x - c.x) + Math.abs(j.y - c.y) < JELLY.apart)) continue;
+  const shuffled = free.map(c => [rand(), c]).sort((a, b) => a[0] - b[0]).map(([, c]) => c);
+  for (const c of pinned ?? shuffled) {
+    if (!pinned && jellies.length === want) break;
+    if (!pinned && jellies.some(j => Math.abs(j.x - c.x) + Math.abs(j.y - c.y) < JELLY.apart)) continue;
     const [body, rim] = JELLY_COLORS[Math.floor(rand() * JELLY_COLORS.length)];
     jellies.push({ ...c, body, rim, periodMs: 1500 + rand() * 700, bobMs: 5000 + rand() * 3000, phase: rand() * Math.PI * 2 });
   }
@@ -68,8 +71,20 @@ export function placeLife({ maze, start, goal, smokers, landmarks }, seed) {
   return { jellies, schools };
 }
 
-export function drawLife(ctx, { jellies, schools }, now, { cell, ox, oy }) {
+export function drawSchools(ctx, { schools }, now, { cell, ox, oy }) {
   for (const s of schools) drawSchool(ctx, s, now, cell, ox, oy);
+}
+
+// Where each jellyfish is now, in px, with its colour: what lights the water round it.
+export function jellyLights({ jellies }, now, { cell, ox, oy }) {
+  return jellies.map(j => ({ ...jellyAt(j, now, cell, ox, oy), color: j.body, r: cell * JELLY.reach }));
+}
+
+function jellyAt(j, now, cell, ox, oy) {
+  return { x: ox + (j.x + 0.5) * cell, y: oy + (j.y + 0.38 + Math.sin(now / j.bobMs * Math.PI * 2 + j.phase) * JELLY.bob) * cell };
+}
+
+export function drawJellies(ctx, { jellies }, now, { cell, ox, oy }) {
   for (const j of jellies) drawJelly(ctx, j, now, cell, ox, oy);
 }
 
@@ -111,8 +126,7 @@ function drawJelly(ctx, j, now, cell, ox, oy) {
   const beat = ((now / j.periodMs + j.phase) % 1);
   const squeeze = beat < 0.25 ? Math.sin((beat / 0.25) * Math.PI) : 0;
   const s = cell * JELLY.size;
-  const cx = ox + (j.x + 0.5) * cell;
-  const cy = oy + (j.y + 0.38 + Math.sin(now / j.bobMs * Math.PI * 2 + j.phase) * JELLY.bob) * cell;
+  const { x: cx, y: cy } = jellyAt(j, now, cell, ox, oy);
   const w = s * (1 - 0.14 * squeeze), h = s * 0.55 * (1 + 0.18 * squeeze);
 
   ctx.save();

@@ -167,7 +167,7 @@ test('under water the rocket is in the top row, and top-down things are refused'
   failsWith(ocean.replace('F', 'W'), /курильщики W и B бывают только под водой/, 'moon');
 });
 
-test('a drone frozen into the ice (wreck) is a column of the map, under water only', () => {
+test('a drone frozen into the ice (wreck) and dusk in the deep are for under water only', () => {
   const map = `
 #######
 #    R#
@@ -181,6 +181,12 @@ test('a drone frozen into the ice (wreck) is a column of the map, under water on
   assert.throws(() => withWreck('enceladus', 3), /wreck — номер столбца клеток от 0 до 2/);
   assert.throws(() => withWreck('enceladus', 0.5), /wreck — номер столбца/);
   assert.throws(() => withWreck('moon', 0), /вмёрзший дрон wreck бывает только под водой/);
+  assert.equal(parseLevel({ planet: 'enceladus', map, dusk: true }, 7, PLANET_KEYS).dusk, true);
+  assert.equal(parseLevel({ planet: 'enceladus', map }, 7, PLANET_KEYS).dusk, false);
+  assert.throws(() => parseLevel({ planet: 'moon', map, dusk: true }, 7, PLANET_KEYS), /сумерки в глубине dusk бывают только под водой/);
+  assert.deepEqual(parseLevel({ planet: 'enceladus', map, jellies: [[2, 0]] }, 7, PLANET_KEYS).jellies, [{ x: 2, y: 0 }]);
+  assert.throws(() => parseLevel({ planet: 'enceladus', map, jellies: [[3, 0]] }, 7, PLANET_KEYS), /jellies — список клеток медуз/);
+  assert.throws(() => parseLevel({ planet: 'moon', map, jellies: [[0, 0]] }, 7, PLANET_KEYS), /медузы jellies бывают только под водой/);
 });
 
 const ICY = `

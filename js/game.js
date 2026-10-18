@@ -17,7 +17,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -36,6 +36,10 @@ export function startLevel(index, now, { restart = false } = {}) {
     smokers,
     // Column of cells the broken drone frozen into the ice crust hangs over, or null.
     wreck,
+    // The water darkens towards the floor.
+    dusk,
+    // Cells of the jellyfish when the level sets them, else null.
+    jellies,
     // Ice walls still standing, each with how long it has been drilled (ms) and from which cell.
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.

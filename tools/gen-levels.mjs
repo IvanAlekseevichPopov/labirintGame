@@ -289,9 +289,9 @@ async function readExisting() {
 }
 
 // Hand-set flags that must survive regeneration.
-const levelFlags = ({ dark, storm, intro, wreck }) => ({ ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }), ...(wreck !== undefined && { wreck }) });
-const flagSource = ({ dark, storm, intro, wreck }) =>
-  `${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}${wreck !== undefined ? `wreck: ${wreck}, ` : ''}`;
+const levelFlags = ({ dark, storm, intro, wreck, dusk, jellies }) => ({ ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }), ...(wreck !== undefined && { wreck }), ...(dusk && { dusk }), ...(jellies && { jellies }) });
+const flagSource = ({ dark, storm, intro, wreck, dusk, jellies }) =>
+  `${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}${wreck !== undefined ? `wreck: ${wreck}, ` : ''}${dusk ? 'dusk: true, ' : ''}${jellies ? `jellies: ${JSON.stringify(jellies).replaceAll(',', ', ')}, ` : ''}`;
 
 // What makeLevel needs to know about the level before it, recovered from its map.
 function describe(level, number) {

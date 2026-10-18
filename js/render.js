@@ -24,8 +24,9 @@ import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
 import { createChips, drawIceRemains, drawIceWall, iceSegment } from './ice.js';
 import { createSilt } from './silt.js';
-import { drawLife, placeLife } from './life.js';
-import { createCaustics, crustCracks, drawFrost, drawGrowths, drawIceCrust, drawPebbles, drawProbe, drawProbeLight, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
+import { drawJellies, drawSchools, jellyLights, placeLife } from './life.js';
+import { softBlob } from './sprite.js';
+import { createCaustics, crustCracks, drawDusk, duskAt, drawFrost, drawGrowths, drawIceCrust, drawPebbles, drawProbe, drawProbeLight, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -45,6 +46,9 @@ let decor = null;
 let drawWeather = null;
 let drawVeil = null;
 let wallsPx = [];
+// Under water, the outlines of the walls as drawn (thick, past their ends): lights cast shadows off
+// these, so a shadow starts where a wall is seen to end, not at its middle line.
+let wallEdgesPx = [];
 let smokers = [];
 let stars = [];
 
@@ -61,6 +65,11 @@ const ROCK_CELLS = { side: 0.45, bottom: 0.55 };
 // rock at the sides, may run into it.
 const ROCK_KEPT = 0.3;
 const DRONE_RATIO = 0.82;
+// How much a jellyfish lights the water round it at the darkest of the dusk.
+const JELLY_LIGHT = 0.55;
+const DRONE_GLOW = { reach: 0.8, color: '150, 200, 225', strength: 0.3 };
+// Points round a light its shadows are cast from, as shares of a cell.
+const SOFT_SHADOW = { spread: 0.2, from: [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]] };
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -215,6 +224,7 @@ function buildMazeLayer() {
     });
   const half = WALL_RATIO / 2;
   wallsPx = [...decor.walls, ...state.ice.map(iceSegment)].map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
+  wallEdgesPx = p.side ? wallsPx.flatMap(s => wallOutline(s, wall / 2)) : [];
   const rough = p.wallRough ?? 1;
   const details = { cell, ox, oy, half, seed: lookSeed() + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
   fillShapes(g, ragged(half, 0.03 * rough, 0.02, 0.04), 'rgba(0, 0, 0, 0.35)');
@@ -263,6 +273,15 @@ function buildMazeLayer() {
     drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: lookSeed(), clear: pebblesOff });
     drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole, wreck });
   }
+}
+
+// The four sides of a wall segment `half` px thick, reaching `half` past each end as it is drawn.
+function wallOutline([x0, y0, x1, y1], half) {
+  const len = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / len, uy = (y1 - y0) / len;
+  const ax = x0 - ux * half, ay = y0 - uy * half, bx = x1 + ux * half, by = y1 + uy * half;
+  const nx = -uy * half, ny = ux * half;
+  const c = [[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]];
+  return c.map(([px, py], i) => [px, py, ...c[(i + 1) % 4]]);
 }
 
 // How far (cells) a blast reaches into the walls, and how much it pushes them at the crater's edge.
@@ -480,7 +499,8 @@ export function render(now, { soundOff = false } = {}) {
     else LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
   drawProps(ctx, decor.props, toPx, cell, now, planet);
-  if (decor.life) drawLife(ctx, decor.life, now, { cell, ox, oy });
+  if (decor.life) drawSchools(ctx, decor.life, now, { cell, ox, oy });
+  if (decor.life && !state.dusk) drawJellies(ctx, decor.life, now, { cell, ox, oy });
 
   const [gx, gy] = toPx(state.goal);
   // Seen from the side the rocket stands on the ice, and lets a probe down to the goal on a cable.
@@ -546,6 +566,44 @@ export function render(now, { soundOff = false } = {}) {
       rover.draw = () => ROVERS[planet.rover].top(rover.x, rover.y, rover.angle, rover.size, spin);
     }
     rover.draw();
+  }
+  if (state.dusk) {
+    const { cols, rows } = state.maze, wall = cell * WALL_RATIO, rock = ROCK_CELLS.side * cell;
+    const dusk = { x: ox - wall / 2 - rock, w: cell * cols + wall + 2 * rock, from: oy + cell * rows * 0.3, to: oy + cell * rows + wall / 2 + ROCK_CELLS.bottom * cell };
+    drawDusk(ctx, dusk);
+    // A jellyfish lights the water round it, the more the darker it is there; walls stop the light.
+    // The drone keeps a faint glow round itself, as the rover does at night, only weaker.
+    const lights = decor.life ? jellyLights(decor.life, now, { cell, ox, oy }).map(l => ({ ...l, strength: JELLY_LIGHT })) : [];
+    if (rover) lights.push({ x: rover.x, y: rover.y, r: cell * DRONE_GLOW.reach, color: DRONE_GLOW.color, strength: DRONE_GLOW.strength });
+    for (const l of lights) {
+      const strength = l.strength * duskAt(l.y, dusk);
+      if (strength <= 0) continue;
+      // Cast against the walls like the headlights, so no light shows in the next corridor. Cast
+      // from a few points round the light, not one: one point gave a hard-edged shadow off a
+      // wall's end, these blend into a soft one.
+      const spread = cell * SOFT_SHADOW.spread;
+      // The shapes add up into how much of the light reaches each spot, then the light goes on once
+      // through that: drawn faintly once per shape, it lost so much precision it showed in bands.
+      drawInWater({ x: l.x - l.r, y: l.y - l.r, w: l.r * 2, h: l.r * 2 }, g => {
+        g.save();
+        g.globalCompositeOperation = 'lighter';
+        g.globalAlpha = 1 / SOFT_SHADOW.from.length;
+        g.fillStyle = '#fff';
+        for (const [dx, dy] of SOFT_SHADOW.from) {
+          const reach = beamPolygon(l.x + dx * spread, l.y + dy * spread, 0, l.r, wallEdgesPx, { rays: 48, halfAngle: Math.PI });
+          g.beginPath();
+          reach.slice(1).forEach(([px, py], i) => g[i ? 'lineTo' : 'moveTo'](px, py));
+          g.closePath();
+          g.fill();
+        }
+        g.globalCompositeOperation = 'source-in';
+        g.globalAlpha = strength;
+        g.drawImage(softBlob(l.color), l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+        g.restore();
+      }, 'lighter');
+    }
+    if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
+    if (d && shrink > 0 && !headOn(d)) drawLampBeam(d, rover.x, rover.y + bob(now, rover.size), rover.size);
   }
   if (!planet.side && chips.any(false)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
 
@@ -672,7 +730,8 @@ function screwOf(d, now, size, cell) {
 function drawDrone({ x, y, size }, d, now) {
   if (size <= 0) return;
   y += bob(now, size);
-  if (!headOn(d)) drawLampBeam(d, x, y, size);
+  // Under dusk the beam goes on after it, over the dark.
+  if (!headOn(d) && !state.dusk) drawLampBeam(d, x, y, size);
   ctx.save();
   ctx.translate(x, y);
   if (headOn(d)) {
@@ -696,7 +755,7 @@ function drawLampBeam(d, x, y, size) {
   const lx = x + k * (px * c - py * s), ly = y + px * s + py * c;
   const angle = Math.atan2(Math.sin(lamp.dip + d.pitch), Math.sign(k) * Math.cos(lamp.dip + d.pitch));
   const len = size * lamp.length;
-  const pts = beamPolygon(lx, ly, angle, len, wallsPx, { rays: 24, halfAngle: lamp.spread });
+  const pts = beamPolygon(lx, ly, angle, len, wallEdgesPx, { rays: 24, halfAngle: lamp.spread });
   drawInWater({ x: lx - len, y: ly - len, w: len * 2, h: len * 2 }, g => {
     const glow = g.createLinearGradient(lx, ly, lx + Math.cos(angle) * len, ly + Math.sin(angle) * len);
     glow.addColorStop(0, `rgba(255, 243, 190, ${lamp.alpha})`);

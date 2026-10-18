@@ -480,6 +480,19 @@ export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole
   g.restore();
 }
 
+// Dusk in the deep: everything darkens from `from` px down to `to`, where it is darkest. Drawn
+// every frame over the drone too; what gives off light (the jellyfish, the lamp's beam) goes on top.
+const DUSK = { color: '6, 14, 36', alpha: 0.5 };
+// How dark the dusk is at `y` px, 0 to 1.
+export const duskAt = (y, { from, to }) => Math.max(0, Math.min(1, (y - from) / (to - from)));
+export function drawDusk(g, { x, w, from, to }) {
+  const fall = g.createLinearGradient(0, from, 0, to);
+  fall.addColorStop(0, `rgba(${DUSK.color}, 0)`);
+  fall.addColorStop(1, `rgba(${DUSK.color}, ${DUSK.alpha})`);
+  g.fillStyle = fall;
+  g.fillRect(x, from, w, to - from);
+}
+
 // A broken drone frozen whole into the crust: someone's old probe, long and grey, so it is plainly
 // not the player's short yellow submarine; no lamp, nothing orange, nothing that could pass for
 // the bell. Its tail fin has snapped off and lies frozen beside it. Drawn under a film of ice,
