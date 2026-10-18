@@ -10,7 +10,6 @@ import { LANDMARKS } from '../js/landmarks.js';
 import { WEATHER_FROM_LEVEL } from '../js/weather.js';
 
 const OUT = new URL('../FEATURES.md', import.meta.url);
-const LANDMARK_NAMES = { flag: 'флаг', antenna: 'антенна', crater: 'большой кратер (на Европе — полынья)', station: 'научный зонд под водой' };
 
 // [1, 2, 3, 5] → "1–3, 5"
 function ranges(numbers) {
@@ -54,7 +53,7 @@ export function featuresDoc(levels = LEVELS) {
   ];
   const planets = PLANET_KEYS.map(p => `| ${PLANETS[p].name} | \`${PLANETS[p].rover}\` | ${ranges(where(l => l.planet === p))} |`);
   const landmarks = Object.entries(LANDMARKS).filter(([, l]) => l.char).map(([type, l]) =>
-    `| \`${l.char}\` | ${LANDMARK_NAMES[type] ?? type} | ${ranges(where(lv => lv.landmarks.some(m => m.type === type)))} |`);
+    `| \`${l.char}\` | ${l.name}${l.side ? ' (под водой)' : ''} | ${ranges(where(lv => lv.landmarks.some(m => m.type === type)))} |`);
 
   return `# Где что в игре
 

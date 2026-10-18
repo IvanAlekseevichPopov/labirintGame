@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseLevel, levelDistances } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from '../js/planets.js';
+import { LEVELS } from '../levels.js';
 
 const ROOT = new URL('../', import.meta.url);
 
@@ -141,4 +142,13 @@ test('routes get longer from the first levels to the last', async () => {
   const avg = idx => idx.reduce((sum, i) => sum + pathLength(i), 0) / idx.length;
   assert.ok(avg([0, 1, 2, 3, 4]) <= 16);
   assert.ok(avg([34, 35, 36, 37, 38]) >= 50);
+});
+
+// LOCKED is all that keeps --only from regenerating a map made by hand: dark, storm and intro survive, I, M and T do not.
+test('every level made by hand in levels.js (night, storm, meteor, ice) is in LOCKED', () => {
+  const source = fs.readFileSync(new URL('tools/gen-levels.mjs', ROOT), 'utf8');
+  const locked = JSON.parse(source.match(/const LOCKED = (\[[^\]]*\]);/)[1]);
+  const byHand = LEVELS.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) }))
+    .filter(l => l.dark || l.storm || l.meteor || l.ice.length).map(l => l.n);
+  assert.deepEqual(byHand.filter(n => !locked.includes(n)), []);
 });
