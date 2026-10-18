@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWeather, weatherIntensity, WEATHER_FROM_LEVEL } from '../js/weather.js';
-import { PLANET_KEYS } from '../js/planets.js';
+import { PLANET_KEYS, PLANETS } from '../js/planets.js';
+
+const TOP_DOWN = PLANET_KEYS.filter(p => !PLANETS[p].side);
 
 test('weather starts at level 20, light, and is full by the last level', () => {
   assert.equal(weatherIntensity(WEATHER_FROM_LEVEL - 1, 40), 0);
   assert.equal(weatherIntensity(WEATHER_FROM_LEVEL, 40), 0.3);
   assert.equal(weatherIntensity(40, 40), 1);
   assert.equal(createWeather('mars', 0), null);
+  assert.equal(createWeather('enceladus', 1), null);
 });
 
 // A canvas stand-in that accepts any drawing call and counts them.
@@ -23,7 +26,7 @@ function fakeContext() {
   return ctx;
 }
 
-for (const planet of PLANET_KEYS) {
+for (const planet of TOP_DOWN) {
   test(`${planet} weather runs for a while and draws something`, () => {
     const draw = createWeather(planet, 1);
     const ctx = fakeContext();
@@ -36,7 +39,7 @@ for (const planet of PLANET_KEYS) {
 
 // The canvas ignores a globalAlpha outside 0..1 and keeps the previous one, often full: a fading
 // dust devil drawn at -0.01 flashed at full brightness for a frame before it vanished.
-for (const planet of PLANET_KEYS) {
+for (const planet of TOP_DOWN) {
   test(`${planet} weather never sets an alpha the canvas would ignore`, () => {
     const draw = createWeather(planet, 1);
     const bad = [];

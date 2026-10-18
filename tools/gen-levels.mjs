@@ -3,7 +3,7 @@
 //   node tools/gen-levels.mjs --force       regenerate the whole set (overwrites hand edits)
 //   node tools/gen-levels.mjs --only 3,25   regenerate just these levels, keep the rest as is
 // Levels listed in LOCKED were reworked by hand and are never regenerated: --only refuses them,
-// --force refuses to run at all while the lock holds. Levels seen from the side (18, Enceladus) are
+// --force refuses to run at all while the lock holds. Levels seen from the side (Enceladus) are
 // all made by hand and refused the same way.
 // Numbers here are the ones the game shows. The generator itself counts only the levels seen from
 // above (a level's step), so a level put in by hand does not change the mazes after it.
@@ -35,7 +35,7 @@ const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // Hand-made levels (night, storm, meteor, ice walls): the generator must not touch them.
-const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 29, 31, 33, 34, 35, 36];
+const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 30, 32, 34, 35, 36, 37];
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
 // level → level whose difficulty it should get, keeping its own size; for levels that felt off in play
@@ -289,9 +289,9 @@ async function readExisting() {
 }
 
 // Hand-set flags that must survive regeneration.
-const levelFlags = ({ dark, storm, intro }) => ({ ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }) });
-const flagSource = ({ dark, storm, intro }) =>
-  `${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}`;
+const levelFlags = ({ dark, storm, intro, wreck }) => ({ ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }), ...(wreck !== undefined && { wreck }) });
+const flagSource = ({ dark, storm, intro, wreck }) =>
+  `${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}${wreck !== undefined ? `wreck: ${wreck}, ` : ''}`;
 
 // What makeLevel needs to know about the level before it, recovered from its map.
 function describe(level, number) {

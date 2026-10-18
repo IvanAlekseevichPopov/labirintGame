@@ -24,6 +24,7 @@ import { beamPolygon } from './headlights.js';
 import { createBubbles } from './bubbles.js';
 import { createChips, drawIceRemains, drawIceWall, iceSegment } from './ice.js';
 import { createSilt } from './silt.js';
+import { drawLife, placeLife } from './life.js';
 import { createCaustics, crustCracks, drawFrost, drawGrowths, drawIceCrust, drawPebbles, drawProbe, drawProbeLight, drawRockMass, drawSmoke, drawSmoker, fillWater, wallPaint, wallTint } from './ocean.js';
 
 const canvas = document.getElementById('game');
@@ -91,6 +92,7 @@ function makeDecor() {
     // Ice walls are drawn on their own, every frame, since drilling changes them.
     walls: wallSegments(state.maze).filter(s => !state.ice.some(w => sameSegment(iceSegment(w), s))),
     props: placeProps(state, lookSeed() + 2000),
+    life: PLANETS[state.planet].side ? placeLife(state, lookSeed()) : null,
   };
 }
 
@@ -177,7 +179,9 @@ function buildMazeLayer() {
   const frame = { x: ox - wall / 2, y: oy - wall / 2, w: cell * cols + wall, h: cell * rows + wall };
   const rockSide = ROCK_CELLS.side * cell;
   const crustBox = { x: frame.x - rockSide, w: frame.w + 2 * rockSide, top: oy - CRUST_CELLS * cell, bottom: oy + wall / 2 };
-  const cracks = p.side ? crustCracks(lookSeed(), crustBox.x, crustBox.w, cell, ox + (state.goal.x + 0.5) * cell) : [];
+  const hole = ox + (state.goal.x + 0.5) * cell;
+  const wreck = state.wreck === null ? null : ox + (state.wreck + 0.5) * cell;
+  const cracks = p.side ? crustCracks(lookSeed(), crustBox.x, crustBox.w, cell, hole, wreck) : [];
   // Seen from the side, the walls are ice up under the crust and rock down by the floor.
   const paint = p.side ? wallPaint(g, p, oy, oy + cell * rows) : { base: p.wallBase, top: p.wallTop };
   if (p.side) drawRockMass(g, p, { frame, side: rockSide, bottom: ROCK_CELLS.bottom * cell, cell, seed: lookSeed(), paint });
@@ -257,7 +261,7 @@ function buildMazeLayer() {
     smokers = state.smokers.map((s, i) => ({ ...drawSmoker(g, p, { x: ox + (s.x + 0.5) * cell, line: oy + (s.y + 1) * cell, half: wall / 2, cell, white: s.white }), seed: i }));
     const pebblesOff = smokers.filter((_, i) => state.smokers[i].y === rows - 1).map(m => m.x);
     drawPebbles(g, p, { x: ox, w: cell * cols, floor: oy + cell * rows - wall / 2, cell, seed: lookSeed(), clear: pebblesOff });
-    drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole: ox + (state.goal.x + 0.5) * cell });
+    drawIceCrust(g, p, { ...crustBox, cell, seed: lookSeed(), cracks, hole, wreck });
   }
 }
 
@@ -476,6 +480,7 @@ export function render(now, { soundOff = false } = {}) {
     else LANDMARKS[l.type].draw(lx, ly + cell * 0.3, cell * 0.75, now, planet);
   }
   drawProps(ctx, decor.props, toPx, cell, now, planet);
+  if (decor.life) drawLife(ctx, decor.life, now, { cell, ox, oy });
 
   const [gx, gy] = toPx(state.goal);
   // Seen from the side the rocket stands on the ice, and lets a probe down to the goal on a cable.
@@ -566,9 +571,7 @@ export function render(now, { soundOff = false } = {}) {
 
   if (drawWeather) {
     const area = { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows, cell };
-    // Under water the weather sinks through the water, never over a wall.
-    if (planet.side) drawInWater(area, g => drawWeather(g, now, { w, h }, area));
-    else drawWeather(ctx, now, { w, h }, area);
+    drawWeather(ctx, now, { w, h }, area);
   }
   // Under the bars, like the title: the intro is a scene, not play.
   if (soundOff) drawSoundOff(w - header * 0.7, header / 2, header * 0.5);

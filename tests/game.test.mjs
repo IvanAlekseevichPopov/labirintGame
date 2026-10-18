@@ -429,8 +429,14 @@ test('a meteor without a trigger goes off METEOR.startMs after the level starts'
 });
 
 test('under water a held direction swims on without stopping after the first cell', () => {
-  // The corridor turned upside down, so the rocket is in the top row as under water it must be.
-  const map = CORRIDOR.map.trim().split('\n').reverse().join('\n').replace('F', ' ');
+  // Under water the rocket is in the top row, with no floor under its bell.
+  const map = `
+#############
+# # # # # #R#
+########### #
+#S          #
+#############
+`;
   game.setLevels([{ planet: 'enceladus', map }]);
   game.startLevel(0, now);
   run(INPUT_LOCK_MS);

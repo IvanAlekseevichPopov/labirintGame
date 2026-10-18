@@ -154,7 +154,7 @@ test('under water the rocket is in the top row, and top-down things are refused'
   const ocean = `
 #######
 #    R#
-# #####
+# ### #
 #S F  #
 #######
 `;
@@ -163,7 +163,24 @@ test('under water the rocket is in the top row, and top-down things are refused'
   assert.equal(parse(ocean.replace('F', 'Z'), 'enceladus').landmarks[0].type, 'station');
   failsWith(ocean.replace('F', 'Z'), /ориентир Z бывает только под водой/, 'moon');
   assert.equal(parse(ocean.replace('F', ' '), 'enceladus').goal.y, 0);
+  failsWith(ocean.replace('# ### #', '# #####').replace('F', ' '), /строка 2, символ 6: под колоколом ракеты R пол/, 'enceladus');
   failsWith(ocean.replace('F', 'W'), /курильщики W и B бывают только под водой/, 'moon');
+});
+
+test('a drone frozen into the ice (wreck) is a column of the map, under water only', () => {
+  const map = `
+#######
+#    R#
+# ### #
+#S    #
+#######
+`;
+  const withWreck = (planet, wreck) => parseLevel({ planet, map, wreck }, 7, PLANET_KEYS);
+  assert.equal(withWreck('enceladus', 0).wreck, 0);
+  assert.equal(parseLevel({ planet: 'enceladus', map }, 7, PLANET_KEYS).wreck, null);
+  assert.throws(() => withWreck('enceladus', 3), /wreck — номер столбца клеток от 0 до 2/);
+  assert.throws(() => withWreck('enceladus', 0.5), /wreck — номер столбца/);
+  assert.throws(() => withWreck('moon', 0), /вмёрзший дрон wreck бывает только под водой/);
 });
 
 const ICY = `

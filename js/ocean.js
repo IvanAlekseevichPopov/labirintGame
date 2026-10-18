@@ -10,12 +10,13 @@ import { softBlob } from './sprite.js';
 
 // Where cracks run right through the crust: the light shafts in the water start under them. None
 // near `hole`, the probe's shaft: a shaft of daylight slanting across the goal's own light would
-// muddle it.
-export function crustCracks(seed, x, w, cell, hole) {
+// muddle it. None through the drone frozen in the ice at `wreck` either.
+export function crustCracks(seed, x, w, cell, hole, wreck = null) {
   const rand = mulberry32(seed + 3100);
   const n = Math.max(2, Math.round(w / cell / 3.5));
   return Array.from({ length: n }, (_, k) => x + ((k + 0.25 + rand() * 0.5) / n) * w)
-    .filter(cx => cx < hole - cell * 2 || cx > hole + cell * 0.7);
+    .filter(cx => cx < hole - cell * 2 || cx > hole + cell * 0.7)
+    .filter(cx => wreck === null || Math.abs(cx - wreck) > cell * 0.8);
 }
 
 // Ragged edge from (x0, y0) to (x1, y1), pushed out along (nx, ny) by up to `amp` px.
@@ -392,7 +393,7 @@ function drawColumn(ctx, column, m, cell, soft, solid) {
 // The crust from `top` (its snowy surface) down to `bottom`, where its knobbly underside hangs
 // into the water over the top row; it covers the maze's top frame wall.
 // `hole` is the x of the shaft cut through for the probe's cable.
-export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole }) {
+export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole, wreck = null }) {
   const rand = mulberry32(seed + 3000);
   const r = cell * 0.13;
   const steps = Math.max(8, Math.round(w / (cell * 0.22)));
@@ -439,6 +440,7 @@ export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole
     for (let px = x; px <= x + w; px += cell * 0.2) g.lineTo(px, top + thick * f + Math.sin((px - x) / cell * 1.7 + f * 9) * cell * 0.025);
     g.stroke();
   }
+  if (wreck !== null) drawWreck(g, p, wreck, top + thick * 0.5, cell, rand);
   g.fillStyle = p.speck;
   g.beginPath();
   surface.forEach(([px, py], k) => g[k ? 'lineTo' : 'moveTo'](px, py));
@@ -475,6 +477,136 @@ export function drawIceCrust(g, p, { x, w, top, bottom, cell, seed, cracks, hole
   shaft.addColorStop(1, 'rgba(240, 250, 255, 0.9)');
   g.fillStyle = shaft;
   g.fillRect(hole - cell * 0.13, top - cell * 0.1, cell * 0.26, thick + cell * 0.25);
+  g.restore();
+}
+
+// A broken drone frozen whole into the crust: someone's old probe, long and grey, so it is plainly
+// not the player's short yellow submarine; no lamp, nothing orange, nothing that could pass for
+// the bell. Its tail fin has snapped off and lies frozen beside it. Drawn under a film of ice,
+// all inside the crust, so it never sticks out into a corridor.
+const WRECK = { size: 1.5, tilt: -0.08 };
+function drawWreck(g, p, cx, cy, cell, rand) {
+  const OUTLINE = '#2b3440';
+  const blob = (x, y, w, h, r, fill) => {
+    g.beginPath();
+    g.roundRect(x, y, w, h, r);
+    g.fillStyle = fill;
+    g.fill();
+    g.stroke();
+  };
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(WRECK.tilt);
+  g.scale(cell * WRECK.size, cell * WRECK.size);
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  g.strokeStyle = OUTLINE;
+  g.lineWidth = 0.02;
+  // The snapped fin, drifted a little way off behind the tail.
+  g.save();
+  g.translate(-0.64, -0.01);
+  g.rotate(0.9);
+  g.beginPath();
+  g.moveTo(-0.07, 0);
+  g.lineTo(0.06, -0.02);
+  g.lineTo(0.03, 0.06);
+  g.lineTo(-0.02, 0.04);
+  g.closePath();
+  g.fillStyle = '#5d6672';
+  g.fill();
+  g.stroke();
+  g.restore();
+  // Tail cone, the fin still on it, and a bent propeller blade.
+  g.beginPath();
+  g.moveTo(-0.34, -0.085);
+  g.lineTo(-0.47, -0.04);
+  g.lineTo(-0.47, 0.04);
+  g.lineTo(-0.34, 0.085);
+  g.closePath();
+  g.fillStyle = '#7d8693';
+  g.fill();
+  g.stroke();
+  g.beginPath();
+  g.moveTo(-0.33, -0.08);
+  g.lineTo(-0.46, -0.17);
+  g.lineTo(-0.44, -0.05);
+  g.closePath();
+  g.fillStyle = '#5d6672';
+  g.fill();
+  g.stroke();
+  g.beginPath();
+  g.moveTo(-0.48, 0);
+  g.lineTo(-0.5, -0.07);
+  g.lineTo(-0.53, -0.1);
+  g.moveTo(-0.48, 0);
+  g.lineTo(-0.5, 0.06);
+  g.lineWidth = 0.025;
+  g.strokeStyle = '#4a525d';
+  g.stroke();
+  g.strokeStyle = OUTLINE;
+  g.lineWidth = 0.02;
+  // Hull with a dent in its back, faded stripes and streaks of rust.
+  blob(-0.36, -0.09, 0.76, 0.18, 0.09, '#a9b2bd');
+  g.save();
+  g.beginPath();
+  g.roundRect(-0.36, -0.09, 0.76, 0.18, 0.09);
+  g.clip();
+  g.fillStyle = '#7d8693';
+  g.fillRect(-0.36, 0.035, 0.76, 0.06);
+  g.fillStyle = '#6b7380';
+  g.fillRect(-0.14, -0.09, 0.05, 0.18);
+  g.fillRect(0.16, -0.09, 0.03, 0.18);
+  g.fillStyle = 'rgba(122, 82, 58, 0.55)';
+  for (const [rx, len] of [[-0.24, 0.1], [-0.05, 0.14], [0.08, 0.08], [0.24, 0.11]]) g.fillRect(rx, -0.06, 0.018, len);
+  g.fillStyle = 'rgba(255, 255, 255, 0.25)';
+  g.fillRect(-0.28, -0.07, 0.5, 0.025);
+  g.restore();
+  g.beginPath();
+  g.arc(0.02, -0.16, 0.08, 0.35 * Math.PI, 0.65 * Math.PI);
+  g.lineWidth = 0.018;
+  g.stroke();
+  g.lineWidth = 0.02;
+  // Nose with a dead, cracked camera eye and a stump of an aerial.
+  g.beginPath();
+  g.arc(0.31, 0, 0.055, 0, Math.PI * 2);
+  g.fillStyle = '#26303b';
+  g.fill();
+  g.stroke();
+  g.beginPath();
+  g.moveTo(0.28, -0.03);
+  g.lineTo(0.315, 0.005);
+  g.lineTo(0.3, 0.035);
+  g.moveTo(0.315, 0.005);
+  g.lineTo(0.345, -0.015);
+  g.strokeStyle = 'rgba(220, 235, 245, 0.8)';
+  g.lineWidth = 0.008;
+  g.stroke();
+  g.beginPath();
+  g.moveTo(-0.02, -0.09);
+  g.lineTo(-0.04, -0.15);
+  g.lineTo(-0.075, -0.17);
+  g.strokeStyle = '#4a525d';
+  g.lineWidth = 0.014;
+  g.stroke();
+  g.restore();
+
+  // The ice over it: a pale film, air bubbles caught round it and a crack from the blow.
+  g.save();
+  g.fillStyle = p.ice;
+  const k = cell * WRECK.size;
+  g.globalAlpha = 0.22;
+  g.beginPath();
+  g.ellipse(cx - k * 0.05, cy, k * 0.62, k * 0.16, WRECK.tilt, 0, Math.PI * 2);
+  g.fill();
+  g.globalAlpha = 0.85;
+  g.strokeStyle = 'rgba(240, 250, 255, 0.9)';
+  g.lineWidth = cell * 0.012;
+  for (let k = 0; k < 9; k++) {
+    const a = rand() * Math.PI * 2, d = 0.3 + rand() * 0.3;
+    g.beginPath();
+    g.arc(cx + Math.cos(a) * d * k, cy + Math.sin(a) * d * k * 0.3, cell * (0.012 + rand() * 0.018), 0, Math.PI * 2);
+    g.stroke();
+  }
   g.restore();
 }
 

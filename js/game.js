@@ -17,7 +17,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -34,6 +34,8 @@ export function startLevel(index, now, { restart = false } = {}) {
     goal,
     landmarks,
     smokers,
+    // Column of cells the broken drone frozen into the ice crust hangs over, or null.
+    wreck,
     // Ice walls still standing, each with how long it has been drilled (ms) and from which cell.
     ice: ice.map(wall => ({ ...wall, drilled: 0 })),
     // The ice wall being drilled and the direction held into it.
@@ -43,6 +45,7 @@ export function startLevel(index, now, { restart = false } = {}) {
     // A scene the player only watches (level-format.js INTROS), with `endedAt` once over: the black
     // bars slide out from then. A drill intro also has `dir` to drill and `through` once driving on.
     intro: intro && { ...intro, dir: Object.keys(DIRS).find(k => DIRS[k].wall === intro.dir), startedAt: now, through: false, endedAt: null },
+    start,
     player: { ...start },
     from: { ...start },
     moveStart: -Infinity,

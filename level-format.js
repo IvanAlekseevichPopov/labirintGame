@@ -50,7 +50,7 @@ export function parseLevel(level, number, planets) {
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
   if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
-  const { planet, map, dark = false, storm = null, intro = null } = level;
+  const { planet, map, dark = false, storm = null, intro = null, wreck = null } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');
@@ -122,12 +122,16 @@ export function parseLevel(level, number, planets) {
   // through the top row; what is drawn from above has no side view yet.
   if (PLANETS[planet].side) {
     if (rockets[0].y !== 0) fail('под водой ракета R стоит на льду: её место в верхнем ряду');
+    // The bell's light shines down through the cell below; a floor there would let it through a wall.
+    if (cells[0][rockets[0].x].bottom) fail(`${at(1, rockets[0].x * 2 + 1)}: под колоколом ракеты R пол, а нужен проход вниз`);
+    if (wreck !== null && !(Number.isInteger(wreck) && wreck >= 0 && wreck < cols)) fail(`wreck — номер столбца клеток от 0 до ${cols - 1}, над которым во льду вмёрз дрон`);
     if (dark || storm) fail('под водой ночи и бури нет: их рисунок сделан для вида сверху');
     if (impacts.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
     const above = landmarks.filter(l => !LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
     if (above.length) fail(`под водой ориентира ${above[0]} нет: его рисунок сделан для вида сверху`);
   } else {
     if (smokers.length) fail('курильщики W и B бывают только под водой');
+    if (wreck !== null) fail('вмёрзший дрон wreck бывает только под водой');
     const under = landmarks.filter(l => LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
     if (under.length) fail(`ориентир ${under[0]} бывает только под водой`);
   }
@@ -158,7 +162,7 @@ export function parseLevel(level, number, planets) {
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
+  return { planet, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, wreck, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,
