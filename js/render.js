@@ -646,8 +646,9 @@ export function render(now, { soundOff = false } = {}) {
       ? { x: 0, y: padY - cell * 1.5, w, h: cell * 1.6 }
       : { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
   });
-  // How much of the bell is still down in the water, 1 to 0 as it is reeled up.
+  // How much of the bell is still down in the water, 1 to 0 as it is reeled up, and how to draw it.
   let bellDown = 1;
+  let probe = null;
   if (planet.side) {
     // Once the drone is in, the probe is reeled up through the ice before the rocket lifts off.
     const docked = WIN.shrinkStart + WIN.shrinkMs;
@@ -655,8 +656,12 @@ export function render(now, { soundOff = false } = {}) {
     bellDown = 1 - reel;
     // Hung a little low in its cell, so the beacon on top clears the ice.
     const hang = gy + cell * 0.1, probeY = hang + (padY - hang) * reel * reel, fade = 1 - clamp01((reel - 0.8) / 0.2);
-    drawInWater({ x: gx - cell, y: probeY, w: cell * 2, h: cell * 1.2 }, g => drawProbeLight(g, gx, probeY, cell, now, fade), 'lighter');
-    drawProbe(ctx, gx, probeY, padY, cell, now, fade);
+    probe = () => {
+      drawInWater({ x: gx - cell, y: probeY, w: cell * 2, h: cell * 1.2 }, g => drawProbeLight(g, gx, probeY, cell, now, fade), 'lighter');
+      drawProbe(ctx, gx, probeY, padY, cell, now, fade);
+    };
+    // At night it goes on over the dark, with its own light: the goal must never be lost.
+    if (!deep) probe();
   }
 
   const shrink = winT === null ? 1 : 1 - clamp01((winT - WIN.shrinkStart) / WIN.shrinkMs);
@@ -728,6 +733,7 @@ export function render(now, { soundOff = false } = {}) {
       goal: { x: gx, y: gy + cell * 0.1 }, bell: bellDown,
     });
     for (const l of litOverDark) drawSideLandmark(l, cell, ox, oy, now, planet);
+    probe?.();
     if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
     // At full colour over the dark: the player must never lose the drone.
     if (rover && d) rover.draw();

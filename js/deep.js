@@ -14,7 +14,7 @@ export const DEEP = {
   lit: 0.23,
   crust: 'rgba(2, 5, 14, 0.7)',
   // The drone: how far its light clears the dark (cells), and the faint blue halo over it.
-  glow: { reach: 2.4, halo: 1.6, strength: 0.4, color: '150, 210, 240' },
+  glow: { reach: 3.2, halo: 1.6, strength: 0.4, color: '150, 210, 240' },
   // Its lamp at night, so many times further and wider than by day.
   lamp: { reach: 2.6, spread: 1.35 },
 };
