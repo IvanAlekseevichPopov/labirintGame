@@ -109,16 +109,28 @@ const LOOP = `
 #################
 `;
 
-test('a meteor needs one M and one T, far enough apart, with a way round', () => {
-  const level = parseLevel({ look: 0, planet: 'moon', map: LOOP }, 1, PLANET_KEYS);
-  assert.deepEqual(level.meteor, { cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } });
-  assert.equal(parse(SMALL).meteor, null);
-  const atStart = parseLevel({ look: 0, planet: 'moon', map: LOOP.replace('T', ' ') }, 1, PLANET_KEYS);
-  assert.deepEqual(atStart.meteor, { cell: { x: 5, y: 0 }, trigger: null }, 'no T: goes off at the start');
-  failsWith(LOOP.replace('M', ' '), /ровно одна M/);
-  failsWith(LOOP.replace('T', ' ').replace('S   ', 'S M ').replace('   M', '    '), /от старта/);
-  failsWith(LOOP.replace('T     M', 'T M    '), /не ближе/);
+// M lies off the way to the rocket and m in a dead end of its own, so both can fall.
+const TWO_METEORS = `
+#################
+#S   T     M   R#
+# ############# #
+#               #
+# ###############
+#      m        #
+#################
+`;
+
+test('M falls once the rover drives onto T, m right after the start; far enough away, with a way round', () => {
+  assert.deepEqual(parse(LOOP).meteors, [{ cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } }]);
+  assert.deepEqual(parse(SMALL).meteors, []);
+  assert.deepEqual(parse(LOOP.replace('T', ' ').replace('M', 'm')).meteors, [{ cell: { x: 5, y: 0 }, trigger: null }]);
+  assert.deepEqual(parse(TWO_METEORS).meteors, [{ cell: { x: 3, y: 2 }, trigger: null }, { cell: { x: 5, y: 0 }, trigger: { x: 2, y: 0 } }]);
+  failsWith(LOOP.replace('M', ' '), /одна M и одна T/);
+  failsWith(LOOP.replace('T', ' '), /одна M и одна T/);
+  failsWith(LOOP.replace('T', ' ').replace('M', ' ').replace('S   ', 'S m '), /m должен быть не ближе 3 клеток пути от старта/);
+  failsWith(LOOP.replace('T     M', 'T M    '), /M должен быть не ближе/);
   failsWith(LOOP.replace('#               #', '#       #       #'), /после падения метеорита/);
+  failsWith(TWO_METEORS.replace('#      m        #', '#               #').replace('#               #', '#      m        #'), /после падения метеорита/);
 });
 
 test('blockCell walls a cell off from both sides', () => {

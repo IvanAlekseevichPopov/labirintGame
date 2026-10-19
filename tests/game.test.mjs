@@ -377,16 +377,16 @@ test('driving onto T starts the meteor, which lands after METEOR.warnMs and wall
   game.setLevels([LOOP, LOOP]);
   game.startLevel(0, now);
   run(INPUT_LOCK_MS);
-  assert.equal(state.meteor.phase, 'waiting');
+  assert.equal(state.meteors[0].phase, 'waiting');
   const warn = drive('right', 2);
   assert.equal(state.player.x, 2);
   assert.deepEqual(meteorEvents(warn), ['meteorWarn']);
-  assert.equal(state.meteor.phase, 'falling');
-  const quiet = run(state.meteor.at - now - FRAME_MS * 2);
+  assert.equal(state.meteors[0].phase, 'falling');
+  const quiet = run(state.meteors[0].at - now - FRAME_MS * 2);
   assert.deepEqual(meteorEvents(quiet), []);
   const hit = run(FRAME_MS * 4);
   assert.deepEqual(meteorEvents(hit), ['meteorImpact']);
-  assert.equal(state.meteor.phase, 'fallen');
+  assert.equal(state.meteors[0].phase, 'fallen');
   assert.ok(state.maze.cells[0][5].left && state.maze.cells[0][4].right, 'M is walled off');
   assert.ok(state.landmarks.some(l => l.type === 'impact' && l.x === 5 && l.y === 0));
   drive('right', 2);
@@ -403,31 +403,44 @@ test('the meteor waits while the rover is on its cell, and a restart resets it',
   run(INPUT_LOCK_MS);
   drive('right', 5);
   assert.equal(state.player.x, 5, 'on M');
-  const due = state.meteor.at;
+  const due = state.meteors[0].at;
   const held = run(METEOR.warnMs + METEOR.retryMs * 3);
   assert.deepEqual(meteorEvents(held), [], 'no hit under the rover');
-  assert.equal(state.meteor.phase, 'falling');
-  assert.equal(state.meteor.at, due, 'the picture does not jump while it waits');
+  assert.equal(state.meteors[0].phase, 'falling');
+  assert.equal(state.meteors[0].at, due, 'the picture does not jump while it waits');
   tap('right');
   const hit = run(STEP_MS + METEOR.retryMs + FRAME_MS * 2);
   assert.equal(state.player.x, 6);
   assert.deepEqual(meteorEvents(hit), ['meteorImpact'], 'lands once the rover has moved off');
-  assert.ok(state.meteor.at > due && state.meteor.at <= now, 'the impact time is when it really hit');
+  assert.ok(state.meteors[0].at > due && state.meteors[0].at <= now, 'the impact time is when it really hit');
   game.restartLevel(now);
   run(INPUT_LOCK_MS);
-  assert.equal(state.meteor.phase, 'waiting');
+  assert.equal(state.meteors[0].phase, 'waiting');
   assert.equal(state.maze.cells[0][5].left, false, 'the crater is gone');
   assert.ok(!state.landmarks.some(l => l.type === 'impact'));
 });
 
-test('a meteor without a trigger goes off METEOR.startMs after the level starts', () => {
-  game.setLevels([{ ...LOOP, map: LOOP.map.replace('T', ' ') }, LOOP]);
+test('m goes off METEOR.startMs after the level starts', () => {
+  game.setLevels([{ ...LOOP, map: LOOP.map.replace('T', ' ').replace('M', 'm') }, LOOP]);
   game.startLevel(0, now);
   const early = run(METEOR.startMs - FRAME_MS * 2);
   assert.deepEqual(meteorEvents(early), []);
   assert.deepEqual(meteorEvents(run(FRAME_MS * 4)), ['meteorWarn']);
   assert.deepEqual(meteorEvents(run(METEOR.warnMs + FRAME_MS * 2)), ['meteorImpact']);
   assert.equal(state.player.x, 0, 'the rover was still parked');
+});
+
+test('two meteors: m falls right after the start, M only once the rover reaches T', () => {
+  const two = { ...LOOP, map: LOOP.map.replace('#               #\n', '#               #\n# ###############\n#      m        #\n') };
+  game.setLevels([two, LOOP]);
+  game.startLevel(0, now);
+  assert.deepEqual(meteorEvents(run(METEOR.startMs + METEOR.warnMs + FRAME_MS * 4)), ['meteorWarn', 'meteorImpact']);
+  assert.deepEqual(state.meteors.map(m => m.phase), ['fallen', 'waiting']);
+  assert.ok(state.maze.cells[2][3].left && state.maze.cells[2][3].right, 'm is walled off');
+  assert.deepEqual(meteorEvents(drive('right', 2)), ['meteorWarn']);
+  assert.deepEqual(meteorEvents(run(METEOR.warnMs + FRAME_MS * 2)), ['meteorImpact']);
+  assert.deepEqual(state.meteors.map(m => m.phase), ['fallen', 'fallen']);
+  assert.equal(state.landmarks.filter(l => l.type === 'impact').length, 2);
 });
 
 test('under water a held direction swims on without stopping after the first cell', () => {

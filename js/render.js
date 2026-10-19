@@ -597,7 +597,7 @@ export function render(now, { soundOff = false } = {}) {
   };
 
   drawSky(now, w, h, state.planet);
-  const [shakeX, shakeY] = meteorShake(state.meteor, now, cell);
+  const [shakeX, shakeY] = meteorShake(state.meteors, now, cell);
   ctx.save();
   ctx.translate(shakeX, shakeY);
   ctx.drawImage(mazeLayer, 0, 0, w, h);
@@ -740,7 +740,7 @@ export function render(now, { soundOff = false } = {}) {
   }
   if (!planet.side && chips.any(false)) onGround(() => chips.draw(ctx, now, { cell, ox, oy }, false));
 
-  drawMeteor(ctx, state.meteor, now, cell, toPx);
+  for (const m of state.meteors) drawMeteor(ctx, m, now, cell, toPx);
   // The shake stops here: the veil, the weather and the title stay put (the lights drift from the
   // rover by at most a twentieth of a cell, not worth the cost of shaking the layer too).
   ctx.restore();

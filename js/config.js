@@ -17,7 +17,7 @@ export const LIGHTS_FLICKER_MS = 300;
 export const LIGHTS_REARM_MS = 1000;
 // A meteor: its shadow grows on the target cell for METEOR_WARN_MS, then it hits and the ground
 // shakes for METEOR_SHAKE_MS. If the rover happens to be on the cell, the hit waits a little.
-// A level with M but no T sets its meteor off startMs after the level begins.
+// A meteor on m (no trigger) sets off startMs after the level begins.
 export const METEOR = { warnMs: 900, shakeMs: 350, retryMs: 150, startMs: 1200 };
 export const BUMP_MS = 140;
 // Holding the way into an ice wall this long drills through it; letting go keeps the progress.

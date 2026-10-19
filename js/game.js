@@ -16,7 +16,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, look, dark, storm, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, schools, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, look, dark, storm, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, schools, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -27,9 +27,9 @@ export function startLevel(index, now, { restart = false } = {}) {
     swims: Boolean(PLANETS[planet].side),
     dark,
     storm,
-    // phase: waiting (for the rover to reach the trigger, or for `at` when there is no trigger)
+    // Each: waiting (for the rover to reach the trigger, or for `at` when there is no trigger)
     // → falling (hits at `at`) → fallen
-    meteor: meteor && { ...meteor, phase: 'waiting', at: meteor.trigger ? null : now + METEOR.startMs },
+    meteors: meteors.map(m => ({ ...m, phase: 'waiting', at: m.trigger ? null : now + METEOR.startMs })),
     maze,
     goal,
     landmarks,
@@ -107,11 +107,11 @@ function switchLightsAtStormEdge(now) {
   }
 }
 
-function setMeteorOff(now) {
-  state.meteor.phase = 'falling';
-  state.meteor.at = now + METEOR.warnMs;
+function setMeteorOff(meteor, now) {
+  meteor.phase = 'falling';
+  meteor.at = now + METEOR.warnMs;
   // Each fall comes in from its own direction and scatters its own rocks.
-  state.meteor.seed = Math.floor(now) % 100000;
+  meteor.seed = Math.floor(now) % 100000;
   events.push({ type: 'meteorWarn' });
 }
 
@@ -178,9 +178,8 @@ function move(dir, now, cellPx, fresh) {
   state.moving = true;
   events.push({ type: 'move', dir });
   if (state.storm) switchLightsAtStormEdge(now);
-  const { meteor } = state;
-  if (meteor?.phase === 'waiting' && meteor.trigger && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) {
-    setMeteorOff(now);
+  for (const meteor of state.meteors) {
+    if (meteor.phase === 'waiting' && meteor.trigger && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) setMeteorOff(meteor, now);
   }
   const landmark = state.landmarks.find(l => l.x === state.player.x && l.y === state.player.y);
   if (landmark) events.push({ type: 'landmark', kind: landmark.type });
@@ -320,20 +319,20 @@ function step(now, dt, cellPx) {
     state.sonar = { at: now, from: { x: at.x, y: at.y }, next: now + SONAR_EVERY_MS };
     events.push({ type: 'sonar' });
   }
-  const { meteor } = state;
-  if (meteor?.phase === 'waiting' && !meteor.trigger && now >= meteor.at) setMeteorOff(now);
-  // While the rover sits on the cell the rock hangs in its last frame (`at` stays), and lands
-  // once the rover has moved off; `at` then becomes the real moment of impact.
-  if (meteor?.phase === 'falling' && now >= Math.max(meteor.at, meteor.retryAt ?? 0)) {
-    const onCell = c => c.x === meteor.cell.x && c.y === meteor.cell.y;
-    if (onCell(state.player)) {
-      meteor.retryAt = now + METEOR.retryMs;
-    } else {
-      meteor.phase = 'fallen';
-      meteor.at = now;
-      state.maze = blockCell(state.maze, meteor.cell);
-      state.landmarks.push({ type: 'impact', ...meteor.cell, seed: meteor.seed });
-      events.push({ type: 'meteorImpact' });
+  for (const meteor of state.meteors) {
+    if (meteor.phase === 'waiting' && !meteor.trigger && now >= meteor.at) setMeteorOff(meteor, now);
+    // While the rover sits on the cell the rock hangs in its last frame (`at` stays), and lands
+    // once the rover has moved off; `at` then becomes the real moment of impact.
+    if (meteor.phase === 'falling' && now >= Math.max(meteor.at, meteor.retryAt ?? 0)) {
+      if (state.player.x === meteor.cell.x && state.player.y === meteor.cell.y) {
+        meteor.retryAt = now + METEOR.retryMs;
+      } else {
+        meteor.phase = 'fallen';
+        meteor.at = now;
+        state.maze = blockCell(state.maze, meteor.cell);
+        state.landmarks.push({ type: 'impact', ...meteor.cell, seed: meteor.seed });
+        events.push({ type: 'meteorImpact' });
+      }
     }
   }
   if (state.lightsOffAt !== null && now >= state.lightsOffAt) {

@@ -6,8 +6,8 @@
 // `dark: true` makes it a night level: black except the rover's headlights.
 // `storm: { from, to }` covers that share of the width with a dust storm the rover sees little in.
 // `intro: 'drill'`: the rover first drills the ice wall next to the start by itself, to show how.
-// M and T: a meteor lands on M (walling the cell off) once the rover drives onto T, or right after
-// the start when there is no T.
+// M and T: a meteor lands on M (walling the cell off) once the rover drives onto T; on each m it
+// lands right after the start.
 // W and B: a white and a black smoker on the floor of the cell (oceans seen from the side).
 // Under water only: `wreck: N` freezes a broken drone into the ice over cell column N; `dusk: true`
 // darkens the water towards the floor; `jellies: [[x, y], …]` are the jellyfish's cells and
@@ -16,7 +16,7 @@ export const LEVELS = [
   // 1 — метеорит падает в правый верхний угол сразу после старта, дорога внизу слева
   { planet: 'moon', look: 1, map: `
 ###############
-#S           M#
+#S           m#
 # ########### #
 #           # #
 # ######### # #
@@ -729,10 +729,10 @@ export const LEVELS = [
 #  S        #W      #  B                #
 #########################################
 ` },
-  // 39
+  // 39 — два метеорита: один падает сверху сразу после старта, второй по T в середине, оба в стороне от пути
   { planet: 'moon', look: 37, map: `
 #########################################
-#   #   #     #     #       #          S#
+#   #   #     #     #      m#          S#
 # # # # # ### # # # ### ### # ######### #
 #     # # # # # # #     # # #           #
 # ##### # # # ### ####### # ### ####### #
@@ -742,9 +742,9 @@ export const LEVELS = [
 # # # # ######### ##### # # # ##### # # #
 # # #C#     #     #     # # # #     # # #
 # # # ##### ####### ##### # # # # ### # #
-#   # #   # #   #   #   # # # # # #   # #
+#   # #   # #   #T  #   # # # # # #   # #
 ### # # # # # # # # # # # # # # ### ### #
-# # # # # # # # # # # # # # # #     #   #
+# # # # # #M# # # # # # # # # #     #   #
 # # # # # # ### # # # # # # # ####### # #
 # # # # #       # # # # #   #         # #
 # # # # ######### # # ##### ########### #

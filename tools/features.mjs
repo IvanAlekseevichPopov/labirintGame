@@ -30,11 +30,14 @@ export function featuresDoc(levels = LEVELS) {
   const parsed = levels.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) }));
   const where = test => parsed.filter(test).map(l => l.n);
 
-  const meteors = parsed.filter(l => l.meteor).map(({ n, meteor, maze, start, goal }) => {
-    const from = meteor.trigger ?? start;
-    const before = steps(maze, from, goal), after = steps(blockCell(maze, meteor.cell), from, goal);
-    const what = after > before ? `перекрывает путь, объезд +${after - before}` : 'в стороне от пути';
-    return `${n} (${meteor.trigger ? 'по T' : 'сразу после старта'}, ${what})`;
+  const meteors = parsed.filter(l => l.meteors.length).map(({ n, meteors, maze, start, goal }) => {
+    const each = meteors.map(({ cell, trigger }) => {
+      const from = trigger ?? start;
+      const before = steps(maze, from, goal), after = steps(blockCell(maze, cell), from, goal);
+      const what = after > before ? `перекрывает путь, объезд +${after - before}` : 'в стороне от пути';
+      return `${trigger ? 'по T' : 'сразу после старта'}, ${what}`;
+    });
+    return `${n} (${each.join('; ')})`;
   });
   const ice = parsed.filter(l => l.ice.length).map(({ n, ice, maze, start, goal }) => {
     const must = steps(maze, start, goal) === undefined;
@@ -44,7 +47,7 @@ export function featuresDoc(levels = LEVELS) {
   const rows = [
     ['Ночь', 'карта: `dark: true`', ranges(where(l => l.dark)), '`night.js`, `headlights.js`, `veil.js`; под водой `deep.js` (сонар)'],
     ['Пыльная буря', 'карта: `storm: { from, to }`', ranges(where(l => l.storm)), '`storm.js`, `headlights.js`, `veil.js`'],
-    ['Метеорит', 'карта: `M` и `T`', meteors.join('; ') || '—', '`meteor.js`, `game.js`'],
+    ['Метеорит', 'карта: `M` и `T` — по T, `m` — сразу после старта', meteors.join('; ') || '—', '`meteor.js`, `game.js`'],
     ['Ледяные стены', 'карта: `I` (в скобках — сколько; «обяз.» — без бурения до ракеты не доехать)', ice.join('; ') || '—', '`ice.js`, `game.js`'],
     ['Показ бура', "карта: `intro: 'drill'`", ranges(where(l => l.intro?.kind === 'drill')), '`game.js` (`PLAY_INTRO`), `render.js` (полосы)'],
     ['Вид сбоку, подо льдом', 'планета с `side: true`', ranges(where(l => PLANETS[l.planet].side)), '`ocean.js`, `bubbles.js`, `silt.js`, `render.js`'],

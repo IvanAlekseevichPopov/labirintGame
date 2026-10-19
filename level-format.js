@@ -4,10 +4,10 @@
 import { LANDMARK_BY_CHAR, LANDMARKS } from './js/landmarks.js';
 import { PLANETS } from './js/planets.js';
 
-// M and T belong to a meteor event: it lands on M once the rover drives onto T, or soon after the
-// level starts when there is no T (see js/game.js). W and B are a white and a black smoker on the
+// Meteors: one lands on M once the rover drives onto T, and one on each m soon after the level
+// starts (see js/game.js). W and B are a white and a black smoker on the
 // floor of the cell, for the oceans seen from the side: decoration, the cell stays open.
-const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', T: 'trigger', W: 'white', B: 'black', ...LANDMARK_BY_CHAR };
+const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', m: 'early', T: 'trigger', W: 'white', B: 'black', ...LANDMARK_BY_CHAR };
 // The rover must be at least this many steps from the impact when the meteor is set off.
 export const METEOR_MIN_DISTANCE = 3;
 // I is a wall of ice the rover can drill through, on planets whose rover has a drill.
@@ -80,7 +80,7 @@ export function parseLevel(level, number, planets) {
     const isCell = row % 2 === 1 && col % 2 === 1;
     if (onFrame && ch !== '#') fail(`${at(row, col)}: дыра во внешней стене`);
     if (isCell && !(ch in LEVEL_CELL_CHARS)) {
-      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, T, W, B, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
+      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, m, T, W, B, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
     }
     if (!isCell && !LEVEL_WALL_CHARS.includes(ch)) {
       fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только #, пробел или I`);
@@ -94,7 +94,7 @@ export function parseLevel(level, number, planets) {
   const cols = (width - 1) / 2, rows = (lines.length - 1) / 2;
   const cells = [];
   const landmarks = [];
-  const starts = [], rockets = [], impacts = [], triggers = [], smokers = [], ice = [];
+  const starts = [], rockets = [], impacts = [], early = [], triggers = [], smokers = [], ice = [];
   for (let y = 0; y < rows; y++) {
     cells.push([]);
     for (let x = 0; x < cols; x++) {
@@ -109,6 +109,7 @@ export function parseLevel(level, number, planets) {
       if (kind === 'start') starts.push({ x, y });
       else if (kind === 'rocket') rockets.push({ x, y });
       else if (kind === 'impact') impacts.push({ x, y });
+      else if (kind === 'early') early.push({ x, y });
       else if (kind === 'trigger') triggers.push({ x, y });
       else if (kind === 'white' || kind === 'black') {
         if (lines[row + 1][col] !== '#') fail(`${at(row, col)}: курильщик ${lines[row][col]} стоит на дне, а под ним нет стены`);
@@ -159,7 +160,7 @@ export function parseLevel(level, number, planets) {
     }
     if (storm) fail('под водой бури нет: её рисунок сделан для вида сверху');
     if (dark && dusk) fail('под водой ночь dark и сумерки dusk вместе не бывают: ночью и так темно');
-    if (impacts.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
+    if (impacts.length || early.length || triggers.length) fail('под водой метеорита нет: его рисунок сделан для вида сверху');
     const above = landmarks.filter(l => !LANDMARKS[l.type].side).map(l => LANDMARKS[l.type].char);
     if (above.length) fail(`под водой ориентира ${above[0]} нет: его рисунок сделан для вида сверху`);
   } else {
@@ -177,28 +178,32 @@ export function parseLevel(level, number, planets) {
   // Ice is only in the way until drilled.
   const toGoal = levelDistances(ice.reduce(openWall, maze), start).get(`${goal.x},${goal.y}`);
   if (!toGoal) fail('до ракеты не доехать');
-  let meteor = null;
-  if (impacts.length || triggers.length) {
-    if (impacts.length !== 1 || triggers.length > 1) fail(`метеорит: нужна ровно одна M и не больше одной T, а тут M: ${impacts.length}, T: ${triggers.length}`);
-    const [cell] = impacts, trigger = triggers[0] ?? null;
-    const setOff = trigger ?? start;
+  const meteors = [...early.map(cell => ({ cell, trigger: null })), ...impacts.map(cell => ({ cell, trigger: triggers[0] ?? null }))];
+  if (meteors.length || triggers.length) {
+    if (impacts.length > 1 || triggers.length !== impacts.length) fail(`метеорит по T: нужны одна M и одна T, а тут M: ${impacts.length}, T: ${triggers.length}`);
     if (dark || storm) fail('метеорит на ночном уровне или в бурю не поддерживается: его не видно под пеленой, а фары не знают о кратере');
     if (ice.length) fail('метеорит рядом с ледяными стенами не поддерживается: проверка пути не знает, что лёд пробурят');
-    const fromTrigger = levelDistances(maze, setOff).get(`${cell.x},${cell.y}`);
-    if (!fromTrigger) fail(`до метеорита M не доехать от ${trigger ? 'T' : 'старта'}`);
-    if (fromTrigger.dist < METEOR_MIN_DISTANCE) fail(`метеорит M должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${trigger ? 'T' : 'старта'}`);
-    const blocked = blockCell(maze, cell);
+    // By the time the rover reaches T the craters of m are already there.
+    const afterEarly = early.reduce(blockCell, maze);
+    const trigger = triggers[0];
+    if (trigger && !levelDistances(afterEarly, start).has(`${trigger.x},${trigger.y}`)) fail('после падения метеорита m до T не доехать');
+    for (const { cell, trigger } of meteors) {
+      const [letter, from] = trigger ? ['M', 'T'] : ['m', 'старта'];
+      const setOff = levelDistances(trigger ? afterEarly : maze, trigger ?? start).get(`${cell.x},${cell.y}`);
+      if (!setOff) fail(`до метеорита ${letter} не доехать от ${from}`);
+      if (setOff.dist < METEOR_MIN_DISTANCE) fail(`метеорит ${letter} должен быть не ближе ${METEOR_MIN_DISTANCE} клеток пути от ${from}`);
+    }
+    const blocked = meteors.reduce((m, { cell }) => blockCell(m, cell), maze);
     for (const [name, from] of [['старта', start], ['T', trigger]]) {
       if (from && !levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);
     }
-    meteor = { cell, trigger };
   }
   if (intro && (dark || storm)) fail('показ intro на ночном уровне или в бурю не поддерживается: он идёт раньше, чем включатся фары');
   const scene = intro && { kind: intro, ...INTROS[intro]({ start, goal, ice, fail }) };
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, look, dark, storm: stormCells, meteor, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), schools, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
+  return { planet, look, dark, storm: stormCells, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), schools, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,

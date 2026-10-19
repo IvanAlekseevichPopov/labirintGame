@@ -8,10 +8,9 @@ import { mulberry32 } from './random.js';
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
 // Offset to translate the whole frame by, px; zero when nothing is shaking.
-export function meteorShake(meteor, now, cell) {
-  if (meteor?.phase !== 'fallen') return [0, 0];
-  const t = (now - meteor.at) / METEOR.shakeMs;
-  if (t < 0 || t >= 1) return [0, 0];
+export function meteorShake(meteors, now, cell) {
+  const t = Math.min(...meteors.filter(m => m.phase === 'fallen').map(m => (now - m.at) / METEOR.shakeMs).filter(t => t >= 0));
+  if (!(t < 1)) return [0, 0];
   const amp = cell * 0.05 * (1 - t);
   return [Math.sin(now / 11) * amp, Math.cos(now / 13) * amp];
 }
@@ -27,7 +26,7 @@ function fallStyle(seed) {
 }
 
 export function drawMeteor(ctx, meteor, now, cell, toPx) {
-  if (!meteor || meteor.phase === 'waiting') return;
+  if (meteor.phase === 'waiting') return;
   const [x, y] = toPx(meteor.cell);
   const style = fallStyle(meteor.seed ?? 0);
   if (meteor.phase === 'falling') {
