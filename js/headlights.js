@@ -40,6 +40,9 @@ export const HEADLIGHTS = {
     mars: { color: '255,220,160', dust: { perCell: 4.5, color: '255,200,150' } },
     europa: { color: '220,240,255', tint: 0.12, dust: { perCell: 5, color: '240,250,255' } },
   },
+  shade: {
+    default: {},
+  },
   storm: {
     default: { reach: 3.2, strength: 0.9, color: '255,230,120', tint: 0.4, dust: { kind: 'sand', count: 56, wind: 7, color: '255,241,214' } },
   },

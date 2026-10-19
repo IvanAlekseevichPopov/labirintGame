@@ -8,11 +8,12 @@ import { createWeather, weatherIntensity } from './weather.js';
 import { brightness, createNight } from './night.js';
 import { buildDeep, drawDeep, releaseDeep } from './deep.js';
 import { createStorm } from './storm.js';
+import { createShade, drawCraterGround, drawCraterRock, passRoads } from './shade.js';
 import { FONT, drawPad, drawSoundOff, drawText, useContext } from './art.js';
 import { ROVERS } from './rovers.js';
 import { drawRocket } from './rockets.js';
 import { LANDMARKS } from './landmarks.js';
-import { drawMeteor, meteorShake } from './meteor.js';
+import { drawMeteor, drawMeteorFlight, meteorLights, meteorShake } from './meteor.js';
 import { drawLaunchSmoke } from './launch.js';
 import { drawGround, makeGround } from './ground.js';
 import { drawWallDetails } from './walls.js';
@@ -110,6 +111,14 @@ function wallSegments({ cols, rows, cells }) {
 
 const sameSegment = (s, t) => s.every((v, i) => v === t[i]);
 
+// A wall beside a rock cell of a crater's rim (the frame stays, it is the edge of the world).
+function underRock([x0, y0, x1, y1]) {
+  const { cols, rows } = state.maze;
+  if (isFrame([x0, y0, x1, y1], cols, rows)) return false;
+  const sides = y0 === y1 ? [[x0, y0 - 1], [x0, y0]] : [[x0 - 1, y0], [x0, y0]];
+  return sides.some(([x, y]) => state.rocks.some(r => r.x === x && r.y === y));
+}
+
 // Seeded by the level's own `look`, so its decorations look the same every time — part of what
 // makes it recognisable — wherever it stands in the list.
 const lookSeed = () => state.look;
@@ -119,9 +128,12 @@ function makeDecor() {
   const rand = mulberry32(lookSeed() + 1);
   return {
     ground: makeGround(state.planet, rand, cols, rows),
-    // Ice walls are drawn on their own, every frame, since drilling changes them.
-    walls: wallSegments(state.maze).filter(s => !state.ice.some(w => sameSegment(iceSegment(w), s))),
+    // Ice walls are drawn on their own, every frame, since drilling changes them; the walls round
+    // a crater's rim rock are under the rock.
+    walls: wallSegments(state.maze).filter(s => !state.ice.some(w => sameSegment(iceSegment(w), s)) && !underRock(s)),
+    rockWalls: wallSegments(state.maze).filter(underRock),
     props: placeProps(state, lookSeed() + 2000),
+    roads: state.shade && passRoads(state.shade, state.maze, state.start, state.goal),
     life: PLANETS[state.planet].side ? placeLife(state, lookSeed()) : null,
   };
 }
@@ -138,7 +150,8 @@ export function levelChanged() {
   drawWeather = createWeather(state.planet, intensity);
   deep = Boolean(PLANETS[state.planet].side && state.dark);
   if (!deep) releaseDeep();
-  drawVeil = state.dark && !deep ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
+  drawVeil = state.dark && !deep ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet)
+    : state.shade ? createShade(state.shade, state.maze, state.planet) : null;
   sizeVeilLayer();
   buildMazeLayer();
   buildTrackLayer();
@@ -229,6 +242,7 @@ function buildMazeLayer() {
     g.fill();
     g.clip();
     drawGround(g, decor.ground, p, cell, ox, oy, innerWidth, innerHeight);
+    if (state.shade) drawCraterGround(g, state.shade, decor.roads, cell, { x: ox, y: oy });
   }
   const floorMarks = state.landmarks.filter(l => !LANDMARKS[l.type].upright);
   const drawMark = l => LANDMARKS[l.type].draw(g, ox + (l.x + 0.5) * cell, oy + (l.y + 0.5) * cell, cell * (LANDMARKS[l.type].size ?? 0.4), p, l.seed ?? l.x * 31 + l.y * 17);
@@ -247,7 +261,9 @@ function buildMazeLayer() {
         .map(([x, y]) => [ox + x * cell, oy + y * cell]);
     });
   const half = WALL_RATIO / 2;
-  wallsPx = [...decor.walls, ...state.ice.map(iceSegment)].map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
+  // A meteor's crater closes its cell: the headlights stop at it too, though no wall is drawn there.
+  const craterSides = impacts.flatMap(({ x, y }) => [[x - 0.5, y - 0.5, x + 0.5, y - 0.5], [x - 0.5, y + 0.5, x + 0.5, y + 0.5], [x - 0.5, y - 0.5, x - 0.5, y + 0.5], [x + 0.5, y - 0.5, x + 0.5, y + 0.5]]);
+  wallsPx = [...decor.walls, ...decor.rockWalls, ...state.ice.map(iceSegment), ...craterSides].map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   wallEdgesPx = p.side ? wallsPx.flatMap(s => wallOutline(s, wall / 2)) : [];
   const rough = p.wallRough ?? 1;
   const details = { cell, ox, oy, half, seed: lookSeed() + 1000, skip: (x, y) => blastAt([x, y], impacts) > 0 };
@@ -280,6 +296,7 @@ function buildMazeLayer() {
   if (deep) buildDeep({ shapes: ragged(half, 0.03 * rough), walls: wallsPx, cell, ...deepLights(cell, ox, oy) });
   fillShapes(g, ragged(half * 0.45, 0.015 * rough, -0.008, -0.016), paint.top);
   drawWallDetails(g, decor.walls, p, details);
+  if (state.shade) drawCraterRock(g, state.shade, state.rocks, cell, { x: ox, y: oy }, { ...frame, round: wall, cols, rows }, lookSeed() + 3000);
   // Rays and rubble stay on the ground, never on the sky.
   g.save();
   g.beginPath();
@@ -752,9 +769,10 @@ export function render(now, { soundOff = false } = {}) {
       goal: { x: gx, y: padY - cell * 0.4 - lift },
       landmarks: state.landmarks.map(l => { const [x, y] = toPx(l); return { type: l.type, x, y }; }),
       sinceLightsAt: now - state.lightsAt,
-      lights: drawWeather?.lights(cell) ?? [],
+      lights: [...(drawWeather?.lights(cell) ?? []), ...meteorLights(state.meteors, now, cell, toPx)],
     });
   }
+  for (const m of state.meteors) drawMeteorFlight(ctx, m, now, cell, toPx);
   const bars = letterbox(now);
   ctx.globalAlpha = 1 - bars;
   drawText(`${planet.name} — уровень ${state.index + 1}`, ox, header / 2, header * 0.45, 'left', '#ffffff');

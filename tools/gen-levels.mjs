@@ -35,7 +35,7 @@ const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // Hand-made levels (night, storm, meteor, ice walls): the generator must not touch them.
-const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 30, 32, 34, 35, 36, 37, 39];
+const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 30, 32, 34, 35, 36, 37, 39, 40];
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
 // level → level whose difficulty it should get, keeping its own size; for levels that felt off in play
@@ -289,9 +289,9 @@ async function readExisting() {
 }
 
 // Hand-set flags that must survive regeneration.
-const levelFlags = ({ look, dark, storm, intro, wreck, dusk, jellies, schools }) => ({ look, ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }), ...(wreck !== undefined && { wreck }), ...(dusk && { dusk }), ...(jellies && { jellies }), ...(schools && { schools }) });
-const flagSource = ({ look, dark, storm, intro, wreck, dusk, jellies, schools }) =>
-  `look: ${look}, ${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}${wreck !== undefined ? `wreck: ${wreck}, ` : ''}${dusk ? 'dusk: true, ' : ''}${jellies ? `jellies: ${JSON.stringify(jellies).replaceAll(',', ', ')}, ` : ''}${schools ? `schools: [${schools.map(s => `{ y: ${s.y}, from: ${s.from}, to: ${s.to} }`).join(', ')}], ` : ''}`;
+const levelFlags = ({ look, shade, dark, storm, intro, wreck, dusk, jellies, schools }) => ({ look, ...(shade && { shade }), ...(dark && { dark }), ...(storm && { storm }), ...(intro && { intro }), ...(wreck !== undefined && { wreck }), ...(dusk && { dusk }), ...(jellies && { jellies }), ...(schools && { schools }) });
+const flagSource = ({ look, shade, dark, storm, intro, wreck, dusk, jellies, schools }) =>
+  `look: ${look}, ${shade ? `shade: { x: ${shade.x}, y: ${shade.y}, r: ${shade.r} }, ` : ''}${dark ? 'dark: true, ' : ''}${storm ? `storm: { from: ${storm.from}, to: ${storm.to} }, ` : ''}${intro ? `intro: '${intro}', ` : ''}${wreck !== undefined ? `wreck: ${wreck}, ` : ''}${dusk ? 'dusk: true, ' : ''}${jellies ? `jellies: ${JSON.stringify(jellies).replaceAll(',', ', ')}, ` : ''}${schools ? `schools: [${schools.map(s => `{ y: ${s.y}, from: ${s.from}, to: ${s.to} }`).join(', ')}], ` : ''}`;
 
 // What makeLevel needs to know about the level before it, recovered from its map.
 function describe(level, number) {

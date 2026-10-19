@@ -122,6 +122,23 @@ test('on the real levels.js, --only refuses the levels made by hand and leaves t
   }
 });
 
+test('on the real levels.js, --only keeps the other levels as they are, crater and all', async () => {
+  const generated = fs.readFileSync(out, 'utf8');
+  const real = fs.readFileSync(new URL('levels.js', ROOT), 'utf8');
+  fs.writeFileSync(out, real);
+  try {
+    const run = spawnSync(process.execPath, [locked, '--only', '3'], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const after = (await readLevels()).levels;
+    LEVELS.forEach((level, i) => {
+      if (i === 2) return;
+      assert.deepEqual(after[i], level, `level ${i + 1}`);
+    });
+  } finally {
+    fs.writeFileSync(out, generated);
+  }
+});
+
 // The first of the 40 steps was dropped from the game, so the Moon has only two levels at the start.
 test('generates 39 valid levels cycling the planets seen from above in blocks of 3', async () => {
   const { levels } = await readLevels();
@@ -147,11 +164,11 @@ test('routes get longer from the first levels to the last', async () => {
 });
 
 // LOCKED is all that keeps --only from regenerating a map made by hand: dark, storm and intro survive, I, M and T do not.
-test('every level made by hand in levels.js (night, storm, meteor, ice) is in LOCKED', () => {
+test('every level made by hand in levels.js (night, storm, crater, meteor, ice) is in LOCKED', () => {
   const source = fs.readFileSync(new URL('tools/gen-levels.mjs', ROOT), 'utf8');
   const locked = JSON.parse(source.match(/const LOCKED = (\[[^\]]*\]);/)[1]);
   const byHand = LEVELS.map((level, i) => ({ n: i + 1, ...parseLevel(level, i + 1, PLANET_KEYS) }))
     // Levels seen from the side are never regenerated anyway, LOCKED or not.
-    .filter(l => !PLANETS[l.planet].side && (l.dark || l.storm || l.meteors.length || l.ice.length)).map(l => l.n);
+    .filter(l => !PLANETS[l.planet].side && (l.dark || l.storm || l.shade || l.meteors.length || l.ice.length)).map(l => l.n);
   assert.deepEqual(byHand.filter(n => !locked.includes(n)), []);
 });

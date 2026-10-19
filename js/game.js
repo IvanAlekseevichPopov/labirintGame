@@ -1,7 +1,7 @@
 // Game rules without DOM: level state, input model, movement and winning.
 // Time (`now`, ms) and the on-screen cell size are passed in, so this runs under node tests too.
 
-import { blockCell, openWall, parseLevel } from '../level-format.js';
+import { blockCell, inShade, openWall, parseLevel } from '../level-format.js';
 import { PLANETS, PLANET_KEYS } from './planets.js';
 import {
   DIRS, DRILL_MS, FIRST_REPEAT_MS, INTRO, INPUT_LOCK_MS, LIGHTS_FLICKER_MS, LIGHTS_ON_MS, LIGHTS_REARM_MS, METEOR, MAX_STEP_MS, MIN_STEP_MS, SONAR_EVERY_MS, SONAR_FIRST_MS, TURN_BUFFER_MS, WIN } from './config.js';
@@ -16,7 +16,7 @@ export function setLevels(list) {
 
 export function startLevel(index, now, { restart = false } = {}) {
   index %= levels.length;
-  const { planet, look, dark, storm, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, schools, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
+  const { planet, look, dark, storm, shade, rocks, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies, schools, ice, intro, startDir } = parseLevel(levels[index], index + 1, PLANET_KEYS);
   const facing = Object.values(DIRS).find(d => d.wall === startDir);
   Object.assign(state, {
     index,
@@ -27,6 +27,10 @@ export function startLevel(index, now, { restart = false } = {}) {
     swims: Boolean(PLANETS[planet].side),
     dark,
     storm,
+    // A big crater with its floor in shadow, { x, y, r, passes } in cells, or null.
+    shade,
+    // Cells of the crater's rim rock (X).
+    rocks,
     // Each: waiting (for the rover to reach the trigger, or for `at` when there is no trigger)
     // → falling (hits at `at`) → fallen
     meteors: meteors.map(m => ({ ...m, phase: 'waiting', at: m.trigger ? null : now + METEOR.startMs })),
@@ -76,7 +80,7 @@ export function startLevel(index, now, { restart = false } = {}) {
     pendingTrack: null,
   });
   resetInput();
-  // Headlights are needed in the dark and inside a storm; the rover waits for them to settle.
+  // Headlights are needed in the dark, inside a storm and in a crater's shadow; the rover waits for them to settle.
   if (needsLights()) {
     state.lightsAt = now + LIGHTS_ON_MS;
     state.inputFrom = state.lightsAt + LIGHTS_FLICKER_MS;
@@ -85,13 +89,14 @@ export function startLevel(index, now, { restart = false } = {}) {
 }
 
 const inStorm = ({ x }) => Boolean(state.storm) && x >= state.storm.from && x < state.storm.to;
-const needsLights = () => state.dark || inStorm(state.player);
+const inVeil = cell => inStorm(cell) || inShade(state.shade, cell);
+const needsLights = () => state.dark || inVeil(state.player);
 
-// Crossing the edge of a storm switches the headlights on (they flicker, see night.js) or off.
+// Crossing the edge of a storm or a crater's shadow switches the headlights on (they flicker, see night.js) or off.
 // They go out only once the step out is finished, and coming straight back in does not restart
 // the flicker and the click.
-function switchLightsAtStormEdge(now) {
-  const want = inStorm(state.player);
+function switchLightsAtVeilEdge(now) {
+  const want = inVeil(state.player);
   const have = Number.isFinite(state.lightsAt) && state.lightsOffAt === null;
   if (want && !have) {
     const recently = state.lightsOffAt !== null || now - state.lightsOutAt < LIGHTS_REARM_MS;
@@ -177,7 +182,7 @@ function move(dir, now, cellPx, fresh) {
   state.pendingTrack = newTrack({ x, y }, state.player);
   state.moving = true;
   events.push({ type: 'move', dir });
-  if (state.storm) switchLightsAtStormEdge(now);
+  if (state.storm || state.shade) switchLightsAtVeilEdge(now);
   for (const meteor of state.meteors) {
     if (meteor.phase === 'waiting' && meteor.trigger && state.player.x === meteor.trigger.x && state.player.y === meteor.trigger.y) setMeteorOff(meteor, now);
   }

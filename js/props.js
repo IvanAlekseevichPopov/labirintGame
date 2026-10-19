@@ -24,7 +24,7 @@ const KINDS = {
 // like it blocks the way.
 const DEAD_END_ONLY = new Set(['wreck']);
 
-export function placeProps({ planet, maze, player, goal, landmarks, meteor, ice }, seed) {
+export function placeProps({ planet, maze, player, goal, landmarks, meteors, ice }, seed) {
   const kinds = KINDS[planet];
   const count = Math.min(MAX_PROPS, kinds.length, Math.floor((maze.cols * maze.rows) / CELLS_PER_PROP));
   if (!count) return [];
@@ -33,12 +33,14 @@ export function placeProps({ planet, maze, player, goal, landmarks, meteor, ice 
   const open = ice.reduce(openWall, maze);
   const fromStart = levelDistances(open, player), fromGoal = levelDistances(open, goal);
   const route = fromStart.get(`${goal.x},${goal.y}`).dist;
-  const taken = [player, goal, ...landmarks, ...(meteor ? [meteor.cell, meteor.trigger].filter(Boolean) : [])];
+  const taken = [player, goal, ...landmarks, ...meteors.flatMap(m => [m.cell, m.trigger].filter(Boolean))];
   const near = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < 2;
   const candidates = [];
   for (let y = 0; y < maze.rows; y++) {
     for (let x = 0; x < maze.cols; x++) {
       const key = `${x},${y}`, c = maze.cells[y][x];
+      // Rock of a crater's rim is closed all round and nothing stands on it.
+      if (!fromStart.has(key)) continue;
       if (fromStart.get(key).dist + fromGoal.get(key).dist === route) continue;
       const deadEnd = [c.top, c.bottom, c.left, c.right].filter(Boolean).length === 3;
       candidates.push({ x, y, deadEnd, order: rand() - (deadEnd ? 1 : 0) });

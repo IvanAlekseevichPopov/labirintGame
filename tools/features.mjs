@@ -47,6 +47,7 @@ export function featuresDoc(levels = LEVELS) {
   const rows = [
     ['Ночь', 'карта: `dark: true`', ranges(where(l => l.dark)), '`night.js`, `headlights.js`, `veil.js`; под водой `deep.js` (сонар)'],
     ['Пыльная буря', 'карта: `storm: { from, to }`', ranges(where(l => l.storm)), '`storm.js`, `headlights.js`, `veil.js`'],
+    ['Кратер с тенью', 'карта: `shade: { x, y, r }`, вал — `X`', ranges(where(l => l.shade)), '`shade.js`, `headlights.js`, `veil.js`'],
     ['Метеорит', 'карта: `M` и `T` — по T, `m` — сразу после старта', meteors.join('; ') || '—', '`meteor.js`, `game.js`'],
     ['Ледяные стены', 'карта: `I` (в скобках — сколько; «обяз.» — без бурения до ракеты не доехать)', ice.join('; ') || '—', '`ice.js`, `game.js`'],
     ['Показ бура', "карта: `intro: 'drill'`", ranges(where(l => l.intro?.kind === 'drill')), '`game.js` (`PLAY_INTRO`), `render.js` (полосы)'],

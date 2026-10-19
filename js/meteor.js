@@ -15,7 +15,47 @@ export function meteorShake(meteors, now, cell) {
   return [Math.sin(now / 11) * amp, Math.cos(now / 13) * amp];
 }
 
-// Drawn after the rover, before any veil. `toPx` maps a cell to its centre.
+// The flash of a hit lights up the dark for a moment, a whole crater wide, for a veil to cut out:
+// [{ x, y, r, strength }] in px.
+export function meteorLights(meteors, now, cell, toPx) {
+  return meteors.filter(m => m.phase === 'fallen' && now - m.at < METEOR.flashMs).map(m => {
+    const t = (now - m.at) / METEOR.flashMs;
+    const [x, y] = toPx(m.cell);
+    return { x, y, r: cell * METEOR.flashReach, strength: (1 - t) ** 1.5 };
+  });
+}
+
+// The rock in the air with its glowing trail, for the last third of the fall. Drawn over any veil,
+// like the weather's meteors: it is in the sky, not down in a crater's shadow.
+export function drawMeteorFlight(ctx, meteor, now, cell, toPx) {
+  if (meteor.phase !== 'falling') return;
+  const t = clamp01(1 - (meteor.at - now) / METEOR.warnMs);
+  if (t <= 0.66) return;
+  const [x, y] = toPx(meteor.cell);
+  const style = fallStyle(meteor.seed ?? 0);
+  const f = (t - 0.66) / 0.34;
+  const dx = Math.cos(style.from) * cell * 11, dy = Math.sin(style.from) * cell * 11;
+  const fx = x + (1 - f) * dx, fy = y + (1 - f) * dy;
+  const tail = 0.2;
+  const grad = ctx.createLinearGradient(fx + dx * tail, fy + dy * tail, fx, fy);
+  grad.addColorStop(0, 'rgba(255, 240, 200, 0)');
+  grad.addColorStop(1, 'rgba(255, 244, 214, 1)');
+  ctx.save();
+  ctx.strokeStyle = grad;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = cell * 0.08;
+  ctx.beginPath();
+  ctx.moveTo(fx + dx * tail, fy + dy * tail);
+  ctx.lineTo(fx, fy);
+  ctx.stroke();
+  ctx.fillStyle = '#5a4e40';
+  ctx.beginPath();
+  ctx.arc(fx, fy, cell * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// The shadow on the target while it falls and the hit itself. Drawn after the rover, before any veil. `toPx` maps a cell to its centre.
 // Where this fall comes from and how its rocks fly, fixed for the fall by its seed.
 function fallStyle(seed) {
   const rand = mulberry32(seed);
@@ -35,27 +75,6 @@ export function drawMeteor(ctx, meteor, now, cell, toPx) {
     ctx.beginPath();
     ctx.ellipse(x, y, cell * (0.15 + 0.3 * t), cell * (0.1 + 0.2 * t), 0, 0, Math.PI * 2);
     ctx.fill();
-    // The rock itself shows for the last third of the fall.
-    if (t > 0.66) {
-      const f = (t - 0.66) / 0.34;
-      const dx = Math.cos(style.from) * cell * 11, dy = Math.sin(style.from) * cell * 11;
-      const fx = x + (1 - f) * dx, fy = y + (1 - f) * dy;
-      const tail = 0.2;
-      const grad = ctx.createLinearGradient(fx + dx * tail, fy + dy * tail, fx, fy);
-      grad.addColorStop(0, 'rgba(255, 240, 200, 0)');
-      grad.addColorStop(1, 'rgba(255, 244, 214, 1)');
-      ctx.strokeStyle = grad;
-      ctx.lineCap = 'round';
-      ctx.lineWidth = cell * 0.08;
-      ctx.beginPath();
-      ctx.moveTo(fx + dx * tail, fy + dy * tail);
-      ctx.lineTo(fx, fy);
-      ctx.stroke();
-      ctx.fillStyle = '#5a4e40';
-      ctx.beginPath();
-      ctx.arc(fx, fy, cell * 0.14, 0, Math.PI * 2);
-      ctx.fill();
-    }
     return;
   }
   const since = now - meteor.at;

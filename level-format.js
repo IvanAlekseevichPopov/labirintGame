@@ -7,7 +7,8 @@ import { PLANETS } from './js/planets.js';
 // Meteors: one lands on M once the rover drives onto T, and one on each m soon after the level
 // starts (see js/game.js). W and B are a white and a black smoker on the
 // floor of the cell, for the oceans seen from the side: decoration, the cell stays open.
-const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', m: 'early', T: 'trigger', W: 'white', B: 'black', ...LANDMARK_BY_CHAR };
+// X is rock of a crater's rim (`shade`): a closed cell the rim is drawn over.
+const LEVEL_CELL_CHARS = { ' ': null, S: 'start', R: 'rocket', M: 'impact', m: 'early', T: 'trigger', W: 'white', B: 'black', X: 'rock', ...LANDMARK_BY_CHAR };
 // The rover must be at least this many steps from the impact when the meteor is set off.
 export const METEOR_MIN_DISTANCE = 3;
 // I is a wall of ice the rover can drill through, on planets whose rover has a drill.
@@ -28,6 +29,8 @@ const INTROS = {
 };
 // Narrower and the storm's two billowing fronts would cross (see STORM.edge in js/storm.js).
 export const STORM_MIN_CELLS = 3;
+// A smaller crater would be a rim round a couple of cells, not a place to drive into.
+export const SHADE_MIN_R = 2;
 export const LEVEL_DIRS = [
   { dx: 0, dy: -1, wall: 'top' },
   { dx: 0, dy: 1, wall: 'bottom' },
@@ -50,7 +53,7 @@ export function parseLevel(level, number, planets) {
   const at = (row, col) => `строка ${row + 1}, символ ${col + 1}`;
 
   if (!level || typeof level !== 'object') fail('пустой уровень — может, осталась лишняя запятая после удаления?');
-  const { planet, map, look, dark = false, storm = null, intro = null, wreck = null, dusk = false, jellies = null, schools = null } = level;
+  const { planet, map, look, dark = false, storm = null, shade = null, intro = null, wreck = null, dusk = false, jellies = null, schools = null } = level;
 
   if (!planets.includes(planet)) fail(`неизвестная планета "${planet}", нужна одна из: ${planets.join(', ')}`);
   if (typeof map !== 'string') fail('нет карты');
@@ -80,7 +83,7 @@ export function parseLevel(level, number, planets) {
     const isCell = row % 2 === 1 && col % 2 === 1;
     if (onFrame && ch !== '#') fail(`${at(row, col)}: дыра во внешней стене`);
     if (isCell && !(ch in LEVEL_CELL_CHARS)) {
-      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, m, T, W, B, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
+      fail(`${at(row, col)}: непонятный символ "${ch}" (можно: пробел, S, R, M, m, T, W, B, X, ${Object.keys(LANDMARK_BY_CHAR).join(', ')} — латиницей)`);
     }
     if (!isCell && !LEVEL_WALL_CHARS.includes(ch)) {
       fail(`${at(row, col)}: "${ch}" стоит на месте стены, тут можно только #, пробел или I`);
@@ -94,7 +97,7 @@ export function parseLevel(level, number, planets) {
   const cols = (width - 1) / 2, rows = (lines.length - 1) / 2;
   const cells = [];
   const landmarks = [];
-  const starts = [], rockets = [], impacts = [], early = [], triggers = [], smokers = [], ice = [];
+  const starts = [], rockets = [], impacts = [], early = [], triggers = [], smokers = [], ice = [], rocks = [];
   for (let y = 0; y < rows; y++) {
     cells.push([]);
     for (let x = 0; x < cols; x++) {
@@ -111,6 +114,10 @@ export function parseLevel(level, number, planets) {
       else if (kind === 'impact') impacts.push({ x, y });
       else if (kind === 'early') early.push({ x, y });
       else if (kind === 'trigger') triggers.push({ x, y });
+      else if (kind === 'rock') {
+        if (Object.values(cells[y][x]).some(open => !open)) fail(`${at(row, col)}: скала X открыта с какой-то стороны, а должна быть закрыта стенами #`);
+        rocks.push({ x, y });
+      }
       else if (kind === 'white' || kind === 'black') {
         if (lines[row + 1][col] !== '#') fail(`${at(row, col)}: курильщик ${lines[row][col]} стоит на дне, а под ним нет стены`);
         smokers.push({ x, y, white: kind === 'white' });
@@ -198,12 +205,44 @@ export function parseLevel(level, number, planets) {
       if (from && !levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);
     }
   }
+  const shadeCells = shade !== null && checkShade({ shade, cols, rows, rocks, planet, dark, storm, intro, fail });
+  if (shade === null && rocks.length) fail('скалы X бывают только у вала кратера: нужен shade');
   if (intro && (dark || storm)) fail('показ intro на ночном уровне или в бурю не поддерживается: он идёт раньше, чем включатся фары');
   const scene = intro && { kind: intro, ...INTROS[intro]({ start, goal, ice, fail }) };
   // The storm snaps to cell columns, so what is drawn and what counts as inside agree.
   const stormCells = storm && { from: Math.round(storm.from * cols), to: Math.round(storm.to * cols) };
   if (storm && stormCells.to - stormCells.from < STORM_MIN_CELLS) fail(`буря уже ${STORM_MIN_CELLS} клеток, её края будут налезать друг на друга`);
-  return { planet, look, dark, storm: stormCells, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), schools, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
+  return { planet, look, dark, storm: stormCells, shade: shadeCells || null, rocks, meteors, maze, start, goal, landmarks, smokers, wreck, dusk, jellies: jellies && jellies.map(([x, y]) => ({ x, y })), schools, ice, intro: scene, startDir: scene?.dir ?? toGoal.first };
+}
+
+// A crater with its floor in shadow: the floor is the cells nearer its centre than r - 0.5, the
+// rim the ring of cells within half a cell of r. The rim is rock (X) except the passes, where the
+// way in and out goes; rock is nowhere else.
+export const inShade = (shade, { x, y }) => Boolean(shade) && Math.hypot(x - shade.x, y - shade.y) < shade.r - 0.5;
+const onRim = (shade, { x, y }) => Math.abs(Math.hypot(x - shade.x, y - shade.y) - shade.r) <= 0.5;
+
+function checkShade({ shade, cols, rows, rocks, planet, dark, storm, intro, fail }) {
+  const ok = shade && typeof shade === 'object' && [shade.x, shade.y, shade.r].every(v => typeof v === 'number') &&
+    shade.x >= 0 && shade.x <= cols - 1 && shade.y >= 0 && shade.y <= rows - 1 && shade.r >= SHADE_MIN_R;
+  if (!ok) fail(`shade — кратер с тенью { x, y, r }: центр в клетках внутри карты, радиус не меньше ${SHADE_MIN_R}`);
+  if (PLANETS[planet].side) fail('под водой кратера с тенью нет: его рисунок сделан для вида сверху');
+  if (dark || storm) fail('кратер с тенью на ночном уровне или в бурю не бывает: пелена уже есть');
+  if (intro) fail('показ intro рядом с кратером с тенью не поддерживается');
+  const isRock = (x, y) => rocks.some(r => r.x === x && r.y === y);
+  const passes = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (inShade(shade, { x, y }) && isRock(x, y)) fail(`скала X в клетке [${x}, ${y}] стоит на дне кратера, а не на валу`);
+      if (!inShade(shade, { x, y }) && !onRim(shade, { x, y }) && isRock(x, y)) fail(`скала X в клетке [${x}, ${y}] стоит далеко от вала кратера: скалы бывают только на кольце вала`);
+      if (onRim(shade, { x, y }) && !isRock(x, y)) {
+        // On the rim's inner half the shadow already lies, but the headlights would not come on.
+        if (Math.hypot(x - shade.x, y - shade.y) < shade.r) fail(`перевал в клетке [${x}, ${y}] на внутренней кромке вала, там уже тень, а фары ещё не горят: поставь туда скалу X`);
+        passes.push({ x, y });
+      }
+    }
+  }
+  if (!passes.length) fail('в валу кратера нет перевала: пустой клетки на валу, через которую въехать');
+  return { ...shade, passes };
 }
 
 // Breadth-first search: "x,y" → { dist, first } for every cell reachable from `from`,
