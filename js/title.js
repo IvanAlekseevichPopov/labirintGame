@@ -2,8 +2,8 @@
 // globe turning under it so it looks like the rover drives round it. Before a night level the
 // globe is lit from below and the rover drives on the dark side with its lights on. A planet with
 // its ocean under the ice is shown cut open instead, the drone swimming in it over the turning core;
-// before a night under the ice the cut is dark but for the drone, its lamp, a few jellyfish and
-// now and then a sonar ring.
+// before a night under the ice the cut is dimmed, the drone's lamp brighter and now and then a
+// sonar ring spreads from it.
 
 import { crack, drawGlobe } from './art.js';
 import { drawBeam, drawProfile } from './profiles.js';
@@ -190,7 +190,7 @@ function drawCutaway(ctx, now, { cx, cy, radius, p, night }) {
   // The drone keeps to the top, swimming on the spot while the planet turns under it.
   const size = radius * CUT.drone;
   const droneY = cy - radius * CUT.swim + Math.sin(now / 700) * size * 0.04;
-  if (night) drawCutawayNight(ctx, now, { cx, cy, radius, at, shell, droneY, size });
+  if (night) drawCutawayNight(ctx, now, { cx, cy, radius, shell, droneY, size });
   ctx.save();
   ctx.translate(cx, droneY);
   // At night the lamp shines twice as bright.
@@ -199,28 +199,24 @@ function drawCutaway(ctx, now, { cx, cy, radius, p, night }) {
   ctx.restore();
 }
 
-// Jellyfish glowing in the ocean at night: [angle, radius] in the turning globe, and colour.
-const NIGHT_JELLIES = [[0.6, 0.62, '205, 180, 255'], [2.3, 0.72, '165, 245, 195'], [4.1, 0.6, '255, 150, 200']];
 const NIGHT_SONAR_MS = 6000;
 
-// Night under the ice: the ice dimmed, the ocean dark, a glow round the drone, the jellyfish, and
-// a sonar ring spreading from the drone through the ocean every NIGHT_SONAR_MS.
-function drawCutawayNight(ctx, now, { cx, cy, radius, at, shell, droneY, size }) {
+// Night under the ice: dimmed, never black, so the planet still reads from the sofa; a glow round
+// the drone and a sonar ring spreading from it through the ocean every NIGHT_SONAR_MS.
+function drawCutawayNight(ctx, now, { cx, cy, radius, shell, droneY, size }) {
   ctx.save();
   shell();
-  ctx.fillStyle = 'rgba(2, 5, 14, 0.6)';
+  ctx.fillStyle = 'rgba(2, 5, 14, 0.3)';
   ctx.fill();
   ctx.beginPath();
   ctx.arc(cx, cy, radius * CUT.ocean, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(2, 5, 14, 0.8)';
+  ctx.fillStyle = 'rgba(2, 5, 14, 0.4)';
   ctx.fill();
-  ctx.clip();
+  // Only the water, not the ice round it or the core in it.
+  ctx.arc(cx, cy, radius * CUT.core, 0, Math.PI * 2);
+  ctx.clip('evenodd');
   ctx.globalCompositeOperation = 'lighter';
-  glow(ctx, cx, droneY, size * 0.5, '60, 90, 120');
-  for (const [a, r, rgb] of NIGHT_JELLIES) {
-    const [x, y] = at(a, r);
-    glow(ctx, x, y, radius * 0.035, rgb);
-  }
+  glow(ctx, cx, droneY, size * 0.3, '60, 90, 120');
   const t = (now % NIGHT_SONAR_MS) / 1500;
   if (t < 1) {
     ctx.strokeStyle = `rgba(110, 250, 225, ${(0.6 * (1 - t)).toFixed(3)})`;

@@ -314,7 +314,8 @@ function step(now, dt, cellPx) {
     events.push({ type: 'lightsOn' });
   }
   // At night under water the drone pings its sonar now and then, from where it is.
-  if (state.swims && state.dark && state.lightsOn && now >= state.sonar.next) {
+  // Not once the drone is in the bell: the launch is the moment, and the bell is no longer there to answer.
+  if (state.swims && state.dark && state.lightsOn && state.wonAt === null && now >= state.sonar.next) {
     const at = roverPos(now);
     state.sonar = { at: now, from: { x: at.x, y: at.y }, next: now + SONAR_EVERY_MS };
     events.push({ type: 'sonar' });

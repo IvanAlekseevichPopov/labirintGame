@@ -470,6 +470,9 @@ test('at night under water the sonar pings after the lights, then every SONAR_EV
   assert.equal(pings(run(2 * FRAME_MS)), 1);
   assert.deepEqual(state.sonar.from, { x: 0, y: 1 });
   assert.equal(pings(run(SONAR_EVERY_MS)), 1);
+  // Not once the drone is in the bell.
+  state.wonAt = now;
+  assert.equal(pings(run(SONAR_EVERY_MS + FRAME_MS)), 0);
   // By day, no sonar.
   game.setLevels([{ look: 0, planet: 'enceladus', map }]);
   game.startLevel(0, now);

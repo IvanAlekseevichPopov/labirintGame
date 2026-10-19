@@ -37,6 +37,23 @@ const outlines = document.createElement('canvas');
 let holes = [];
 let glows = [];
 
+// The device pixels round a light (x, y, r px): whole pixels, so drawing it back is a plain copy,
+// not a filtered one, which costs several times as much where the canvas is drawn without a GPU.
+function pixelBox(x, y, r) {
+  const dpr = devicePixelRatio || 1;
+  const left = Math.floor((x - r) * dpr), top = Math.floor((y - r) * dpr);
+  return { left, top, w: Math.ceil((x + r) * dpr) - left, h: Math.ceil((y + r) * dpr) - top };
+}
+
+// Limits what follows to the top-left w × h device pixels of `g`: modes like copy and source-in
+// otherwise touch the whole canvas, however much larger it has grown.
+function clipTo(g, w, h) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.beginPath();
+  g.rect(0, 0, w, h);
+  g.clip();
+}
+
 function fit(c, w, h) {
   if (c.width < w || c.height < h) {
     c.width = Math.max(c.width, w);
@@ -49,14 +66,15 @@ function fit(c, w, h) {
 // on once through that. Painted onto `target` with `op`.
 function castLight(target, { x, y, r, strength, color = '255, 255, 255' }, walls, cell, op) {
   const dpr = devicePixelRatio || 1;
-  const size = Math.ceil(r * 2 * dpr);
-  fit(scratch, size, size);
+  const box = pixelBox(x, y, r);
+  fit(scratch, box.w, box.h);
   const g = scratch.getContext('2d');
-  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.save();
+  clipTo(g, box.w, box.h);
   g.globalCompositeOperation = 'source-over';
   g.globalAlpha = 1;
-  g.clearRect(0, 0, size, size);
-  g.setTransform(dpr, 0, 0, dpr, (r - x) * dpr, (r - y) * dpr);
+  g.clearRect(0, 0, box.w, box.h);
+  g.setTransform(dpr, 0, 0, dpr, -box.left, -box.top);
   const spread = cell * SOFT.spread;
   const near = nearby(walls, x, y, r + spread);
   g.globalCompositeOperation = 'lighter';
@@ -69,35 +87,51 @@ function castLight(target, { x, y, r, strength, color = '255, 255, 255' }, walls
     g.closePath();
     g.fill();
   }
-  // Bright near the light, then falling off softly to nothing at r.
+  // Bright near the light and falling off well before r, so it reads as a lamp in the dark and
+  // not as a lit room with the walls for its edges.
   g.globalCompositeOperation = 'source-in';
   g.globalAlpha = 1;
   const a = Math.min(1, strength) * DEEP.lit;
   const fall = g.createRadialGradient(x, y, 0, x, y, r);
   fall.addColorStop(0, `rgba(${color}, ${a})`);
-  fall.addColorStop(0.5, `rgba(${color}, ${a * 0.85})`);
-  fall.addColorStop(0.8, `rgba(${color}, ${a * 0.4})`);
+  fall.addColorStop(0.3, `rgba(${color}, ${a * 0.85})`);
+  fall.addColorStop(0.6, `rgba(${color}, ${a * 0.45})`);
+  fall.addColorStop(0.85, `rgba(${color}, ${a * 0.12})`);
   fall.addColorStop(1, `rgba(${color}, 0)`);
   g.fillStyle = fall;
   g.fillRect(x - r, y - r, r * 2, r * 2);
+  g.restore();
   target.save();
   target.globalCompositeOperation = op;
-  target.drawImage(scratch, 0, 0, size, size, x - r, y - r, r * 2, r * 2);
+  target.drawImage(scratch, 0, 0, box.w, box.h, box.left / dpr, box.top / dpr, box.w / dpr, box.h / dpr);
   target.restore();
 }
 
+// A light that does not move, cast once into a canvas of its own on whole device pixels.
 function bake(light, walls, cell) {
   const dpr = devicePixelRatio || 1;
+  const box = pixelBox(light.x, light.y, light.r);
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = Math.ceil(light.r * 2 * dpr);
+  canvas.width = box.w;
+  canvas.height = box.h;
   const g = canvas.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, (light.r - light.x) * dpr, (light.r - light.y) * dpr);
+  g.setTransform(dpr, 0, 0, dpr, -box.left, -box.top);
   castLight(g, light, walls, cell, 'source-over');
-  return { canvas, x: light.x, y: light.y, r: light.r, light: light.light, full: light.full };
+  return { canvas, x: box.left / dpr, y: box.top / dpr, w: box.w / dpr, h: box.h / dpr, light: light.light, full: light.full, bell: light.bell };
+}
+
+// Lets go of the big canvases when the level is not a night under water: on a 4K screen they hold
+// on to tens of MB.
+export function releaseDeep() {
+  for (const c of [outlines, echo, scratch]) c.width = c.height = 0;
+  holes = [];
+  glows = [];
 }
 
 // Once per layout. `shapes` are the walls as drawn (px polygons, overlapping where walls meet);
-// `walls` their middle lines (px segments): a light shows the face of a wall it reaches.
+// `walls` their middle lines (px segments): a light shows the face of a wall it reaches. Cast
+// against the outlines instead (as by day), a lit wall would stay a black shape; the price is a
+// little light past a wall's rounded end, too faint at night to see.
 // `holes` are the lights that do not move, `glows` the coloured light some of them shed.
 export function buildDeep({ shapes, walls, cell, holes: still, glows: shed }) {
   holes = still.map(l => bake(l, walls, cell));
@@ -105,7 +139,8 @@ export function buildDeep({ shapes, walls, cell, holes: still, glows: shed }) {
 
   // What a ping shows: the outline of all the walls together. Outlining each piece would show
   // where they meet inside the rock, so it is the edge of their union: a wide stroke round every
-  // piece with every piece's inside cut away again, then the union filled faintly once.
+  // piece with every piece's inside cut away again, then the union filled faintly once, as one
+  // path: the pieces all wind the same way, so where they overlap is filled once, not darker.
   const dpr = devicePixelRatio || 1;
   outlines.width = innerWidth * dpr;
   outlines.height = innerHeight * dpr;
@@ -129,44 +164,50 @@ export function buildDeep({ shapes, walls, cell, holes: still, glows: shed }) {
     trace(g, pts);
     g.fill();
   }
-  // Filled solid on a layer of its own first, so the overlaps do not add up.
-  const inside = document.createElement('canvas');
-  inside.width = outlines.width;
-  inside.height = outlines.height;
-  const f = inside.getContext('2d');
-  f.setTransform(dpr, 0, 0, dpr, 0, 0);
-  f.fillStyle = `rgb(${SONAR.color})`;
+  g.globalCompositeOperation = 'destination-over';
+  g.beginPath();
   for (const pts of shapes) {
-    trace(f, pts);
-    f.fill();
+    pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y));
+    g.closePath();
   }
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.globalCompositeOperation = 'source-over';
-  g.globalAlpha = 0.12;
-  g.drawImage(inside, 0, 0);
+  g.fillStyle = `rgba(${SONAR.color}, 0.12)`;
+  g.fill('nonzero');
 }
 
-// Every frame, after the drone. scene: { w, h, cell, water, crust: { x, y, w, h } px, walls (px
+// Every frame, after the drone. scene: { cell, water, crust: { x, y, w, h } px, walls (px
 // segments), drone: { x, y, strength } | null, lamp: { x, y, angle, len, spread, strength } | null
-// (its daytime beam), sonar: { at, from: { x, y } px | null }, goal: { x, y } px }
+// (its daytime beam), sonar: { at, from: { x, y } px | null }, goal: { x, y } px, bell: how much
+// of the bell is still down, 1 to 0 as it is reeled up }
 export function drawDeep(ctx, layer, now, scene) {
-  const { w, h, cell, water, crust, walls, drone } = scene;
+  const { cell, water, crust, walls, drone } = scene;
   const dpr = devicePixelRatio || 1;
+  // Only the ice, the rock and the water are ever drawn on the layer, and only they go back on
+  // screen, on whole pixels.
+  const area = { left: Math.floor(crust.x * dpr), top: Math.floor(crust.y * dpr) };
+  area.w = Math.min(Math.ceil((crust.x + crust.w) * dpr), layer.width) - area.left;
+  area.h = Math.min(Math.ceil((crust.y + crust.h) * dpr), layer.height) - area.top;
   const g = layer.getContext('2d');
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.beginPath();
+  g.rect(area.left, area.top, area.w, area.h);
+  g.clip();
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'copy';
   g.fillStyle = DEEP.crust;
   g.fillRect(crust.x, crust.y, crust.w, crust.h);
   g.globalCompositeOperation = 'source-over';
-  g.clearRect(0, 0, w, crust.y);
-  g.clearRect(0, crust.y, crust.x, h);
-  g.clearRect(crust.x + crust.w, crust.y, w, h);
   g.fillStyle = DEEP.dark;
   g.fillRect(water.x, water.y, water.w, water.h);
 
   g.globalCompositeOperation = 'destination-out';
-  for (const l of holes) g.drawImage(l.canvas, l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+  // The bell's light goes up with it when it is reeled in.
+  for (const l of holes) {
+    g.globalAlpha = l.bell ? scene.bell : 1;
+    g.drawImage(l.canvas, l.x, l.y, l.w, l.h);
+  }
+  g.globalAlpha = 1;
   if (drone) castLight(g, { x: drone.x, y: drone.y, r: cell * DEEP.glow.reach, strength: drone.strength }, walls, cell, 'destination-out');
   const beam = scene.lamp && searchlight(scene.lamp, walls);
   if (beam) {
@@ -177,8 +218,8 @@ export function drawDeep(ctx, layer, now, scene) {
     g.fillStyle = fall;
     fillPolygon(g, beam.pts);
   }
-  g.globalCompositeOperation = 'source-over';
-  ctx.drawImage(layer, 0, 0, w, h);
+  g.restore();
+  ctx.drawImage(layer, area.left, area.top, area.w, area.h, area.left / dpr, area.top / dpr, area.w / dpr, area.h / dpr);
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
@@ -193,7 +234,7 @@ export function drawDeep(ctx, layer, now, scene) {
   }
   for (const l of glows) {
     ctx.globalAlpha = l.light ? l.light(now).strength / l.full : 1;
-    ctx.drawImage(l.canvas, l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+    ctx.drawImage(l.canvas, l.x, l.y, l.w, l.h);
   }
   ctx.restore();
   if (drone) castLight(ctx, { x: drone.x, y: drone.y, r: cell * DEEP.glow.halo, strength: DEEP.glow.strength * drone.strength, color: DEEP.glow.color }, walls, cell, 'lighter');
@@ -215,7 +256,7 @@ function fillPolygon(g, pts) {
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
-function drawSonar(ctx, now, { w, h, cell, water, sonar, goal }) {
+function drawSonar(ctx, now, { cell, water, sonar, goal, bell }) {
   if (!sonar.from) return;
   const age = now - sonar.at;
   const speed = SONAR.speed * cell / 1000;
@@ -228,15 +269,20 @@ function drawSonar(ctx, now, { w, h, cell, water, sonar, goal }) {
   // The outlines, shown where the ring has been: brightest just behind it, fading to nothing
   // SONAR.fadeMs after it passed, and fading out towards the edge of its reach.
   const r = Math.min(front, reach);
-  const box = { x: Math.max(0, sx - r), y: Math.max(0, sy - r), x1: Math.min(w, sx + r), y1: Math.min(h, sy + r) };
-  const bw = Math.ceil((box.x1 - box.x) * dpr), bh = Math.ceil((box.y1 - box.y) * dpr);
+  // On whole device pixels and within the water: the outlines are copied twice and masked, and a
+  // filtered copy would cost several times as much where the canvas is drawn without a GPU.
+  const left = Math.max(Math.floor((sx - r) * dpr), Math.floor(water.x * dpr));
+  const top = Math.max(Math.floor((sy - r) * dpr), Math.floor(water.y * dpr));
+  const bw = Math.min(Math.ceil((sx + r) * dpr), Math.ceil((water.x + water.w) * dpr), outlines.width) - left;
+  const bh = Math.min(Math.ceil((sy + r) * dpr), Math.ceil((water.y + water.h) * dpr), outlines.height) - top;
   if (r > 0 && bw > 0 && bh > 0) {
     fit(echo, bw, bh);
     const g = echo.getContext('2d');
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.save();
+    clipTo(g, bw, bh);
     g.globalCompositeOperation = 'copy';
-    g.drawImage(outlines, box.x * dpr, box.y * dpr, bw, bh, 0, 0, bw, bh);
-    g.setTransform(dpr, 0, 0, dpr, -box.x * dpr, -box.y * dpr);
+    g.drawImage(outlines, left, top, bw, bh, 0, 0, bw, bh);
+    g.setTransform(dpr, 0, 0, dpr, -left, -top);
     g.globalCompositeOperation = 'destination-in';
     const shown = g.createRadialGradient(sx, sy, 0, sx, sy, r);
     for (let k = 0; k <= 12; k++) {
@@ -249,9 +295,10 @@ function drawSonar(ctx, now, { w, h, cell, water, sonar, goal }) {
     g.beginPath();
     g.arc(sx, sy, r, 0, Math.PI * 2);
     g.fill();
+    g.restore();
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(echo, 0, 0, bw, bh, box.x, box.y, bw / dpr, bh / dpr);
+    ctx.drawImage(echo, 0, 0, bw, bh, left / dpr, top / dpr, bw / dpr, bh / dpr);
     ctx.restore();
   }
 
@@ -276,7 +323,7 @@ function drawSonar(ctx, now, { w, h, cell, water, sonar, goal }) {
   // The goal answers when the ring reaches it: rings spreading from the bell, in its own yellow.
   const toGoal = Math.hypot(goal.x - sx, goal.y - sy);
   const since = (front - toGoal) / speed;
-  if (toGoal <= reach && since >= 0 && since < SONAR.blipMs) {
+  if (bell === 1 && toGoal <= reach && since >= 0 && since < SONAR.blipMs) {
     ctx.lineWidth = cell * 0.05;
     for (const lag of [0, 0.3]) {
       const t = since / SONAR.blipMs - lag;

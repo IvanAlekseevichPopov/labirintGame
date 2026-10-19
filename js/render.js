@@ -6,7 +6,7 @@ import { BUMP_MS, DIRS, DROPPED_LEVELS, INTRO, ROVER_RATIO, WALL_RATIO, WIN } fr
 import { mulberry32 } from './random.js';
 import { createWeather, weatherIntensity } from './weather.js';
 import { brightness, createNight } from './night.js';
-import { buildDeep, drawDeep } from './deep.js';
+import { buildDeep, drawDeep, releaseDeep } from './deep.js';
 import { createStorm } from './storm.js';
 import { FONT, drawPad, drawSoundOff, drawText, useContext } from './art.js';
 import { ROVERS } from './rovers.js';
@@ -137,6 +137,7 @@ export function levelChanged() {
   const intensity = state.storm ? STORM_WEATHER : weatherIntensity(state.look + 1 - DROPPED_LEVELS);
   drawWeather = createWeather(state.planet, intensity);
   deep = Boolean(PLANETS[state.planet].side && state.dark);
+  if (!deep) releaseDeep();
   drawVeil = state.dark && !deep ? createNight(state.planet) : state.storm ? createStorm(state.storm, state.planet) : null;
   sizeVeilLayer();
   buildMazeLayer();
@@ -374,7 +375,7 @@ function deepBox(cell, ox, oy, h) {
 // hangs on average, the bell, and a landmark's lamp, which also sheds its blinking colour.
 function deepLights(cell, ox, oy) {
   const holes = decor.life ? jellyLights(decor.life, null, { cell, ox, oy }).map(l => ({ ...l, r: cell * DEEP_LIGHTS.jelly, strength: 0.95 })) : [];
-  holes.push({ x: ox + (state.goal.x + 0.5) * cell, y: oy + (state.goal.y + 0.75) * cell, r: cell * DEEP_LIGHTS.bell, strength: 0.85 });
+  holes.push({ x: ox + (state.goal.x + 0.5) * cell, y: oy + (state.goal.y + 0.75) * cell, r: cell * DEEP_LIGHTS.bell, strength: 0.85, bell: true });
   const glows = [];
   for (const l of state.landmarks) {
     const kind = LANDMARKS[l.type];
@@ -601,7 +602,8 @@ export function render(now, { soundOff = false } = {}) {
   ctx.translate(shakeX, shakeY);
   ctx.drawImage(mazeLayer, 0, 0, w, h);
   if (planet.side) {
-    caustics.draw(ctx, now, cell);
+    // Sunlight through the ice: none at night, and under the dark it would not show anyway.
+    if (!deep) caustics.draw(ctx, now, cell);
     for (const m of smokers) {
       drawInWater({ x: m.x - cell, y: m.y - cell * 1.4, w: cell * 2, h: cell * 1.6 }, g => drawSmoke(g, [m], now, cell));
     }
@@ -644,10 +646,13 @@ export function render(now, { soundOff = false } = {}) {
       ? { x: 0, y: padY - cell * 1.5, w, h: cell * 1.6 }
       : { x: ox, y: oy, w: cell * state.maze.cols, h: cell * state.maze.rows },
   });
+  // How much of the bell is still down in the water, 1 to 0 as it is reeled up.
+  let bellDown = 1;
   if (planet.side) {
     // Once the drone is in, the probe is reeled up through the ice before the rocket lifts off.
     const docked = WIN.shrinkStart + WIN.shrinkMs;
     const reel = winT === null ? 0 : clamp01((winT - docked) / (WIN.lift - docked - 50));
+    bellDown = 1 - reel;
     // Hung a little low in its cell, so the beacon on top clears the ice.
     const hang = gy + cell * 0.1, probeY = hang + (padY - hang) * reel * reel, fade = 1 - clamp01((reel - 0.8) / 0.2);
     drawInWater({ x: gx - cell, y: probeY, w: cell * 2, h: cell * 1.2 }, g => drawProbeLight(g, gx, probeY, cell, now, fade), 'lighter');
@@ -716,11 +721,11 @@ export function render(now, { soundOff = false } = {}) {
     const lamp = d && shrink > 0 && !headOn(d) && b > 0 ? lampAt(d, rover.x, rover.y + bob(now, rover.size), rover.size) : null;
     const from = state.sonar.from;
     drawDeep(ctx, veilLayer, now, {
-      w, h, cell, walls: wallsPx, ...deepBox(cell, ox, oy, h),
+      cell, walls: wallsPx, ...deepBox(cell, ox, oy, h),
       drone: rover && d && b > 0 ? { x: rover.x, y: rover.y, strength: b } : null,
       lamp: lamp && { ...lamp, strength: b },
       sonar: { at: state.sonar.at, from: from && { x: ox + (from.x + 0.5) * cell, y: oy + (from.y + 0.5) * cell } },
-      goal: { x: gx, y: gy + cell * 0.1 },
+      goal: { x: gx, y: gy + cell * 0.1 }, bell: bellDown,
     });
     for (const l of litOverDark) drawSideLandmark(l, cell, ox, oy, now, planet);
     if (decor.life) drawJellies(ctx, decor.life, now, { cell, ox, oy });
