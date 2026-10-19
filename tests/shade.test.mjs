@@ -4,6 +4,7 @@ import * as game from '../js/game.js';
 import { INPUT_LOCK_MS, LIGHTS_FLICKER_MS } from '../js/config.js';
 import { PLANET_KEYS } from '../js/planets.js';
 import { placeProps } from '../js/props.js';
+import { passRoads } from '../js/shade.js';
 import { inShade, levelDistances, parseLevel } from '../level-format.js';
 import { LEVELS } from '../levels.js';
 
@@ -44,6 +45,11 @@ test('the parser refuses rock that is open, on the floor or without a crater', (
   assert.throws(() => parse({ map: far }), /далеко от вала/);
 });
 
+test('a pass has to lead both onto the floor and out', () => {
+  // The rock at the top of the rim taken away: an empty cell on the rim, closed all round.
+  assert.throws(() => parse({ map: MAP.replace('#   #X#X#X#   #', '#   #X# #X#   #') }), /никуда не ведёт/);
+});
+
 test('a pass may not lie on the rim\'s inner half, already in the shadow', () => {
   // With r = 2.2 the passes, 2 from the middle, are on the inner half of the rim.
   assert.throws(() => parse({ shade: { ...SHADE, r: 2.2 } }), /внутренней кромке вала/);
@@ -56,11 +62,22 @@ test('the parser refuses a crater with no pass, under water, at night or in a st
   assert.throws(() => parse({ dark: true }), /пелена уже есть/);
   assert.throws(() => parse({ storm: { from: 0.5, to: 1 } }), /пелена уже есть/);
   assert.throws(() => parse({ planet: 'enceladus' }));
+  assert.throws(() => parse({ planet: 'mars' }), /только на Луне/);
 });
 
 test('a meteor may fall outside the crater and into it', () => {
   assert.equal(parse({ map: MAP.replace('#   #X#X#X#   #\n###', '#   #X#X#X#  m#\n###') }).meteors.length, 1);
   assert.equal(parse({ map: MAP.replace('# #X#     #X# #\n# ###', '# #X#m    #X# #\n# ###') }).meteors.length, 1);
+});
+
+test('the road over a pass leads from it down onto the floor, never out', () => {
+  const level = parse();
+  const ways = passRoads(level.shade, level.maze, level.start, level.goal).map(r => [r.x, r.y, r.way.dx, r.way.dy]);
+  assert.deepEqual(ways, [[1, 2, 1, 0], [5, 2, -1, 0]]);
+  const forty = parseLevel(LEVELS.find(l => l.shade), 40, PLANET_KEYS);
+  for (const { x, y, way } of passRoads(forty.shade, forty.maze, forty.start, forty.goal)) {
+    assert.ok(inShade(forty.shade, { x: x + way.dx, y: y + way.dy }), `pass ${x},${y}`);
+  }
 });
 
 const CELL_PX = 100;

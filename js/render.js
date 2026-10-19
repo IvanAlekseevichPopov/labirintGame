@@ -112,11 +112,11 @@ function wallSegments({ cols, rows, cells }) {
 const sameSegment = (s, t) => s.every((v, i) => v === t[i]);
 
 // A wall beside a rock cell of a crater's rim (the frame stays, it is the edge of the world).
-function underRock([x0, y0, x1, y1]) {
+function underRock([x0, y0, x1, y1], all = false) {
   const { cols, rows } = state.maze;
   if (isFrame([x0, y0, x1, y1], cols, rows)) return false;
   const sides = y0 === y1 ? [[x0, y0 - 1], [x0, y0]] : [[x0 - 1, y0], [x0, y0]];
-  return sides.some(([x, y]) => state.rocks.some(r => r.x === x && r.y === y));
+  return sides[all ? 'every' : 'some'](([x, y]) => state.rocks.some(r => r.x === x && r.y === y));
 }
 
 // Seeded by the level's own `look`, so its decorations look the same every time — part of what
@@ -131,7 +131,8 @@ function makeDecor() {
     // Ice walls are drawn on their own, every frame, since drilling changes them; the walls round
     // a crater's rim rock are under the rock.
     walls: wallSegments(state.maze).filter(s => !state.ice.some(w => sameSegment(iceSegment(w), s)) && !underRock(s)),
-    rockWalls: wallSegments(state.maze).filter(underRock),
+    // For the headlights only; a wall between two rocks no beam can reach.
+    rockWalls: wallSegments(state.maze).filter(s => underRock(s) && !underRock(s, true)),
     props: placeProps(state, lookSeed() + 2000),
     roads: state.shade && passRoads(state.shade, state.maze, state.start, state.goal),
     life: PLANETS[state.planet].side ? placeLife(state, lookSeed()) : null,
@@ -157,7 +158,7 @@ export function levelChanged() {
   buildTrackLayer();
 }
 
-// The night/storm overlay needs a full-screen layer; plain levels do not pay for it.
+// The night, storm or crater-shadow overlay needs a full-screen layer; plain levels do not pay for it.
 function sizeVeilLayer() {
   const on = drawVeil || deep;
   const want = on ? canvas.width : 0;
@@ -261,8 +262,10 @@ function buildMazeLayer() {
         .map(([x, y]) => [ox + x * cell, oy + y * cell]);
     });
   const half = WALL_RATIO / 2;
-  // A meteor's crater closes its cell: the headlights stop at it too, though no wall is drawn there.
-  const craterSides = impacts.flatMap(({ x, y }) => [[x - 0.5, y - 0.5, x + 0.5, y - 0.5], [x - 0.5, y + 0.5, x + 0.5, y + 0.5], [x - 0.5, y - 0.5, x - 0.5, y + 0.5], [x + 0.5, y - 0.5, x + 0.5, y + 0.5]]);
+  // A meteor's crater closes its cell: the headlights stop at it too, though no wall is drawn there,
+  // halfway into the bowl, so its near side shows lit as a wall's does.
+  const k = 0.25;
+  const craterSides = impacts.flatMap(({ x, y }) => [[x - k, y - k, x + k, y - k], [x - k, y + k, x + k, y + k], [x - k, y - k, x - k, y + k], [x + k, y - k, x + k, y + k]]);
   wallsPx = [...decor.walls, ...decor.rockWalls, ...state.ice.map(iceSegment), ...craterSides].map(([x0, y0, x1, y1]) => [ox + x0 * cell, oy + y0 * cell, ox + x1 * cell, oy + y1 * cell]);
   wallEdgesPx = p.side ? wallsPx.flatMap(s => wallOutline(s, wall / 2)) : [];
   const rough = p.wallRough ?? 1;

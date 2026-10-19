@@ -55,7 +55,6 @@ export function drawMeteorFlight(ctx, meteor, now, cell, toPx) {
   ctx.restore();
 }
 
-// The shadow on the target while it falls and the hit itself. Drawn after the rover, before any veil. `toPx` maps a cell to its centre.
 // Where this fall comes from and how its rocks fly, fixed for the fall by its seed.
 function fallStyle(seed) {
   const rand = mulberry32(seed);
@@ -65,6 +64,8 @@ function fallStyle(seed) {
   return { from, rocks };
 }
 
+// The shadow on the target while it falls and the hit itself. Drawn after the rover, before any veil.
+// `toPx` maps a cell to its centre.
 export function drawMeteor(ctx, meteor, now, cell, toPx) {
   if (meteor.phase === 'waiting') return;
   const [x, y] = toPx(meteor.cell);

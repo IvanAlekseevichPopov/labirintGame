@@ -205,7 +205,7 @@ export function parseLevel(level, number, planets) {
       if (from && !levelDistances(blocked, from).has(`${goal.x},${goal.y}`)) fail(`после падения метеорита до ракеты не доехать от ${name}`);
     }
   }
-  const shadeCells = shade !== null && checkShade({ shade, cols, rows, rocks, planet, dark, storm, intro, fail });
+  const shadeCells = shade !== null && checkShade({ shade, cols, rows, cells: maze.cells, rocks, planet, dark, storm, intro, fail });
   if (shade === null && rocks.length) fail('скалы X бывают только у вала кратера: нужен shade');
   if (intro && (dark || storm)) fail('показ intro на ночном уровне или в бурю не поддерживается: он идёт раньше, чем включатся фары');
   const scene = intro && { kind: intro, ...INTROS[intro]({ start, goal, ice, fail }) };
@@ -221,11 +221,11 @@ export function parseLevel(level, number, planets) {
 export const inShade = (shade, { x, y }) => Boolean(shade) && Math.hypot(x - shade.x, y - shade.y) < shade.r - 0.5;
 const onRim = (shade, { x, y }) => Math.abs(Math.hypot(x - shade.x, y - shade.y) - shade.r) <= 0.5;
 
-function checkShade({ shade, cols, rows, rocks, planet, dark, storm, intro, fail }) {
+function checkShade({ shade, cols, rows, cells, rocks, planet, dark, storm, intro, fail }) {
   const ok = shade && typeof shade === 'object' && [shade.x, shade.y, shade.r].every(v => typeof v === 'number') &&
     shade.x >= 0 && shade.x <= cols - 1 && shade.y >= 0 && shade.y <= rows - 1 && shade.r >= SHADE_MIN_R;
   if (!ok) fail(`shade — кратер с тенью { x, y, r }: центр в клетках внутри карты, радиус не меньше ${SHADE_MIN_R}`);
-  if (PLANETS[planet].side) fail('под водой кратера с тенью нет: его рисунок сделан для вида сверху');
+  if (planet !== 'moon') fail('кратер с тенью бывает только на Луне: его скалы и тень нарисованы лунными');
   if (dark || storm) fail('кратер с тенью на ночном уровне или в бурю не бывает: пелена уже есть');
   if (intro) fail('показ intro рядом с кратером с тенью не поддерживается');
   const isRock = (x, y) => rocks.some(r => r.x === x && r.y === y);
@@ -237,6 +237,11 @@ function checkShade({ shade, cols, rows, rocks, planet, dark, storm, intro, fail
       if (onRim(shade, { x, y }) && !isRock(x, y)) {
         // On the rim's inner half the shadow already lies, but the headlights would not come on.
         if (Math.hypot(x - shade.x, y - shade.y) < shade.r) fail(`перевал в клетке [${x}, ${y}] на внутренней кромке вала, там уже тень, а фары ещё не горят: поставь туда скалу X`);
+        // A pass is drawn as a way through, so it must be one: open onto the floor and out of the crater.
+        const ways = LEVEL_DIRS.filter(d => !cells[y][x][d.wall]).map(d => ({ x: x + d.dx, y: y + d.dy }));
+        if (!ways.some(c => inShade(shade, c)) || !ways.some(c => !inShade(shade, c) && !isRock(c.x, c.y))) {
+          fail(`перевал в клетке [${x}, ${y}] никуда не ведёт: нужен проход и на дно кратера, и наружу; иначе поставь туда скалу X`);
+        }
         passes.push({ x, y });
       }
     }

@@ -17,9 +17,7 @@ export const SHADE = {
   // Towards the sun, low in the upper left: it lights the rock faces and throws the rim's shadow.
   sun: [-0.6, -0.8],
   soft: 0.45,       // width of the shadow's soft edge round the floor, cells
-  // Light round the rover, cells: wide enough to show the turns beside it and the wall ahead,
-  // which the forward beam alone left in the dark.
-  glow: 1.5,
+  glow: 0.8,        // faint light around the rover, cells
   // How far rock may reach into an open cell next to it, cells past the shared edge.
   overhang: 0.14,
   rock: { dark: [44, 46, 54], lit: [182, 185, 194], line: 'rgba(24, 25, 31, 0.6)' },
@@ -27,9 +25,10 @@ export const SHADE = {
 
 const toPx = (at, cell) => ({ x, y }) => [at.x + (x + 0.5) * cell, at.y + (y + 0.5) * cell];
 
-// The way the rover goes over each pass: the open sides on the shortest route from the start to
-// the rocket. A pass off the route opens from the side facing out of the crater most to the one
-// facing in most. Taken from the maze as the level starts, so a meteor later does not turn a road.
+// The way into the crater at each pass: its open side onto the floor (on the shortest route from
+// the start to the rocket, if more than one). Only that half of a road is drawn: it marks the gap
+// in the rim; outside, the maze is lit anyway, and a road out there could point where a meteor later
+// shuts the way. Taken from the maze as the level starts.
 export function passRoads(shade, maze, start, goal) {
   const key = c => `${c.x},${c.y}`;
   const fromStart = levelDistances(maze, start), toGoal = levelDistances(maze, goal);
@@ -37,61 +36,53 @@ export function passRoads(shade, maze, start, goal) {
   const onRoute = c => fromStart.get(key(c))?.dist + toGoal.get(key(c))?.dist === route;
   return shade.passes.map(p => {
     const len = Math.hypot(p.x - shade.x, p.y - shade.y) || 1;
-    const out = d => (d.dx * (p.x - shade.x) + d.dy * (p.y - shade.y)) / len;
-    const open = LEVEL_DIRS.filter(d => !maze.cells[p.y][p.x][d.wall]).sort((a, b) => out(b) - out(a));
-    const taken = open.filter(d => onRoute(p) && onRoute({ x: p.x + d.dx, y: p.y + d.dy }));
-    return { ...p, arms: taken.length === 2 ? taken : open.length > 1 ? [open[0], open[open.length - 1]] : open };
+    const inward = d => -(d.dx * (p.x - shade.x) + d.dy * (p.y - shade.y)) / len;
+    const next = d => ({ x: p.x + d.dx, y: p.y + d.dy });
+    const ways = LEVEL_DIRS.filter(d => !maze.cells[p.y][p.x][d.wall] && inShade(shade, next(d)))
+      .sort((a, b) => (onRoute(next(b)) - onRoute(next(a))) || inward(b) - inward(a));
+    return { ...p, way: ways[0] ?? null };
   });
 }
 
-// A rover's road over each pass, along the way it goes, so from the sofa the gap in the rim reads
-// as a way through. Under the walls. Drawn whole on a scrap of canvas and faded out round the pass
-// there, so a road that turns has a clean corner and its two arms don't stack where they meet.
-const ROAD = { reach: 0.9, width: 0.7, alpha: 0.5, track: 0.18, trackWidth: 0.07, trackAlpha: 0.35 };
+// A rover's road from the floor up into each pass, so from the sofa the gap in the rim reads as a
+// way through. Under the walls. Drawn on a scrap of canvas and faded out round the pass there.
+const ROAD = { reach: 0.9, back: 0.5, width: 0.7, alpha: 0.5, track: 0.18, trackWidth: 0.07, trackAlpha: 0.35 };
 
 function drawPassRoads(g, roads, cell, at) {
   const pos = toPx(at, cell);
   const scale = g.getTransform().a;
   const size = cell * ROAD.reach * 2.2;
-  for (const { arms, ...p } of roads) {
+  for (const { way, ...p } of roads) {
+    if (!way) continue;
     const scrap = document.createElement('canvas');
     scrap.width = scrap.height = Math.ceil(size * scale);
     const o = scrap.getContext('2d');
     o.scale(scale, scale);
     o.translate(size / 2, size / 2);
-    o.lineCap = o.lineJoin = 'round';
-    const end = d => [d.dx * cell * ROAD.reach, d.dy * cell * ROAD.reach];
+    // From a little outside the pass's middle down onto the floor, fading out at both ends, so it
+    // reads as worn ground and not a capsule lying in the gap.
+    const from = -ROAD.back, to = ROAD.reach;
+    const at = k => [way.dx * cell * k, way.dy * cell * k];
     o.beginPath();
-    o.moveTo(...end(arms[0]));
-    o.lineTo(0, 0);
-    if (arms[1]) o.lineTo(...end(arms[1]));
+    o.moveTo(...at(from));
+    o.lineTo(...at(to));
     o.lineWidth = cell * ROAD.width;
     o.strokeStyle = `rgba(255,255,255,${ROAD.alpha})`;
     o.stroke();
-    // Two wheel tracks, each one line along the way the rover drives, turning with the road.
     o.lineWidth = cell * ROAD.trackWidth;
     o.strokeStyle = `rgba(0,0,0,${ROAD.trackAlpha})`;
-    const [a0, a1] = arms;
     for (const side of [-1, 1]) {
-      const w = side * cell * ROAD.track;
-      // Left of the way in (towards the middle along -a0) and of the way out (along a1).
-      const n0 = [a0.dy * w, -a0.dx * w];
+      const [nx, ny] = [way.dy * side * cell * ROAD.track, -way.dx * side * cell * ROAD.track];
       o.beginPath();
-      o.moveTo(end(a0)[0] + n0[0], end(a0)[1] + n0[1]);
-      if (!a1) {
-        o.lineTo(n0[0], n0[1]);
-      } else {
-        const n1 = [-a1.dy * w, a1.dx * w];
-        const straight = a0.dx === -a1.dx && a0.dy === -a1.dy;
-        o.lineTo(straight ? n0[0] : n0[0] + n1[0], straight ? n0[1] : n0[1] + n1[1]);
-        o.lineTo(end(a1)[0] + n1[0], end(a1)[1] + n1[1]);
-      }
+      o.moveTo(at(from)[0] + nx, at(from)[1] + ny);
+      o.lineTo(at(to)[0] + nx, at(to)[1] + ny);
       o.stroke();
     }
     o.globalCompositeOperation = 'destination-in';
-    const fade = o.createRadialGradient(0, 0, 0, 0, 0, cell * ROAD.reach);
-    fade.addColorStop(0, '#000');
-    fade.addColorStop(0.45, '#000');
+    const fade = o.createLinearGradient(...at(from), ...at(to));
+    fade.addColorStop(0, 'rgba(0,0,0,0)');
+    fade.addColorStop(0.3, '#000');
+    fade.addColorStop(0.6, '#000');
     fade.addColorStop(1, 'rgba(0,0,0,0)');
     o.fillStyle = fade;
     o.fillRect(-size / 2, -size / 2, size, size);
@@ -190,10 +181,10 @@ export function drawCraterRock(g, shade, rocks, cell, at, frame, seed) {
       const dx = Math.cos(a), dy = Math.sin(a);
       const nx = c.x + (Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0), ny = c.y + (Math.abs(dy) > Math.abs(dx) ? Math.sign(dy) : 0);
       if (!inMaze(nx, ny) || isRock(nx, ny)) return Infinity;
-      // A pass stays wide open, so it reads as a way through; the rock's edge there is broken, so it
-      // reads as a gap in the rocks and not a door cut in them.
-      // Elsewhere the edge wanders a little too, so the rim along a row of cells is not a ruled line.
-      const reach = shade.passes.some(p => p.x === nx && p.y === ny) ? -0.08 + (rand() - 0.5) * 0.3 : SHADE.overhang + (rand() - 0.5) * 0.2;
+      // By a pass the rock's edge is broken, so it reads as a gap in the rocks and not a door cut in
+      // them, but it only juts out a little: drawn back into the rock, it left bare ground the rover
+      // bumped into. Elsewhere the edge wanders too, so the rim along a row of cells is not a ruled line.
+      const reach = shade.passes.some(p => p.x === nx && p.y === ny) ? rand() * 0.12 : SHADE.overhang + (rand() - 0.5) * 0.2;
       return cell * (0.5 + reach) / Math.max(Math.abs(dx), Math.abs(dy));
     };
     // Plenty of corners, so a broken edge has some to break; more beside a pass.
@@ -265,7 +256,8 @@ export function drawCraterRock(g, shade, rocks, cell, at, frame, seed) {
   // through stays clear. None on a pass, which has to read as open road.
   for (let y = 0; y < frame.rows; y++) {
     for (let x = 0; x < frame.cols; x++) {
-      if (isRock(x, y) || shade.passes.some(p => p.x === x && p.y === y)) continue;
+      // Nor beside one, where the rover drives over the pass and would seem to run them over.
+      if (isRock(x, y) || shade.passes.some(p => Math.abs(p.x - x) + Math.abs(p.y - y) <= 1)) continue;
       if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isRock(x + dx, y + dy))) continue;
       const count = rand() < 0.6 ? 1 + Math.floor(rand() * 2) : 0;
       const [mx, my] = pos({ x, y });
@@ -337,7 +329,7 @@ export function createShade(shade, maze, planet) {
     if (rover) radial(g, rover.x, rover.y, cell * SHADE.glow, 0.3 + 0.5 * b);
     headlights.cut(g, scene, b);
     g.restore();
-    // A meteor of the weather striking the floor lights it up for a moment, as at night.
+    // A strike, the weather's or a meteor's, lights the floor up for a moment, as at night.
     for (const l of scene.lights) radial(g, l.x, l.y, l.r, l.strength);
 
     ctx.drawImage(layer, 0, 0, w, h);
