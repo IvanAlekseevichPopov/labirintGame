@@ -35,7 +35,7 @@ const INERTIA = 0.55;
 const MAX_ROWS = 11;
 const MAX_COLS = 20;
 // Hand-made levels (night, storm, meteor, ice walls): the generator must not touch them.
-const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 30, 32, 34, 35, 36, 37, 39, 40];
+const LOCKED = [1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 23, 25, 26, 27, 30, 32, 34, 35, 36, 38, 39];
 // level → variant number; changes that level's seed while keeping generation reproducible.
 const VARIANTS = { 26: 1 };
 // level → level whose difficulty it should get, keeping its own size; for levels that felt off in play

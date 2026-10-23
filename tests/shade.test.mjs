@@ -122,7 +122,7 @@ test('the headlights come on down on the crater floor, not on the pass, and go o
   assert.equal(state.lightsOn, false);
 });
 
-test('on level 40 nothing is set on the rim rock, and every decoration can be driven to', () => {
+test('on level 39 nothing is set on the rim rock, and every decoration can be driven to', () => {
   const index = LEVELS.findIndex(l => l.shade);
   game.setLevels(LEVELS);
   game.startLevel(index, now);
